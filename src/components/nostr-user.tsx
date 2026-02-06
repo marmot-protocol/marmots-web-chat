@@ -48,9 +48,11 @@ const sizeClasses: Record<UserAvatarSize, string> = {
 export function UserAvatar({
   pubkey,
   size = "md",
+  className,
 }: {
   pubkey: string;
   size?: UserAvatarSize;
+  className?: string;
 }) {
   const profile = use$(() => eventStore.profile(pubkey), [pubkey]);
 
@@ -59,6 +61,7 @@ export function UserAvatar({
       className={cn(
         "flex items-center justify-center overflow-hidden rounded-full",
         sizeClasses[size],
+        className,
       )}
     >
       <img

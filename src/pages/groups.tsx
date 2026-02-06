@@ -1,34 +1,13 @@
 import { use$ } from "applesauce-react/hooks";
-import { TrashIcon } from "lucide-react";
 import { GroupRumorHistory, MarmotGroup } from "marmot-ts";
-import { Link, Outlet, useLocation, useNavigate } from "react-router";
+import { Link, Outlet, useLocation } from "react-router";
 
 import { AppSidebar } from "@/components/app-sidebar";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { SidebarInset } from "@/components/ui/sidebar";
-import { Switch } from "@/components/ui/switch";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
-import { liveGroups$, marmotClient$ } from "../lib/marmot-client";
+import { liveGroups$ } from "../lib/marmot-client";
 
-function GroupItem({
-  group,
-  onRemove,
-}: {
-  group: MarmotGroup<GroupRumorHistory>;
-  onRemove: () => void;
-}) {
+function GroupItem({ group }: { group: MarmotGroup<GroupRumorHistory> }) {
   const location = useLocation();
   const isActive = location.pathname === `/groups/${group.idStr}`;
   const marmotData = group.groupData;
@@ -41,12 +20,13 @@ function GroupItem({
     : false;
 
   return (
-    <div
-      className={`hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex items-center gap-3 border-b text-sm leading-tight last:border-b-0 ${
+    <Link
+      to={`/groups/${group.idStr}`}
+      className={`hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex items-center gap-3 border-b text-sm leading-tight last:border-b-0 p-4 ${
         isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""
       }`}
     >
-      <Link to={`/groups/${group.idStr}`} className="flex-1 min-w-0 p-4">
+      <div className="flex-1 min-w-0">
         <div className="font-medium truncate flex items-center gap-2">
           <span className="truncate">{name}</span>
           {hasUnread && (
@@ -60,80 +40,26 @@ function GroupItem({
         <div className="text-xs text-muted-foreground truncate font-mono">
           {group.idStr.slice(0, 16)}...
         </div>
-      </Link>
-
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            size="icon"
-            className="mr-2"
-            onClick={(e) => e.stopPropagation()}
-            variant="destructive"
-          >
-            <TrashIcon />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove group?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This only removes the group and its messages from your local list.
-              No protocol action will be published.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                onRemove();
-              }}
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+      </div>
+    </Link>
   );
 }
 
 export default function GroupsPage() {
-  const client = use$(marmotClient$);
   const groups = use$(liveGroups$);
-  const navigate = useNavigate();
-  const location = useLocation();
 
   return (
     <>
-      <AppSidebar
-        title="Groups"
-        actions={
-          <Label className="flex items-center gap-2 text-sm">
-            <span>Unreads</span>
-            <Switch className="shadow-none" />
-          </Label>
-        }
-      >
+      <AppSidebar title="Groups">
         <div className="flex flex-col">
-          <Button asChild className="m-2">
-            <Link to="/groups/create">Create Group</Link>
-          </Button>
+          <Link
+            to="/groups/create"
+            className="m-2 bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2"
+          >
+            Create Group
+          </Link>
           {groups && groups.length > 0 ? (
-            groups.map((group) => (
-              <GroupItem
-                key={group.idStr}
-                group={group}
-                onRemove={async () => {
-                  if (!client) return;
-                  await client.destroyGroup(group.id);
-
-                  // Navigate back to groups page if not already there
-                  if (location.pathname !== `/groups`)
-                    navigate("/groups", { replace: true });
-                }}
-              />
-            ))
+            groups.map((group) => <GroupItem key={group.idStr} group={group} />)
           ) : (
             <div className="p-4 text-sm text-muted-foreground text-center">
               {groups === undefined ? "Loading..." : "No groups yet"}

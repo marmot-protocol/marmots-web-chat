@@ -11,16 +11,16 @@ import {
   unixNow,
 } from "marmot-ts";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { from, of, switchMap } from "rxjs";
 import { catchError, map } from "rxjs/operators";
 
 import { defaultContentComponents } from "@/components/content-renderers";
+import { GroupDetailsDrawer } from "@/components/group/group-details-drawer";
 import { UserBadge } from "@/components/nostr-user";
 import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -38,14 +38,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import { useGroupMessages } from "@/hooks/use-group-messages";
 import accountManager, { accounts, user$ } from "@/lib/accounts";
 import { marmotClient$ } from "@/lib/marmot-client";
@@ -58,19 +50,14 @@ import { withActiveAccount } from "../../components/with-active-account";
 // Component: MessageItem
 // ============================================================================
 
-interface MessageItemProps {
-  rumor: Rumor;
-  isOwnMessage: boolean;
-}
-
-const MessageItem = memo(function MessageItem({
-  rumor,
-  isOwnMessage,
-}: MessageItemProps) {
+const MessageItem = memo(function MessageItem({ rumor }: { rumor: Rumor }) {
+  const account = use$(accounts.active$);
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
     return date.toLocaleTimeString();
   };
+
+  const isOwnMessage = rumor.pubkey === account?.pubkey;
 
   // Render content with rich text formatting
   const content = useRenderedContent(rumor, defaultContentComponents);
@@ -106,18 +93,11 @@ const MessageItem = memo(function MessageItem({
 // Component: MessageList
 // ============================================================================
 
-interface MessageListProps {
-  messages: Rumor[];
-  currentUserPubkey: string | null;
-  loadMoreMessages?: () => Promise<void>;
-  loadingMore?: boolean;
-  loadingDone?: boolean;
-}
-
 const MessageList = memo(function MessageList({
   messages,
-  currentUserPubkey,
-}: MessageListProps) {
+}: {
+  messages: Rumor[];
+}) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -135,11 +115,7 @@ const MessageList = memo(function MessageList({
   return (
     <div className="flex flex-col gap-4">
       {messages.map((rumor, index) => (
-        <MessageItem
-          key={`${rumor.id}-${index}`}
-          rumor={rumor}
-          isOwnMessage={rumor.pubkey === currentUserPubkey}
-        />
+        <MessageItem key={`${rumor.id}-${index}`} rumor={rumor} />
       ))}
       <div ref={messagesEndRef} />
     </div>
@@ -251,140 +227,6 @@ function useMessageSender(group: MarmotGroup<any> | null) {
   };
 
   return { sendMessage, isSending, error };
-}
-
-// ============================================================================
-// Component: GroupDetailsDrawer
-// ============================================================================
-
-interface GroupDetailsDrawerProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  groupDetails: {
-    name: string;
-    epoch: bigint;
-    members: string[];
-    admins: string[];
-  } | null;
-  isAdmin: boolean;
-  onInviteClick: () => void;
-}
-
-function GroupDetailsDrawer({
-  open,
-  onOpenChange,
-  groupDetails,
-  isAdmin,
-  onInviteClick,
-}: GroupDetailsDrawerProps) {
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <Menu className="h-5 w-5" />
-        </Button>
-      </SheetTrigger>
-      <SheetContent
-        side="right"
-        className="w-full sm:max-w-2xl overflow-y-auto"
-      >
-        <SheetHeader>
-          <SheetTitle>Group details</SheetTitle>
-          <SheetDescription>
-            Inspect metadata and MLS state (read-only).
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="p-4 space-y-4 overflow-auto">
-          {groupDetails && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="text-xs text-muted-foreground">Name</div>
-                  <div className="text-sm font-medium">{groupDetails.name}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Epoch</div>
-                  <div className="text-sm font-mono">
-                    {String(groupDetails.epoch)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Admins Section */}
-              <div>
-                <div className="text-xs text-muted-foreground mb-3">
-                  Admins ({groupDetails.admins.length})
-                </div>
-                <div className="space-y-2">
-                  {groupDetails.admins.map((pk) => (
-                    <Link key={pk} to={`/contacts/${pk}`} className="block">
-                      <Card
-                        size="sm"
-                        className="cursor-pointer hover:bg-accent transition-colors"
-                      >
-                        <CardHeader>
-                          <CardContent className="p-0">
-                            <UserBadge pubkey={pk} size="md" />
-                          </CardContent>
-                        </CardHeader>
-                      </Card>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-
-              {/* Members Section */}
-              <div>
-                <div className="text-xs text-muted-foreground mb-3">
-                  Members ({groupDetails.members.length})
-                </div>
-                {groupDetails.members.length > 0 ? (
-                  <div className="space-y-2">
-                    {groupDetails.members.map((pk) => (
-                      <Link key={pk} to={`/contacts/${pk}`} className="block">
-                        <Card
-                          size="sm"
-                          className="cursor-pointer hover:bg-accent transition-colors"
-                        >
-                          <CardHeader>
-                            <CardContent className="p-0">
-                              <UserBadge pubkey={pk} size="md" />
-                            </CardContent>
-                          </CardHeader>
-                        </Card>
-                      </Link>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    No additional members
-                  </p>
-                )}
-              </div>
-
-              {/* Invite Member Button */}
-              <div className="pt-2">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={!isAdmin}
-                  onClick={onInviteClick}
-                >
-                  Invite member
-                </Button>
-                {!isAdmin && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Only group admins can invite members
-                  </p>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
 }
 
 // ============================================================================
@@ -546,6 +388,14 @@ function GroupDetailPage() {
     }
   };
 
+  const handlePurgeGroup = async () => {
+    const client = await marmotClient$
+      .pipe(switchMap((c) => (c ? of(c) : of(null))))
+      .toPromise();
+    if (!client || !group) return;
+    await client.destroyGroup(group.id);
+  };
+
   if (!id) {
     return (
       <>
@@ -615,6 +465,13 @@ function GroupDetailPage() {
             groupDetails={groupDetails}
             isAdmin={isAdmin}
             onInviteClick={() => setInviteOpen(true)}
+            group={group}
+            onPurgeGroup={handlePurgeGroup}
+            trigger={
+              <Button variant="ghost" size="icon">
+                <Menu className="h-5 w-5" />
+              </Button>
+            }
           />
         }
       />
@@ -719,27 +576,22 @@ function GroupDetailPage() {
         )}
 
         {/* Messages - flex-col-reverse for scroll-to-bottom behavior */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="flex flex-col-reverse h-full">
-            <MessageList
-              messages={messages}
-              currentUserPubkey={account?.pubkey ?? null}
-            />
-            {loadMoreMessages && !loadingDone && (
-              <div className="flex justify-center py-2">
-                <Button onClick={loadMoreMessages} disabled={loadingMore}>
-                  {loadingMore ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    "Load older messages"
-                  )}
-                </Button>
-              </div>
-            )}
-          </div>
+        <div className="flex flex-col-reverse h-full overflow-y-auto overflow-x-hidden px-2 pt-10">
+          <MessageList messages={messages} />
+          {loadMoreMessages && !loadingDone && (
+            <div className="flex justify-center py-2">
+              <Button onClick={loadMoreMessages} disabled={loadingMore}>
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  "Load older messages"
+                )}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Message Input - sticky at bottom; state lives in MessageForm to avoid full-page re-renders on typing */}
