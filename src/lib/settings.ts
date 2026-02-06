@@ -37,6 +37,14 @@ persist("lookup-relays", lookupRelays$);
 // Manual relays (empty by default, can be extended in the future)
 export const manualRelays$ = new BehaviorSubject<string[]>([]);
 
+// Tabs that are pinned under the app switcher
+export const pinnedTabs$ = new BehaviorSubject<string[]>([
+  "/groups",
+  "/invites",
+  "/contacts",
+]);
+persist("pinned-tabs", pinnedTabs$);
+
 // Combined relay configuration observable
 export const relayConfig$ = combineLatest([
   lookupRelays$,

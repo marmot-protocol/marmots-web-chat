@@ -17,6 +17,7 @@ import { keyPackageRelays$, publishedKeyPackages$ } from "@/lib/lifecycle";
 import { liveKeyPackages$ } from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
 import { formatTimeAgo } from "@/lib/time";
+import { SettingsIcon } from "lucide-react";
 
 /** An observable of all relays to read key packages from */
 const readRelays$ = combineLatest([
@@ -126,7 +127,16 @@ function KeyPackagesPage() {
     <>
       <AppSidebar
         title="Key Packages"
-        actions={<SubscriptionStatusButton relays={readRelays$} />}
+        footer={
+          <div className="flex">
+            <Button asChild variant="ghost" size="icon">
+              <Link to="/settings/marmot">
+                <SettingsIcon />
+              </Link>
+            </Button>
+            <SubscriptionStatusButton relays={readRelays$} />
+          </div>
+        }
       >
         <div className="flex flex-col">
           <Button asChild variant="default" className="m-2">

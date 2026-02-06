@@ -74,9 +74,9 @@ export function SubscriptionStatusButton({
       <PopoverTrigger asChild>
         <Button variant="ghost">
           {connected ? (
-            <WifiHighIcon className="w-4 h-4" />
+            <WifiHighIcon />
           ) : (
-            <WifiOffIcon className="w-4 h-4 text-red-500" />
+            <WifiOffIcon className="text-red-500" />
           )}
           {connected && (
             <span className="text-xs text-muted-foreground">

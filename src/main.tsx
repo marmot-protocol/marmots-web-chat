@@ -15,11 +15,13 @@ import ContactsIndexPage from "./pages/contacts/index.tsx";
 import GroupsPage from "./pages/groups.tsx";
 import GroupDetailPage from "./pages/groups/[id].tsx";
 import CreateGroupPage from "./pages/groups/create.tsx";
+import GroupsIndexPage from "./pages/groups/index.tsx";
 import HomePage from "./pages/index.tsx";
 import InvitesPage from "./pages/invites.tsx";
 import KeyPackagePage from "./pages/key-packages.tsx";
 import KeyPackageDetailPage from "./pages/key-packages/[id].tsx";
 import CreateKeyPackagePage from "./pages/key-packages/create.tsx";
+import ProfilePage from "./pages/profile.tsx";
 import SettingsPage from "./pages/settings.tsx";
 import SettingsAccountPage from "./pages/settings/account.tsx";
 import SettingsAccountsPage from "./pages/settings/accounts.tsx";
@@ -49,7 +51,9 @@ createRoot(document.getElementById("root")!).render(
         <BrowserRouter basename={import.meta.env.VITE_BASE_PATH}>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/groups" element={<GroupsPage />}>
+              <Route index element={<GroupsIndexPage />} />
               <Route path="create" element={<CreateGroupPage />} />
               <Route path=":id" element={<GroupDetailPage />} />
             </Route>

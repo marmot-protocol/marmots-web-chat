@@ -123,26 +123,24 @@ export default function ContactsPage() {
 
   return (
     <>
-      <AppSidebar
-        title="Contacts"
-        actions={
-          <Label className="flex items-center gap-2 text-sm">
-            <span>Setup MLS</span>
-            <Switch
-              className="shadow-none"
-              checked={hasKeyPackageRelays}
-              onCheckedChange={(checked) => hasKeyPackageRelays$.next(checked)}
-            />
-          </Label>
-        }
-      >
+      <AppSidebar title="Contacts">
         <div className="flex flex-col">
-          <div className="p-2 border-b">
+          <div className="p-2 border-b flex gap-2">
             <SidebarInput
               placeholder="Search contacts..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
+            <Label className="flex items-center gap-2 text-sm shrink-0">
+              <span>MLS</span>
+              <Switch
+                className="shadow-none"
+                checked={hasKeyPackageRelays}
+                onCheckedChange={(checked) =>
+                  hasKeyPackageRelays$.next(checked)
+                }
+              />
+            </Label>
           </div>
           {filteredContacts && filteredContacts.length > 0 ? (
             filteredContacts.map((contact) => (

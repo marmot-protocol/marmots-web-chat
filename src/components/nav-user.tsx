@@ -1,6 +1,12 @@
 import { getDisplayName, getProfilePicture } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
-import { ChevronsUpDown, LogOutIcon, PlusIcon, UserIcon } from "lucide-react";
+import {
+  ChevronsUpDown,
+  LogOutIcon,
+  PlusIcon,
+  User2Icon,
+  UserIcon,
+} from "lucide-react";
 import { useNavigate } from "react-router";
 import accountManager from "../lib/accounts";
 import { eventStore } from "../lib/nostr";
@@ -196,6 +202,12 @@ export default function NavUser() {
                 </>
               )}
               <DropdownMenuGroup>
+                {active && (
+                  <DropdownMenuItem onClick={() => navigate("/profile")}>
+                    <User2Icon className="size-4" />
+                    View Profile
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={handleSignIn}>
                   <PlusIcon className="size-4" />
                   Add Account
