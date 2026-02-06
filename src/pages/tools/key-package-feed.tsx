@@ -21,6 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { pool } from "@/lib/nostr";
 import { relayConfig$ } from "@/lib/settings";
 import { formatTimeAgo } from "@/lib/time";
+import ErrorBoundary from "../../components/error-boundary";
 import { NewRelayForm } from "../settings/relays";
 
 function RelayCard({ url }: { url: string }) {
@@ -184,7 +185,9 @@ export default function KeyPackageFeedPage() {
               </div>
             ) : (
               uniqueEvents.map((event) => (
-                <KeyPackageItem key={event.id} event={event as NostrEvent} />
+                <ErrorBoundary key={event.id}>
+                  <KeyPackageItem event={event} />
+                </ErrorBoundary>
               ))
             )}
           </div>
