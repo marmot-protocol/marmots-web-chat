@@ -36,7 +36,7 @@ function AccountItem({
 }) {
   const [showPrivateKey, setShowPrivateKey] = useState(false);
   const isPrivateKeyAccount = account instanceof PrivateKeyAccount;
-  
+
   const getPrivateKey = () => {
     if (!isPrivateKeyAccount) return null;
     try {

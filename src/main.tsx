@@ -14,6 +14,9 @@ import ContactDetailPage from "./pages/contacts/[npub].tsx";
 import ContactsIndexPage from "./pages/contacts/index.tsx";
 import GroupsPage from "./pages/groups.tsx";
 import GroupDetailPage from "./pages/groups/[id].tsx";
+import GroupAdminPage from "./pages/groups/[id]/admin.tsx";
+import GroupChatPage from "./pages/groups/[id]/chat.tsx";
+import GroupMembersPage from "./pages/groups/[id]/members.tsx";
 import CreateGroupPage from "./pages/groups/create.tsx";
 import GroupsIndexPage from "./pages/groups/index.tsx";
 import HomePage from "./pages/index.tsx";
@@ -55,7 +58,12 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/groups" element={<GroupsPage />}>
               <Route index element={<GroupsIndexPage />} />
               <Route path="create" element={<CreateGroupPage />} />
-              <Route path=":id" element={<GroupDetailPage />} />
+              <Route path=":id" element={<GroupDetailPage />}>
+                <Route index element={<GroupChatPage />} />
+                <Route path="chat" element={<GroupChatPage />} />
+                <Route path="members" element={<GroupMembersPage />} />
+                <Route path="admin" element={<GroupAdminPage />} />
+              </Route>
             </Route>
             <Route path="/invites" element={<InvitesPage />} />
             <Route path="/key-packages" element={<KeyPackagePage />}>

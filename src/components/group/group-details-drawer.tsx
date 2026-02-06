@@ -1,10 +1,10 @@
 import { npubEncode } from "applesauce-core/helpers";
 import { Loader2 } from "lucide-react";
-import { MarmotGroup } from "marmot-ts";
+import { getNostrGroupIdHex, MarmotGroup } from "marmot-ts";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
-import { UserAvatar, UserBadge, UserName } from "@/components/nostr-user";
+import { UserAvatar, UserName } from "@/components/nostr-user";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardHeader } from "@/components/ui/card";
 import {
   Sheet,
   SheetContent,
@@ -28,7 +28,9 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
+import { use$ } from "applesauce-react/hooks";
 import type { GroupRumorHistory } from "marmot-ts";
+import { marmotClient$ } from "../../lib/marmot-client";
 
 interface GroupDetailsDrawerProps {
   open: boolean;
@@ -40,9 +42,7 @@ interface GroupDetailsDrawerProps {
     admins: string[];
   } | null;
   isAdmin: boolean;
-  onInviteClick: () => void;
   group: MarmotGroup<GroupRumorHistory> | null;
-  onPurgeGroup: () => Promise<void>;
   trigger?: React.ReactNode;
 }
 
@@ -51,7 +51,7 @@ function UserLinkCard({ pubkey }: { pubkey: string }) {
     <Link key={pubkey} to={`/contacts/${pubkey}`} className="block">
       <Card className="cursor-pointer hover:bg-accent transition-colors">
         <CardHeader className="flex items-center gap-2 overflow-hidden">
-          <UserAvatar pubkey={pubkey} size="md" />
+          <UserAvatar pubkey={pubkey} size="md" className="shrink-0" />
           <div className="overflow-hidden">
             <span className="font-bold truncate whitespace-pre">
               <UserName pubkey={pubkey} />
@@ -71,19 +71,21 @@ export function GroupDetailsDrawer({
   onOpenChange,
   groupDetails,
   isAdmin,
-  onInviteClick,
   group,
-  onPurgeGroup,
   trigger,
 }: GroupDetailsDrawerProps) {
   const navigate = useNavigate();
   const [isPurgingGroup, setIsPurgingGroup] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
 
+  const groupIdHex = group ? getNostrGroupIdHex(group.state) : null;
+
+  const client = use$(marmotClient$);
   const handlePurgeGroup = async () => {
+    if (!client || !group) throw new Error("Group not found");
     try {
       setIsPurgingGroup(true);
-      await onPurgeGroup();
+      await client.destroyGroup(group.id);
       onOpenChange(false);
       navigate("/groups", { replace: true });
     } catch (error) {
@@ -157,18 +159,7 @@ export function GroupDetailsDrawer({
                 {groupDetails.members.length > 0 ? (
                   <div className="space-y-2">
                     {groupDetails.members.map((pk) => (
-                      <Link key={pk} to={`/contacts/${pk}`} className="block">
-                        <Card
-                          size="sm"
-                          className="cursor-pointer hover:bg-accent transition-colors"
-                        >
-                          <CardHeader>
-                            <CardContent className="p-0">
-                              <UserBadge pubkey={pk} size="md" />
-                            </CardContent>
-                          </CardHeader>
-                        </Card>
-                      </Link>
+                      <UserLinkCard key={pk} pubkey={pk} />
                     ))}
                   </div>
                 ) : (
@@ -178,21 +169,25 @@ export function GroupDetailsDrawer({
                 )}
               </div>
 
-              {/* Invite Member Button */}
+              {/* Manage Members Button */}
               <div className="pt-2">
                 <Button
                   variant="outline"
                   className="w-full"
-                  disabled={!isAdmin}
-                  onClick={onInviteClick}
+                  onClick={() => {
+                    if (groupIdHex) {
+                      navigate(`/groups/${groupIdHex}/members`);
+                      onOpenChange(false);
+                    }
+                  }}
                 >
-                  Invite member
+                  Manage members
                 </Button>
-                {!isAdmin && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Only group admins can invite members
-                  </p>
-                )}
+                <p className="text-xs text-muted-foreground mt-2">
+                  {isAdmin
+                    ? "View, invite, and remove group members"
+                    : "View group members"}
+                </p>
               </div>
             </>
           )}

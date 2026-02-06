@@ -109,7 +109,11 @@ function InvitesPage() {
     <>
       <AppSidebar
         title="Invites"
-        actions={<SubscriptionStatusButton relays={readRelays$} />}
+        footer={
+          <div className="flex">
+            <SubscriptionStatusButton relays={readRelays$} />
+          </div>
+        }
       >
         <div className="flex flex-col">
           <div className="p-2">

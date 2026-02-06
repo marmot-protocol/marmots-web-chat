@@ -9,7 +9,7 @@ import { liveGroups$ } from "../lib/marmot-client";
 
 function GroupItem({ group }: { group: MarmotGroup<GroupRumorHistory> }) {
   const location = useLocation();
-  const isActive = location.pathname === `/groups/${group.idStr}`;
+  const isActive = location.pathname.startsWith(`/groups/${group.idStr}`);
   const marmotData = group.groupData;
   const name = marmotData?.name || "Unnamed Group";
 

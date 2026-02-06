@@ -52,7 +52,7 @@ export function useGroupMessages(
     if (!paginatedLoader) return;
     setLoadingMore(true);
     const page = await paginatedLoader.next();
-    addNewMessages(page.value);
+    if (page.value) addNewMessages(page.value);
     if (page.done) setLoadingDone(page.done);
     setLoadingMore(false);
   }, [paginatedLoader, addNewMessages]);
