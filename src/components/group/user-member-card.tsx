@@ -47,7 +47,7 @@ export function UserMemberCard({
       setError(null);
 
       // Propose kicking the user (removes all their leaf nodes)
-      await group.propose(Proposals.proposeKickUser, pubkey);
+      await group.propose(Proposals.proposeKickUser(pubkey));
 
       // Commit the proposal (admin-only operation)
       await group.commit();
