@@ -47,7 +47,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build marmot-ts
-        run: cd marmot-ts && pnpm build
+        run: pnpm build
+        working-directory: marmot-ts
 
       - name: Build
         run: pnpm build
