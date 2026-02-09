@@ -48,9 +48,6 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build marmot-ts
-        run: pnpm --filter marmot-ts build
-
       - name: Build
         run: pnpm build
 
