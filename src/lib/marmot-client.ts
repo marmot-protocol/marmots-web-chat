@@ -3,16 +3,15 @@ import { NostrEvent } from "applesauce-core/helpers/event";
 import { onlyEvents } from "applesauce-relay";
 import {
   GroupRumorHistory,
+  InviteReader,
+  KeyPackageStore,
   MarmotClient,
   MarmotGroup,
   NostrNetworkInterface,
   PublishResponse,
-  KeyPackageStore,
-  InviteReader,
 } from "marmot-ts";
 import {
   combineLatest,
-  EMPTY,
   firstValueFrom,
   lastValueFrom,
   map,

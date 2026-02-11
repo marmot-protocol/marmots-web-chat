@@ -53,7 +53,7 @@ function InvitesPage() {
     try {
       setError(null);
       setIsDecrypting(true);
-      const newInvites = await inviteReader.processReceived();
+      const newInvites = await inviteReader.decryptGiftWraps();
       console.log(`Decrypted ${newInvites.length} new invite(s)`);
     } catch (err) {
       console.error("Failed to decrypt invites:", err);
