@@ -306,8 +306,9 @@ function ContactRelaysTab({
       <div>
         <h3 className="text-lg font-semibold mb-2">Key Package Relay List</h3>
         <p className="text-sm text-muted-foreground">
-          This user publishes their key package relay list (kind 10051) to
-          indicate where their key packages can be found.
+          This user publishes their key package relay list (kind{" "}
+          {KEY_PACKAGE_RELAY_LIST_KIND}) to indicate where their key packages
+          can be found.
         </p>
       </div>
 

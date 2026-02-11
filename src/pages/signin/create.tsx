@@ -1,5 +1,14 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { IconRefresh } from "@tabler/icons-react";
 import { PrivateKeyAccount } from "applesauce-accounts/accounts";
+import { buildEvent } from "applesauce-core";
+import { relaySet } from "applesauce-core/helpers";
 import { setProfile } from "applesauce-core/operations/profile";
+import { use$ } from "applesauce-react/hooks";
+import { createKeyPackageRelayListEvent } from "marmot-ts";
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import {
@@ -8,18 +17,10 @@ import {
   colors,
   uniqueNamesGenerator,
 } from "unique-names-generator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Avatar, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { IconRefresh } from "@tabler/icons-react";
-import { buildEvent } from "applesauce-core";
-import { relaySet } from "applesauce-core/helpers";
-import { use$ } from "applesauce-react/hooks";
-import { createKeyPackageRelayListEvent } from "marmot-ts";
-import accountManager from "../../lib/accounts";
-import { eventStore, pool } from "../../lib/nostr";
-import { extraRelays$, lookupRelays$ } from "../../lib/settings";
+
+import accountManager from "@/lib/accounts";
+import { eventStore, pool } from "@/lib/nostr";
+import { extraRelays$, lookupRelays$ } from "@/lib/settings";
 
 interface NewUserProps {
   onSuccess?: () => void;
