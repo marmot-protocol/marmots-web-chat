@@ -3,13 +3,15 @@ import { NostrEvent } from "applesauce-core/helpers/event";
 import { onlyEvents } from "applesauce-relay";
 import {
   GroupRumorHistory,
+  InviteReader,
+  KeyPackageStore,
   MarmotClient,
   MarmotGroup,
   NostrNetworkInterface,
   PublishResponse,
-  KeyPackageStore,
 } from "marmot-ts";
 import {
+  combineLatest,
   firstValueFrom,
   lastValueFrom,
   map,
@@ -80,6 +82,35 @@ export const marmotClient$ = accounts.active$.pipe(
     });
   }),
   startWith(undefined),
+  shareReplay(1),
+);
+
+// Create invite reader instance for handling gift wrap invites
+export const inviteReader$ = combineLatest([
+  marmotClient$,
+  accounts.active$,
+]).pipe(
+  switchMap(async ([client, account]) => {
+    if (!client || !account) return;
+
+    const { inviteStore } = await databaseBroker.getStorageInterfacesForAccount(
+      account.pubkey,
+    );
+
+    return new InviteReader({ store: inviteStore, signer: account.signer });
+  }),
+  shareReplay(1),
+);
+
+/** An observable of all received invites for the current user */
+export const liveReceivedInvites$ = inviteReader$.pipe(
+  switchMap((reader) => (reader ? reader.watchReceived() : of([]))),
+  shareReplay(1),
+);
+
+/** An observable of all unread invites for the current user */
+export const liveUnreadInvites$ = inviteReader$.pipe(
+  switchMap((reader) => (reader ? reader.watchUnread() : of([]))),
   shareReplay(1),
 );
 

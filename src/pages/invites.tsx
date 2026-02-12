@@ -1,7 +1,8 @@
-import { bytesToHex, relaySet } from "applesauce-core/helpers";
+import { IconAlertCircle, IconLock } from "@tabler/icons-react";
+import { relaySet } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useState } from "react";
+import { Outlet, useNavigate } from "react-router";
 import { combineLatest, map, shareReplay } from "rxjs";
 
 import { AppSidebar } from "@/components/app-sidebar";
@@ -10,98 +11,55 @@ import { PageHeader } from "@/components/page-header";
 import { SubscriptionStatusButton } from "@/components/subscription-status-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { withActiveAccount } from "@/components/with-active-account";
 import { user$ } from "@/lib/accounts";
-import type { PendingInvite } from "@/lib/invitation-inbox-manager";
-import { marmotClient$ } from "@/lib/marmot-client";
-import { getInvitationInboxManager } from "@/lib/runtime";
+import { keyPackageRelays$ } from "@/lib/lifecycle";
+import {
+  inviteReader$,
+  liveReceivedInvites$,
+  liveUnreadInvites$,
+} from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
 
 /** An observable of all relays to read invites from (user inboxes + extra relays) */
-const readRelays$ = combineLatest([user$.inboxes$, extraRelays$]).pipe(
+const readRelays$ = combineLatest([
+  user$.directMessageRelays$,
+  keyPackageRelays$,
+  extraRelays$,
+]).pipe(
   map((all) => relaySet(...all)),
   shareReplay(1),
 );
 
-function InviteRow({
-  invite,
-  isSelected,
-  onSelect,
-}: {
-  invite: PendingInvite;
-  isSelected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      className={`w-full text-left border rounded-lg p-3 transition-colors ${
-        isSelected ? "bg-accent" : "hover:bg-accent"
-      }`}
-      onClick={onSelect}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="text-sm font-medium">Group invitation</div>
-          <div className="text-xs text-muted-foreground font-mono truncate">
-            {invite.id.slice(0, 16)}...{invite.id.slice(-8)}
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">
-            Received: {new Date(invite.receivedAt * 1000).toLocaleString()}
-          </div>
-          {invite.cipherSuite && (
-            <div className="text-xs text-muted-foreground mt-1">
-              CipherSuite: {invite.cipherSuite}
-            </div>
-          )}
-        </div>
-        <div className="text-xs px-2 py-1 border rounded capitalize">
-          {invite.status}
-        </div>
-      </div>
-    </button>
-  );
-}
-
 function InvitesPage() {
   const navigate = useNavigate();
-  const client = use$(marmotClient$);
-  const inbox = getInvitationInboxManager();
-  const invites = use$(inbox?.invites$);
+  const inviteReader = use$(inviteReader$);
 
-  const [selectedId, setSelectedId] = useState<string>("");
+  // Watch received (encrypted) gift wraps
+  const received = use$(liveReceivedInvites$);
+
+  // Watch unread (decrypted) invites
+  const unread = use$(liveUnreadInvites$);
+
   const [error, setError] = useState<string | null>(null);
-  const [isJoining, setIsJoining] = useState(false);
+  const [isDecrypting, setIsDecrypting] = useState(false);
 
-  useEffect(() => {
-    setSelectedId((prev) => (prev ? prev : (invites?.[0]?.id ?? "")));
-  }, [invites]);
+  const receivedCount = received?.length ?? 0;
 
-  const pending = useMemo(
-    () => (invites ?? []).filter((i) => i.status === "pending"),
-    [invites],
-  );
-  const selected = pending.find((i) => i.id === selectedId) ?? null;
-
-  const handleJoin = async () => {
-    if (!client || !selected) return;
+  /** Decrypt pending gift wraps and add them to unread */
+  const handleDecryptPending = async () => {
+    if (!inviteReader) return;
     try {
       setError(null);
-      setIsJoining(true);
-      const group = await client.joinGroupFromWelcome({
-        welcomeRumor: selected.welcomeRumor,
-        keyPackageEventId: selected.keyPackageEventId,
-      });
-
-      await inbox?.setInviteStatus(selected.id, "accepted");
-      navigate(`/groups/${bytesToHex(group.state.groupContext.groupId)}`);
+      setIsDecrypting(true);
+      const newInvites = await inviteReader.decryptGiftWraps();
+      console.log(`Decrypted ${newInvites.length} new invite(s)`);
     } catch (err) {
-      console.error("Failed to join group:", err);
+      console.error("Failed to decrypt invites:", err);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setIsJoining(false);
+      setIsDecrypting(false);
     }
   };
 
@@ -116,31 +74,39 @@ function InvitesPage() {
         }
       >
         <div className="flex flex-col">
+          {/* Decrypt pending button/prompt at top of sidebar */}
+          {receivedCount > 0 && (
+            <div className="p-2 border-b">
+              <Button
+                className="w-full"
+                onClick={handleDecryptPending}
+                disabled={isDecrypting}
+              >
+                {isDecrypting
+                  ? `Decrypting ${receivedCount}...`
+                  : `Decrypt ${receivedCount} invite${receivedCount === 1 ? "" : "s"}`}
+              </Button>
+            </div>
+          )}
+
           <div className="p-2">
             <div className="text-xs text-muted-foreground">
-              Pending invitations ({pending.length})
+              Unread invitations ({unread?.length ?? 0})
             </div>
           </div>
-          {pending.length > 0 ? (
-            pending.map((inv) => (
+
+          {/* Show unread invites in sidebar */}
+          {unread && unread.length > 0 ? (
+            unread.map((inv) => (
               <button
                 key={inv.id}
-                onClick={() => setSelectedId(inv.id)}
-                className={`hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex flex-col items-start gap-1 border-b p-4 text-sm leading-tight text-left ${
-                  inv.id === selectedId
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : ""
-                }`}
+                onClick={() => navigate(`/invites/${inv.id}`)}
+                className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex flex-col items-start gap-1 border-b p-4 text-sm leading-tight text-left"
               >
                 <div className="flex w-full items-center gap-2">
                   <span className="font-medium truncate">Group invitation</span>
-                  {inv.cipherSuite && (
-                    <span className="text-xs text-muted-foreground">
-                      {inv.cipherSuite}
-                    </span>
-                  )}
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {new Date(inv.receivedAt * 1000).toLocaleDateString()}
+                  <span className="ml-auto text-xs text-muted-foreground truncate">
+                    {inv.pubkey.slice(0, 8)}...
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground font-mono truncate w-full">
@@ -150,7 +116,9 @@ function InvitesPage() {
             ))
           ) : (
             <div className="p-4 text-sm text-muted-foreground text-center">
-              No pending invites.
+              {receivedCount > 0
+                ? "Decrypt pending invites to view them"
+                : "No unread invites."}
             </div>
           )}
         </div>
@@ -160,113 +128,45 @@ function InvitesPage() {
           items={[{ label: "Home", to: "/" }, { label: "Invites" }]}
         />
         <PageBody>
-          {!inbox && (
+          {!inviteReader && (
             <Alert variant="destructive">
               <AlertDescription>
-                Invitation inbox manager is not running (not signed in yet?).
+                Invitation reader is not initialized (not signed in yet?).
               </AlertDescription>
             </Alert>
           )}
 
           {error && (
             <Alert variant="destructive">
+              <IconAlertCircle className="w-4 h-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-baseline justify-between">
-                  <span>Pending invites</span>
-                  <span className="text-xs text-muted-foreground">
-                    {pending.length}
+          {/* Decrypt pending button in main content */}
+          {receivedCount > 0 && (
+            <Alert>
+              <IconLock className="w-4 h-4" />
+              <AlertDescription>
+                <div className="flex items-center justify-between gap-4">
+                  <span>
+                    You have {receivedCount} encrypted invite
+                    {receivedCount === 1 ? "" : "s"} waiting to be decrypted.
                   </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {pending.length > 0 ? (
-                  pending.map((inv) => (
-                    <InviteRow
-                      key={inv.id}
-                      invite={inv}
-                      isSelected={inv.id === selectedId}
-                      onSelect={() => setSelectedId(inv.id)}
-                    />
-                  ))
-                ) : (
-                  <div className="text-sm text-muted-foreground border rounded-lg p-6 text-center">
-                    No pending invites.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDecryptPending}
+                    disabled={isDecrypting}
+                  >
+                    {isDecrypting ? "Decrypting..." : "Decrypt now"}
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Invite details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {selected ? (
-                  <>
-                    <div className="text-sm">
-                      <div className="text-xs text-muted-foreground">
-                        Gift wrap id
-                      </div>
-                      <div className="font-mono text-xs break-all">
-                        {selected.id}
-                      </div>
-                    </div>
-
-                    <Separator />
-
-                    {selected.keyPackageEventId && (
-                      <div className="text-sm">
-                        <div className="text-xs text-muted-foreground">
-                          KeyPackage event
-                        </div>
-                        <div className="font-mono text-xs break-all">
-                          {selected.keyPackageEventId}
-                        </div>
-                      </div>
-                    )}
-                    {selected.relays.length > 0 && (
-                      <div className="text-sm">
-                        <div className="text-xs text-muted-foreground">
-                          Relays
-                        </div>
-                        <div className="text-xs break-all">
-                          {selected.relays.join(", ")}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2 justify-end pt-2">
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          inbox?.setInviteStatus(selected.id, "archived")
-                        }
-                        disabled={isJoining}
-                      >
-                        Archive
-                      </Button>
-                      <Button
-                        onClick={handleJoin}
-                        disabled={isJoining || selected.status !== "pending"}
-                      >
-                        {isJoining ? "Joining..." : "Join group"}
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-sm text-muted-foreground border rounded-lg p-6 text-center">
-                    Select an invite to see details.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+          <Outlet />
         </PageBody>
       </SidebarInset>
     </>

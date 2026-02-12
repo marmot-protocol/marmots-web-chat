@@ -14,6 +14,7 @@ import {
   KeyPackageStore,
   GroupStateStoreBackend,
   KeyValueGroupStateBackend,
+  InviteStore,
 } from "marmot-ts";
 
 const DB_VERSION = 1;
@@ -126,6 +127,7 @@ type StorageInterfaces = {
   groupStateBackend: GroupStateStoreBackend;
   historyFactory: GroupHistoryFactory<GroupRumorHistory>;
   keyPackageStore: KeyPackageStore;
+  inviteStore: InviteStore;
 };
 
 /** A singleton class that manages databases for  */
@@ -167,10 +169,12 @@ export class MultiAccountDatabaseBroker {
     const existing = this.#storageInterfaces.get(pubkey);
     if (existing) return existing;
 
+    const databaseKey = `${pubkey}-key-value`;
+
     // Create a localforage instance for group state storage
     // Namespacing is handled by the backend instance (per-account database)
     const groupStateKeyValueBackend = localforage.createInstance({
-      name: `${pubkey}-key-value`,
+      name: databaseKey,
       storeName: "groups",
     });
 
@@ -181,7 +185,7 @@ export class MultiAccountDatabaseBroker {
 
     const keyPackageStore = new KeyPackageStore(
       localforage.createInstance({
-        name: `${pubkey}-key-value`,
+        name: databaseKey,
         storeName: "keyPackages",
       }),
     );
@@ -190,14 +194,83 @@ export class MultiAccountDatabaseBroker {
     const historyFactory = (groupId: Uint8Array) =>
       new GroupRumorHistory(new IdbRumorHistoryBackend(rumorDatabase, groupId));
 
+    // Create the storage interfaces for the invite store
+    const inviteStore: InviteStore = {
+      unread: localforage.createInstance({
+        name: databaseKey,
+        storeName: "invites-unread",
+      }),
+      received: localforage.createInstance({
+        name: databaseKey,
+        storeName: "invites-received",
+      }),
+      seen: localforage.createInstance({
+        name: databaseKey,
+        storeName: "invites-seen",
+      }),
+    };
+
     const storageInterfaces: StorageInterfaces = {
       groupStateBackend,
       historyFactory,
       keyPackageStore,
+      inviteStore,
     };
 
     this.#storageInterfaces.set(pubkey, storageInterfaces);
     return storageInterfaces;
+  }
+
+  /**
+   * Purges all databases for a given account.
+   * This includes:
+   * - IndexedDB rumors database
+   * - LocalForage group state
+   * - LocalForage key packages
+   * - LocalForage invite stores
+   *
+   * @param pubkey - The public key of the account to purge
+   */
+  async purgeDatabase(pubkey: string): Promise<void> {
+    const databaseKey = `${pubkey}-key-value`;
+
+    // Close and delete IndexedDB database
+    const db = this.customDatabases.get(pubkey);
+    if (db) {
+      const resolvedDb = await db;
+      resolvedDb.close();
+      this.customDatabases.delete(pubkey);
+      await new Promise<void>((resolve, reject) => {
+        const request = indexedDB.deleteDatabase(pubkey);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+        request.onblocked = () => {
+          console.warn(`Database ${pubkey} deletion blocked`);
+        };
+      });
+    }
+
+    // Drop all LocalForage stores for this account
+    await localforage.dropInstance({ name: databaseKey, storeName: "groups" });
+    await localforage.dropInstance({
+      name: databaseKey,
+      storeName: "keyPackages",
+    });
+    await localforage.dropInstance({
+      name: databaseKey,
+      storeName: "invites-unread",
+    });
+    await localforage.dropInstance({
+      name: databaseKey,
+      storeName: "invites-received",
+    });
+    await localforage.dropInstance({
+      name: databaseKey,
+      storeName: "invites-seen",
+    });
+
+    // Remove from in-memory cache
+    this.#storageInterfaces.delete(pubkey);
   }
 }
 

@@ -1,5 +1,5 @@
 import { defined, mapEventsToStore } from "applesauce-core";
-import { NostrEvent, relaySet } from "applesauce-core/helpers";
+import { kinds, NostrEvent, relaySet } from "applesauce-core/helpers";
 import { onlyEvents } from "applesauce-relay";
 import {
   calculateKeyPackageRef,
@@ -7,10 +7,12 @@ import {
   getKeyPackageRelayList,
   KEY_PACKAGE_KIND,
   KEY_PACKAGE_RELAY_LIST_KIND,
+  unixNow,
 } from "marmot-ts";
 import {
   combineLatest,
   defer,
+  EMPTY,
   from,
   ignoreElements,
   map,
@@ -18,13 +20,15 @@ import {
   mergeMap,
   of,
   scan,
+  share,
   shareReplay,
   switchMap,
+  tap,
 } from "rxjs";
 import { KeyPackage } from "ts-mls";
 
-import { user$ } from "./accounts";
-import { marmotClient$ } from "./marmot-client";
+import accounts, { user$ } from "./accounts";
+import { inviteReader$, marmotClient$ } from "./marmot-client";
 import { eventStore, pool } from "./nostr";
 import { extraRelays$ } from "./settings";
 
@@ -120,3 +124,53 @@ export const publishedKeyPackages$ = combineLatest([
   }),
   shareReplay(1),
 );
+
+/** An observable that requests the last 2 weeks of gift wrap events from the user's inboxes and key package relays */
+export const syncInvites$ = combineLatest([
+  accounts.active$,
+  inviteReader$,
+  user$.directMessageRelays$,
+  keyPackageRelays$,
+  extraRelays$,
+]).pipe(
+  switchMap(
+    ([
+      account,
+      inviteReader,
+      directMessageRelays,
+      keyPackageRelays,
+      extraRelays,
+    ]) => {
+      if (!account || !inviteReader) return EMPTY;
+
+      // Read invites from both direct message relays (GiftWrap) and key package relays
+      const relays = relaySet(
+        directMessageRelays,
+        keyPackageRelays,
+        extraRelays,
+      );
+
+      if (relays.length === 0) return EMPTY;
+
+      const historical = pool.request(relays, {
+        kinds: [kinds.GiftWrap],
+        "#p": [account.pubkey],
+        since: unixNow() - 60 * 60 * 24 * 7 * 2,
+      });
+
+      const live = pool.subscription(relays, {
+        kinds: [kinds.GiftWrap],
+        "#p": [account.pubkey],
+      });
+
+      return merge(historical, live).pipe(
+        onlyEvents(),
+        tap((event) => inviteReader.ingestEvent(event)),
+      );
+    },
+  ),
+  share(),
+);
+
+// Always run the syncInvites$ observable
+syncInvites$.subscribe();

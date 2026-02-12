@@ -1,3 +1,7 @@
+import {
+  AddDirectMessageRelay,
+  RemoveDirectMessageRelay,
+} from "applesauce-actions/actions";
 import { relaySet } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import {
@@ -10,7 +14,7 @@ import { combineLatest, of, switchMap } from "rxjs";
 import { EventStatusButton } from "@/components/event-status-button";
 import { PageBody } from "@/components/page-body";
 import { PageHeader } from "@/components/page-header";
-import { user$, accounts, actions } from "@/lib/accounts";
+import { accounts, actions, user$ } from "@/lib/accounts";
 import { keyPackageRelays$ } from "@/lib/lifecycle";
 import { extraRelays$, lookupRelays$ } from "@/lib/settings";
 import { NewRelayForm, RelayItem } from "./relays";
@@ -23,6 +27,42 @@ const keyPackageRelayListEvent$ = combineLatest([user$, user$.outboxes$]).pipe(
       : of(undefined),
   ),
 );
+
+function DirectMessageRelaysSection() {
+  const directMessageRelays = use$(user$.directMessageRelays$);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-2xl font-semibold">Gift Wrap Relays</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Relays that other users send invites to you on
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {directMessageRelays && directMessageRelays.length > 0 ? (
+          directMessageRelays.map((relay, index) => (
+            <RelayItem
+              key={index}
+              relay={relay}
+              onRemove={() => actions.run(RemoveDirectMessageRelay, relay)}
+            />
+          ))
+        ) : (
+          <div className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-md">
+            No direct message relays configured. You might not see invites from
+            other users.
+          </div>
+        )}
+      </div>
+
+      <NewRelayForm
+        onAdd={(relay) => actions.run(AddDirectMessageRelay, relay)}
+      />
+    </div>
+  );
+}
 
 function KeyPackageRelaysSection() {
   const lookupRelays = use$(lookupRelays$);
@@ -167,6 +207,7 @@ export default function MarmotSettingsPage() {
       />
       <PageBody>
         <KeyPackageRelaysSection />
+        <DirectMessageRelaysSection />
       </PageBody>
     </>
   );

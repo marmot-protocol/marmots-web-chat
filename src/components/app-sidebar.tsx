@@ -29,11 +29,9 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar";
 import accountManager from "@/lib/accounts";
+import { liveUnreadInvites$ } from "@/lib/marmot-client";
 import { eventStore } from "@/lib/nostr";
-import {
-  getGroupSubscriptionManager,
-  getInvitesUnreadCount$,
-} from "@/lib/runtime";
+import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { pinnedTabs$ } from "@/lib/settings";
 
 export const TOP_TABS = [
@@ -279,7 +277,7 @@ function TabManager() {
 function AppSwitcher() {
   const location = useLocation();
   const navigate = useNavigate();
-  const invitesUnread = use$(getInvitesUnreadCount$() ?? undefined);
+  const unreadInvites = use$(liveUnreadInvites$);
   const groupsUnread = use$(
     getGroupSubscriptionManager()?.unreadGroupIds$ ?? undefined,
   );
@@ -292,7 +290,7 @@ function AppSwitcher() {
           const isActive = location.pathname.startsWith(item.url);
           const hasNotification =
             (item.url === "/groups" && (groupsUnread?.length ?? 0) > 0) ||
-            (item.url === "/invites" && (invitesUnread ?? 0) > 0);
+            (item.url === "/invites" && (unreadInvites?.length ?? 0) > 0);
 
           return (
             <Button

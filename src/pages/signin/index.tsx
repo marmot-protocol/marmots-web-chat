@@ -8,6 +8,7 @@ import BunkerTab from "./bunker";
 import ConnectQrTab from "./connect-qr";
 import ExtensionTab from "./extension";
 import CreateUserTab from "./create";
+import ExistingKeyTab from "./existing-key";
 
 interface AccountCardProps {
   account: { id: string; pubkey: string };
@@ -48,7 +49,7 @@ export default function SignInIndexPage() {
   const accounts = use$(accountManager.accounts$) || [];
   const activeAccount = use$(accountManager.active$);
   const [activeTab, setActiveTab] = useState<
-    "accounts" | "extension" | "bunker" | "qr" | "create"
+    "accounts" | "existing" | "extension" | "bunker" | "qr" | "create"
   >(accounts.length > 0 ? "accounts" : "create");
 
   const handleSwitchAccount = (accountId: string) => {
@@ -71,12 +72,13 @@ export default function SignInIndexPage() {
         onValueChange={(v) => setActiveTab(v as typeof activeTab)}
       >
         <TabsList
-          className={`grid w-full mb-6 ${accounts.length > 0 ? "grid-cols-5" : "grid-cols-4"}`}
+          className={`grid w-full mb-6 ${accounts.length > 0 ? "grid-cols-6" : "grid-cols-5"}`}
         >
           {accounts.length > 0 && (
             <TabsTrigger value="accounts">Accounts</TabsTrigger>
           )}
           <TabsTrigger value="create">New User</TabsTrigger>
+          <TabsTrigger value="existing">Existing Key</TabsTrigger>
           <TabsTrigger value="extension">Extension</TabsTrigger>
           <TabsTrigger value="bunker">Bunker</TabsTrigger>
           <TabsTrigger value="qr">QR Code</TabsTrigger>
@@ -102,6 +104,9 @@ export default function SignInIndexPage() {
 
         <TabsContent value="create">
           <CreateUserTab onSuccess={handleSuccess} />
+        </TabsContent>
+        <TabsContent value="existing">
+          <ExistingKeyTab onSuccess={handleSuccess} />
         </TabsContent>
         <TabsContent value="extension">
           <ExtensionTab onSuccess={handleSuccess} />

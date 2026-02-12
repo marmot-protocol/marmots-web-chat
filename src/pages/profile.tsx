@@ -6,8 +6,10 @@ import {
   LogOutIcon,
   PlusIcon,
   SettingsIcon,
+  TrashIcon,
   UserIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { AppSidebar } from "@/components/app-sidebar";
@@ -26,12 +28,26 @@ import {
 } from "@/components/ui/card";
 import { SidebarInset } from "@/components/ui/sidebar";
 import accountManager from "@/lib/accounts";
+import databaseBroker from "@/lib/account-database";
 import { eventStore } from "@/lib/nostr";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const active = use$(accountManager.active$);
   const accounts = use$(accountManager.accounts$) || [];
+  const [showClearDataDialog, setShowClearDataDialog] = useState(false);
+  const [showSignOutDialog, setShowSignOutDialog] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   const activeProfile = use$(
     () => active && eventStore.profile(active.pubkey),
@@ -52,8 +68,30 @@ export default function ProfilePage() {
     accountManager.setActive(accountId);
   };
 
-  const handleSignOut = () => {
-    if (active) {
+  const handleClearData = async () => {
+    if (!active) return;
+
+    setIsClearing(true);
+    try {
+      await databaseBroker.purgeDatabase(active.pubkey);
+      // Reload the page to clear all in-memory state
+      window.location.reload();
+    } catch (error) {
+      console.error("Failed to clear data:", error);
+      setIsClearing(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (!active) return;
+
+    try {
+      await databaseBroker.purgeDatabase(active.pubkey);
+      accountManager.removeAccount(active.id);
+      navigate("/signin");
+    } catch (error) {
+      console.error("Failed to clear data during sign out:", error);
+      // Still sign out even if database purge fails
       accountManager.removeAccount(active.id);
       navigate("/signin");
     }
@@ -220,15 +258,90 @@ export default function ProfilePage() {
               </Button>
             </div>
 
-            <Button
-              variant="outline"
-              className="w-full justify-start text-destructive hover:text-destructive"
-              onClick={handleSignOut}
-            >
-              <LogOutIcon className="h-4 w-4" />
-              Sign Out
-            </Button>
+            {/* Danger Zone */}
+            <Card className="border-destructive/50">
+              <CardHeader>
+                <CardTitle className="text-destructive">Danger Zone</CardTitle>
+                <CardDescription>
+                  Irreversible actions that will delete your local data
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-destructive hover:text-destructive"
+                  onClick={() => setShowClearDataDialog(true)}
+                  disabled={isClearing}
+                >
+                  <TrashIcon className="h-4 w-4" />
+                  {isClearing ? "Clearing..." : "Clear All Local Data"}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-destructive hover:text-destructive"
+                  onClick={() => setShowSignOutDialog(true)}
+                >
+                  <LogOutIcon className="h-4 w-4" />
+                  Sign Out & Clear Data
+                </Button>
+              </CardContent>
+            </Card>
           </div>
+
+          {/* Clear Data Confirmation Dialog */}
+          <AlertDialog
+            open={showClearDataDialog}
+            onOpenChange={setShowClearDataDialog}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear All Local Data?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete all messages, key packages, and
+                  group data stored on this device. This action cannot be
+                  undone. The page will reload after clearing.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isClearing}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleClearData}
+                  disabled={isClearing}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isClearing ? "Clearing..." : "Clear Data"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Sign Out Confirmation Dialog */}
+          <AlertDialog
+            open={showSignOutDialog}
+            onOpenChange={setShowSignOutDialog}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Sign Out & Clear Data?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will sign you out and permanently delete all local data
+                  associated with this account, including messages, key
+                  packages, and group information. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleSignOut}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Sign Out & Clear Data
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </PageBody>
       </SidebarInset>
     </>

@@ -21,6 +21,8 @@ import CreateGroupPage from "./pages/groups/create.tsx";
 import GroupsIndexPage from "./pages/groups/index.tsx";
 import HomePage from "./pages/index.tsx";
 import InvitesPage from "./pages/invites.tsx";
+import InviteDetailPage from "./pages/invites/[rumorId].tsx";
+import InvitesIndexPage from "./pages/invites/index.tsx";
 import KeyPackagePage from "./pages/key-packages.tsx";
 import KeyPackageDetailPage from "./pages/key-packages/[id].tsx";
 import CreateKeyPackagePage from "./pages/key-packages/create.tsx";
@@ -65,7 +67,10 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="admin" element={<GroupAdminPage />} />
               </Route>
             </Route>
-            <Route path="/invites" element={<InvitesPage />} />
+            <Route path="/invites" element={<InvitesPage />}>
+              <Route index element={<InvitesIndexPage />} />
+              <Route path=":rumorId" element={<InviteDetailPage />} />
+            </Route>
             <Route path="/key-packages" element={<KeyPackagePage />}>
               <Route path="create" element={<CreateKeyPackagePage />} />
               <Route path=":id" element={<KeyPackageDetailPage />} />
