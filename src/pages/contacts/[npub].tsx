@@ -23,6 +23,7 @@ import { useParams } from "react-router";
 import { map } from "rxjs/operators";
 import { KeyPackage } from "ts-mls";
 
+import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import FollowButton from "@/components/follow-button";
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { PageHeader } from "@/components/page-header";
@@ -108,9 +109,7 @@ function KeyPackageCard({ event }: { event: NostrEvent }) {
         <div>
           <div className="text-xs text-muted-foreground mb-1">Cipher Suite</div>
           {cipherSuiteId !== undefined ? (
-            <span className="px-2 py-1 text-xs border rounded">
-              {cipherSuiteId}
-            </span>
+            <CipherSuiteBadge cipherSuite={cipherSuiteId} />
           ) : (
             <span className="px-2 py-1 text-xs border border-red-500 text-red-600 rounded">
               Unknown
