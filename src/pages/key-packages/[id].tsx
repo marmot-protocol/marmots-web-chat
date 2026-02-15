@@ -14,6 +14,7 @@ import { from, map } from "rxjs";
 import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import KeyPackageDataView from "@/components/data-view/key-package";
 import { EventStatusButton } from "@/components/event-status-button";
+import ExportKeyPackageModal from "@/components/key-package/export-modal";
 import { PageBody } from "@/components/page-body";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -286,6 +287,7 @@ function KeyPackageDetailBody({
 }: {
   keyPackage: StoredKeyPackage | RemoteKeyPackage;
 }) {
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const refString = useMemo(
     () => bytesToHex(keyPackage.keyPackageRef),
     [keyPackage.keyPackageRef],
@@ -380,7 +382,7 @@ function KeyPackageDetailBody({
               </div>
             </div>
           </CardContent>
-          <CardFooter className="flex gap-2">
+          <CardFooter className="flex gap-2 flex-wrap">
             {isLocal ? (
               <>
                 <PublishKeyPackageButton
@@ -391,16 +393,30 @@ function KeyPackageDetailBody({
                   event={event}
                   keyPackage={keyPackage.publicPackage}
                 />
+                <Button
+                  variant="outline"
+                  onClick={() => setExportModalOpen(true)}
+                >
+                  Export Key Package
+                </Button>
                 <DeleteKeyPackageButton
                   event={event}
                   keyPackageRef={keyPackage.keyPackageRef}
                 />
               </>
             ) : (
-              <div className="text-sm text-muted-foreground">
-                This key package is published on relays but not stored locally.
-                Private key material is not available.
-              </div>
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setExportModalOpen(true)}
+                >
+                  Export Key Package
+                </Button>
+                <div className="text-sm text-muted-foreground w-full">
+                  This key package is published on relays but not stored
+                  locally. Private key material is not available.
+                </div>
+              </>
             )}
           </CardFooter>
         </Card>
@@ -415,6 +431,13 @@ function KeyPackageDetailBody({
             </div>
           </CardContent>
         </Card>
+
+        {/* Export Modal */}
+        <ExportKeyPackageModal
+          keyPackage={keyPackage}
+          open={exportModalOpen}
+          onClose={() => setExportModalOpen(false)}
+        />
       </PageBody>
     </>
   );
