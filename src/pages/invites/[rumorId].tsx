@@ -1,42 +1,54 @@
 import { IconAlertCircle } from "@tabler/icons-react";
 import { bytesToHex } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
-import { getWelcomeGroupRelays, getWelcomeKeyPackageEventId } from "marmot-ts";
-import { useState } from "react";
+import {
+  getKeyPackage,
+  getWelcome,
+  getWelcomeGroupRelays,
+  getWelcomeKeyPackageEventId,
+  UnreadInvite,
+} from "marmot-ts";
+import { ComponentProps, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
+import CipherSuiteBadge from "@/components/cipher-suite-badge";
+import DataView from "@/components/data-view";
+import KeyPackageDataView from "@/components/data-view/key-package";
+import JsonBlock from "@/components/json-block";
+import { UserAvatar, UserName } from "@/components/nostr-user";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { keyPackageRelays$ } from "@/lib/lifecycle";
 import {
   inviteReader$,
   liveUnreadInvites$,
   marmotClient$,
 } from "@/lib/marmot-client";
-import { UserAvatar, UserName } from "../../components/nostr-user";
+import { eventStore } from "@/lib/nostr";
+import { catchError, from, map, of } from "rxjs";
+import { Badge } from "../../components/ui/badge";
 
-/**
- * Sub-view for individual invite details with join and mark as read functionality
- */
-export function InviteDetailPage() {
-  const { rumorId } = useParams<{ rumorId: string }>();
-  const navigate = useNavigate();
+function JoinButton({
+  invite,
+  setError,
+  variant = "default",
+}: {
+  invite: UnreadInvite;
+  setError: (error: string | null) => void;
+  variant?: ComponentProps<typeof Button>["variant"];
+}) {
   const client = use$(marmotClient$);
   const inviteReader = use$(inviteReader$);
-  const unread = use$(liveUnreadInvites$);
-
-  const invite = unread?.find((i) => i.id === rumorId) ?? null;
-
-  const [error, setError] = useState<string | null>(null);
-  const [isJoining, setIsJoining] = useState(false);
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
 
   /** Join group from selected invite and mark as read */
   const handleJoin = async () => {
     if (!client || !inviteReader || !invite) return;
     try {
-      setError(null);
-      setIsJoining(true);
+      setLoading(true);
       // The selected invite is now a Rumor (UnreadInvite extends Rumor)
       // Pass it directly as welcomeRumor
       const group = await client.joinGroupFromWelcome({
@@ -52,23 +64,101 @@ export function InviteDetailPage() {
       console.error("Failed to join group:", err);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setIsJoining(false);
+      setLoading(false);
     }
   };
+
+  return (
+    <Button onClick={handleJoin} disabled={loading} variant={variant}>
+      {loading ? "Joining..." : "Join group"}
+    </Button>
+  );
+}
+
+function ReadButton({
+  invite,
+  setError,
+  variant = "outline",
+}: {
+  invite: UnreadInvite;
+  setError: (error: string | null) => void;
+  variant?: ComponentProps<typeof Button>["variant"];
+}) {
+  const inviteReader = use$(inviteReader$);
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
 
   /** Mark invite as read without joining */
   const handleMarkAsRead = async () => {
     if (!inviteReader || !invite) return;
+
     try {
-      setError(null);
+      setLoading(true);
       await inviteReader.markAsRead(invite.id);
       // Navigate back to invites list
       navigate("/invites");
     } catch (err) {
       console.error("Failed to mark as read:", err);
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
     }
   };
+
+  return (
+    <Button onClick={handleMarkAsRead} disabled={loading} variant={variant}>
+      Mark as read
+    </Button>
+  );
+}
+
+/**
+ * Sub-view for individual invite details with join and mark as read functionality
+ */
+export function InviteDetailPage() {
+  const { rumorId } = useParams<{ rumorId: string }>();
+  const inviteReader = use$(inviteReader$);
+  const unread = use$(liveUnreadInvites$);
+  const client = use$(marmotClient$);
+  const [advancedView, setAdvancedView] = useState(false);
+
+  const invite = unread?.find((i) => i.id === rumorId) ?? null;
+
+  const [error, setError] = useState<string | null>(null);
+
+  /** Extract Welcome message from invite for displaying details */
+  const welcome = useMemo(() => {
+    if (!invite) return null;
+    try {
+      return getWelcome(invite);
+    } catch (error) {
+      console.error("Failed to decode welcome:", error);
+      return null;
+    }
+  }, [invite]);
+
+  // get the key package event that this invite is referencing
+  const keyPackageRelays = use$(keyPackageRelays$);
+  const keyPackage = use$(() => {
+    if (!invite) return;
+    const id = getWelcomeKeyPackageEventId(invite);
+    if (!id) return;
+
+    return eventStore.event({ id, relays: keyPackageRelays }).pipe(
+      // Parse the event to a public key package
+      map((e) => e && getKeyPackage(e)),
+      // Ingore all errors
+      catchError(() => of(null)),
+    );
+  }, [invite, keyPackageRelays?.join(",")]);
+
+  /** Check if the private key for this key package is stored locally */
+  const hasKeyPackage = use$(() => {
+    if (!client || !keyPackage) return of(false);
+    return from(client.keyPackageStore.getPrivateKey(keyPackage)).pipe(
+      map((pk) => pk !== null),
+    );
+  }, [keyPackage, client]);
 
   if (!inviteReader) {
     return (
@@ -122,14 +212,28 @@ export function InviteDetailPage() {
             </div>
           </div>
 
-          {getWelcomeKeyPackageEventId(invite) && (
-            <div>
-              <div className="text-muted-foreground">KeyPackage event</div>
-              <div className="font-mono">
-                {getWelcomeKeyPackageEventId(invite)}
+          <div>
+            <div className="text-muted-foreground">Cipher Suite</div>
+            {welcome && (
+              <div className="mb-2">
+                <CipherSuiteBadge cipherSuite={welcome.cipherSuite} />
               </div>
+            )}
+          </div>
+
+          <div>
+            <div className="text-muted-foreground">Key Package</div>
+            <div className="font-mono mb-1">
+              Event ID: {getWelcomeKeyPackageEventId(invite)}
             </div>
-          )}
+            {hasKeyPackage === true ? (
+              <Badge variant="default">Has private key</Badge>
+            ) : hasKeyPackage === false ? (
+              <Badge variant="destructive">No private key</Badge>
+            ) : (
+              <Badge variant="outline">Checking key package...</Badge>
+            )}
+          </div>
 
           {getWelcomeGroupRelays(invite).length > 0 && (
             <div>
@@ -141,17 +245,46 @@ export function InviteDetailPage() {
           <div className="flex gap-2 justify-end pt-2">
             <Button
               variant="outline"
-              onClick={handleMarkAsRead}
-              disabled={isJoining}
+              onClick={() => setAdvancedView(!advancedView)}
             >
-              Mark as read
+              {advancedView ? "Hide Advanced View" : "Show Advanced View"}
             </Button>
-            <Button onClick={handleJoin} disabled={isJoining}>
-              {isJoining ? "Joining..." : "Join group"}
-            </Button>
+            <ReadButton invite={invite} setError={setError} />
+            <JoinButton invite={invite} setError={setError} />
           </div>
         </CardContent>
       </Card>
+
+      {welcome && advancedView && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Raw Welcome Message</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DataView data={welcome} />
+          </CardContent>
+        </Card>
+      )}
+      {keyPackage && advancedView && (
+        <Card>
+          <CardHeader>
+            <CardTitle>KeyPackage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <KeyPackageDataView keyPackage={keyPackage} />
+          </CardContent>
+        </Card>
+      )}
+      {advancedView && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Invite Rumor event</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <JsonBlock value={invite} />
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 }
