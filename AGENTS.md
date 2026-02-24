@@ -1,19 +1,39 @@
-# Agent Guidelines for MarmoTS Chat
+# Agent Guidelines for Marmots Web Chat
 
-This document provides guidelines for AI coding agents working in the chat application.
+This document provides guidelines for AI coding agents working in this chat application - a React + TypeScript reference implementation of marmot-ts (MLS group chat on Nostr).
+
+## Build, Lint, and Test Commands
+
+```bash
+# Development
+pnpm dev              # Start development server (Vite)
+pnpm build            # Type check and build for production
+pnpm preview          # Preview production build
+
+# Code Quality
+pnpm format           # Format all files with Prettier
+tsc -b                # Type check only (no build)
+
+# Dependencies
+pnpm install          # Install dependencies (also builds marmot-ts submodule)
+pnpm prepare          # Build marmot-ts submodule (runs automatically on install)
+```
+
+**Note:** This project does not currently have test files. If tests are added, they should use the `.test.ts` or `.test.tsx` extension.
 
 ## Project Structure
 
-This is a React + TypeScript + Vite application located in `/chat` of the marmot-ts monorepo:
+React + TypeScript + Vite application with Nostr/MLS integration:
 
 - **`/src/components`**: React components (UI + custom)
-  - `/ui`: shadcn/ui components
+  - `/ui`: shadcn/ui components (don't edit directly, regenerate with `shadcn`)
   - `/form`: Form-specific components
   - `/key-package`: Key package related components
 - **`/src/hooks`**: Custom React hooks
-- **`/src/lib`**: Utility libraries & core logic
+- **`/src/lib`**: Utility libraries & core logic (Nostr, settings, utils)
 - **`/src/pages`**: Route-based page components
 - **`/public`**: Static assets
+- **`/marmot-ts`**: Git submodule for MLS functionality (workspace dependency)
 
 ## Code Style Guidelines
 
@@ -43,6 +63,29 @@ import type { NostrEvent } from "applesauce-core/helpers";
 import type { ReactNode } from "react";
 import type { BreadcrumbItemType } from "@/components/page-header";
 ```
+
+### TypeScript Configuration
+
+- **Strict mode enabled**: `strict: true` in tsconfig
+- **No unused locals/parameters**: Compiler will error on unused variables
+- **Import type keyword**: Use `import type` for type-only imports
+- **Path alias**: Use `@/*` for imports from `src/` (e.g., `@/components/ui/button`)
+
+### Naming Conventions
+
+- **Components**: PascalCase function components (e.g., `UserBadge`, `PageHeader`)
+- **Hooks**: camelCase with `use` prefix (e.g., `useDebounce`, `use$`)
+- **Types/Interfaces**: PascalCase (e.g., `UserBadgeProps`, `BreadcrumbItemType`)
+- **Observables**: camelCase with `$` suffix (e.g., `extraRelays$`, `relayConfig$`)
+- **Constants**: SCREAMING_SNAKE_CASE for module-level (e.g., `DEFAULT_LOOKUP_RELAYS`)
+- **Size/variant types**: string literal unions (e.g., `type UserAvatarSize = "sm" | "md" | "lg"`)
+
+### Formatting
+
+- **Prettier**: 2 spaces, no tabs (configured in `.prettierrc`)
+- **Line length**: No hard limit, but keep reasonable (<120 chars when possible)
+- **Quotes**: Use double quotes for strings (Prettier default)
+- **Semicolons**: Always use semicolons (Prettier default)
 
 ### Error Handling
 

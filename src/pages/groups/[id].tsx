@@ -5,7 +5,7 @@ import {
   getGroupMembers,
   getNostrGroupIdHex,
   unixNow,
-} from "marmot-ts";
+} from "@internet-privacy/marmots";
 import { useEffect, useMemo, useState } from "react";
 import {
   Link,

@@ -7,12 +7,11 @@ import {
   getKeyPackageExtensions,
   getKeyPackageMLSVersion,
   getKeyPackageRelays,
-} from "marmot-ts";
+} from "@internet-privacy/marmots";
 import { useMemo, useState } from "react";
-import type { KeyPackage } from "ts-mls";
+import { encode, keyPackageEncoder } from "ts-mls";
+import type { CiphersuiteId, KeyPackage } from "ts-mls";
 import type { CredentialBasic } from "ts-mls/credential.js";
-import { ciphersuites } from "ts-mls/crypto/ciphersuite.js";
-import { encodeKeyPackage } from "ts-mls/keyPackage.js";
 import { protocolVersions } from "ts-mls/protocolVersion.js";
 
 import CipherSuiteBadge from "@/components/cipher-suite-badge";
@@ -124,11 +123,8 @@ function KeyPackageTopLevelInfo({
   keyPackage: KeyPackage;
   event?: NostrEvent;
 }) {
-  // Convert cipher suite to ID if it's a name
-  const cipherSuiteId =
-    typeof keyPackage.cipherSuite === "number"
-      ? keyPackage.cipherSuite
-      : ciphersuites[keyPackage.cipherSuite];
+  // In ts-mls v2, cipherSuite is already a numeric ID
+  const cipherSuiteId = keyPackage.cipherSuite;
 
   // Get event-specific info if available
   const mlsVersion = event ? getKeyPackageMLSVersion(event) : undefined;
@@ -163,7 +159,7 @@ function KeyPackageTopLevelInfo({
         {/* Cipher Suite */}
         <DetailsField label="Cipher Suite">
           {cipherSuiteId !== undefined ? (
-            <CipherSuiteBadge cipherSuite={cipherSuiteId} />
+            <CipherSuiteBadge cipherSuite={cipherSuiteId as CiphersuiteId} />
           ) : (
             <Badge variant="destructive" className="border">
               Unknown
@@ -254,7 +250,7 @@ export default function KeyPackageDetailsModal({
   // Encode key package for raw hex display
   const rawHexData = useMemo(() => {
     try {
-      const encoded = encodeKeyPackage(keyPackage);
+      const encoded = encode(keyPackageEncoder, keyPackage);
       return bytesToHex(encoded);
     } catch (error) {
       console.error("Failed to encode key package:", error);
@@ -289,9 +285,9 @@ export default function KeyPackageDetailsModal({
 
           <TabsContent value="credential" className="p-6">
             <ErrorBoundary>
-              {keyPackage.leafNode.credential.credentialType === "basic" ? (
+              {keyPackage.leafNode.credential.credentialType === 1 ? (
                 <CredentialSection
-                  credential={keyPackage.leafNode.credential}
+                  credential={keyPackage.leafNode.credential as CredentialBasic}
                   event={event}
                 />
               ) : (

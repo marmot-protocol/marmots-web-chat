@@ -2,9 +2,9 @@ import { use$ } from "applesauce-react/hooks";
 import { MessageSquare, Users } from "lucide-react";
 import {
   getGroupMembers,
-  type MarmotGroup,
   type GroupRumorHistory,
-} from "marmot-ts";
+  type MarmotGroup,
+} from "@internet-privacy/marmots";
 import { Link } from "react-router";
 
 import { PageBody } from "@/components/page-body";

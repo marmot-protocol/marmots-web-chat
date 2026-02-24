@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { accounts } from "@/lib/accounts";
 
-import type { MarmotGroup } from "marmot-ts";
+import type { MarmotGroup } from "@internet-privacy/marmots";
 import { eventStore } from "../../../lib/nostr";
 import { getDisplayName } from "applesauce-core/helpers";
 

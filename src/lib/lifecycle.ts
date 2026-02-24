@@ -8,7 +8,7 @@ import {
   KEY_PACKAGE_KIND,
   KEY_PACKAGE_RELAY_LIST_KIND,
   unixNow,
-} from "marmot-ts";
+} from "@internet-privacy/marmots";
 import {
   combineLatest,
   defer,

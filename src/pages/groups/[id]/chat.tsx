@@ -2,7 +2,11 @@ import { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { getEventHash } from "applesauce-core/helpers";
 import { use$, useRenderedContent } from "applesauce-react/hooks";
 import { Loader2, XCircle } from "lucide-react";
-import { getNostrGroupIdHex, MarmotGroup, unixNow } from "marmot-ts";
+import {
+  getNostrGroupIdHex,
+  MarmotGroup,
+  unixNow,
+} from "@internet-privacy/marmots";
 import { memo, useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 

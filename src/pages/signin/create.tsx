@@ -8,7 +8,7 @@ import { buildEvent } from "applesauce-core";
 import { relaySet } from "applesauce-core/helpers";
 import { setProfile } from "applesauce-core/operations/profile";
 import { use$ } from "applesauce-react/hooks";
-import { createKeyPackageRelayListEvent } from "marmot-ts";
+import { createKeyPackageRelayListEvent } from "@internet-privacy/marmots";
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import {

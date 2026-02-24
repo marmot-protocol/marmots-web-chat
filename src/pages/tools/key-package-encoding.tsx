@@ -1,29 +1,29 @@
+import { getCredentialPubkey } from "@internet-privacy/marmots";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
+import { AlertCircle } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { KeyPackage } from "ts-mls";
+import type { CiphersuiteId, KeyPackage } from "ts-mls";
+import { decode, keyPackageDecoder } from "ts-mls";
 import type { CredentialBasic } from "ts-mls/credential.js";
 import { ciphersuites } from "ts-mls/crypto/ciphersuite.js";
-import { decodeKeyPackage } from "ts-mls/keyPackage.js";
 import { protocolVersions } from "ts-mls/protocolVersion.js";
-import { getCredentialPubkey } from "marmot-ts";
-import { AlertCircle } from "lucide-react";
 
 import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import CredentialTypeBadge from "@/components/credential-type-badge";
+import KeyPackageDataView from "@/components/data-view/key-package";
+import { DetailsField } from "@/components/details-field";
 import ErrorBoundary from "@/components/error-boundary";
 import ExtensionBadge from "@/components/extension-badge";
-import KeyPackageDataView from "@/components/data-view/key-package";
 import { LeafNodeCapabilitiesSection } from "@/components/key-package/leaf-node-capabilities";
 import { UserAvatar, UserName } from "@/components/nostr-user";
-import { DetailsField } from "@/components/details-field";
-import { PageHeader } from "@/components/page-header";
 import { PageBody } from "@/components/page-body";
+import { PageHeader } from "@/components/page-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 
 // ============================================================================
 // Helper Components
@@ -77,7 +77,7 @@ function KeyPackageTopLevelInfo({ keyPackage }: { keyPackage: KeyPackage }) {
   // Convert cipher suite to ID if it's a name
   const cipherSuiteId =
     typeof keyPackage.cipherSuite === "number"
-      ? keyPackage.cipherSuite
+      ? (keyPackage.cipherSuite as CiphersuiteId)
       : ciphersuites[keyPackage.cipherSuite];
 
   return (
@@ -157,14 +157,8 @@ export default function KeyPackageDecoderPage() {
       const bytes = hexToBytes(cleanInput);
 
       // Decode the key package
-      const decoded = decodeKeyPackage(bytes, 0);
-      if (!decoded) {
-        setError("Failed to decode key package");
-        return;
-      }
-
-      const [kp, _offset] = decoded;
-      setKeyPackage(kp);
+      const keyPackage = decode(keyPackageDecoder, bytes);
+      setKeyPackage(keyPackage || null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -268,9 +262,11 @@ export default function KeyPackageDecoderPage() {
             </TabsContent>
             <TabsContent value="credential" className="p-6">
               <ErrorBoundary>
-                {keyPackage.leafNode.credential.credentialType === "basic" ? (
+                {keyPackage.leafNode.credential.credentialType === 1 ? (
                   <CredentialSection
-                    credential={keyPackage.leafNode.credential}
+                    credential={
+                      keyPackage.leafNode.credential as CredentialBasic
+                    }
                   />
                 ) : (
                   <Alert>

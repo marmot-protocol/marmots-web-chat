@@ -1,7 +1,7 @@
 import { npubEncode } from "applesauce-core/helpers";
 import { Loader2, Trash2 } from "lucide-react";
-import type { MarmotGroup } from "marmot-ts";
-import { Proposals } from "marmot-ts";
+import type { MarmotGroup } from "@internet-privacy/marmots";
+import { Proposals } from "@internet-privacy/marmots";
 import { useState } from "react";
 import { Link } from "react-router";
 
@@ -46,8 +46,8 @@ export function UserMemberCard({
       setIsRemoving(true);
       setError(null);
 
-      // Propose kicking the user (removes all their leaf nodes)
-      await group.propose(Proposals.proposeKickUser(pubkey));
+      // Propose removing the user (removes all their leaf nodes)
+      await group.propose(Proposals.proposeRemoveUser(pubkey));
 
       // Commit the proposal (admin-only operation)
       await group.commit();

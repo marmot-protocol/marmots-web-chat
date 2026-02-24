@@ -9,7 +9,7 @@ import {
   MarmotGroup,
   NostrNetworkInterface,
   PublishResponse,
-} from "marmot-ts";
+} from "@internet-privacy/marmots";
 import {
   combineLatest,
   firstValueFrom,

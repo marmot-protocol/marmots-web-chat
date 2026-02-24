@@ -5,15 +5,12 @@ import {
   createCredential,
   createKeyPackageEvent,
   generateKeyPackage,
-} from "marmot-ts";
+} from "@internet-privacy/marmots";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import {
-  defaultCryptoProvider,
-  getCiphersuiteFromName,
-  getCiphersuiteImpl,
-} from "ts-mls";
-import { type CiphersuiteName } from "ts-mls/crypto/ciphersuite.js";
+import { defaultCryptoProvider } from "ts-mls";
+import type { CiphersuiteName } from "ts-mls/crypto/ciphersuite.js";
+import { ciphersuites } from "ts-mls/crypto/ciphersuite.js";
 
 import { CipherSuitePicker } from "@/components/form/cipher-suite-picker";
 import { PageBody } from "@/components/page-body";
@@ -90,11 +87,9 @@ function CreateKeyPackagePage() {
       const pubkey = account.pubkey;
 
       // Get cipher suite implementation
-      const selectedCiphersuite = getCiphersuiteFromName(cipherSuite);
-      const ciphersuiteImpl = await getCiphersuiteImpl(
-        selectedCiphersuite,
-        defaultCryptoProvider,
-      );
+      const ciphersuiteId = ciphersuites[cipherSuite];
+      const ciphersuiteImpl =
+        await defaultCryptoProvider.getCiphersuiteImpl(ciphersuiteId);
 
       // Create credential and key package
       console.log("Creating credential for pubkey:", pubkey);
@@ -109,9 +104,8 @@ function CreateKeyPackagePage() {
       // Create the unsigned event using the library function
       // Use key package relays in the event tags (for discovery)
       console.log("Creating key package event...");
-      const unsignedEvent = createKeyPackageEvent({
+      const unsignedEvent = await createKeyPackageEvent({
         keyPackage: keyPackage.publicPackage,
-        pubkey,
         relays: keyPackageRelays,
         client: "marmot-chat",
       });

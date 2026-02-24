@@ -15,7 +15,7 @@ import {
   GroupStateStoreBackend,
   KeyValueGroupStateBackend,
   InviteStore,
-} from "marmot-ts";
+} from "@internet-privacy/marmots";
 
 const DB_VERSION = 1;
 

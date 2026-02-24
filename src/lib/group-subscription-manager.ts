@@ -5,7 +5,7 @@ import {
   GROUP_EVENT_KIND,
   MarmotClient,
   MarmotGroup,
-} from "marmot-ts";
+} from "@internet-privacy/marmots";
 import { BehaviorSubject, Subscription } from "rxjs";
 
 import { pool } from "@/lib/nostr";

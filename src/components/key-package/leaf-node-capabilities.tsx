@@ -1,12 +1,12 @@
-import { bytesToHex } from "@noble/hashes/utils.js";
-import type { LeafNodeKeyPackage } from "ts-mls/leafNode.js";
-import { protocolVersions } from "ts-mls/protocolVersion.js";
-import { formatMlsTimestamp, isLifetimeValid } from "marmot-ts";
 import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import CredentialTypeBadge from "@/components/credential-type-badge";
-import ExtensionBadge from "@/components/extension-badge";
 import { DetailsField } from "@/components/details-field";
+import ExtensionBadge from "@/components/extension-badge";
 import { Badge } from "@/components/ui/badge";
+import { formatMlsTimestamp, isLifetimeValid } from "@internet-privacy/marmots";
+import { bytesToHex } from "@noble/hashes/utils.js";
+import { CiphersuiteId } from "ts-mls";
+import type { LeafNodeKeyPackage } from "ts-mls/leafNode.js";
 
 /**
  * A reusable component that displays leaf node capabilities and lifetime information.
@@ -37,7 +37,7 @@ export function LeafNodeCapabilitiesSection(props: {
           <div className="flex flex-wrap gap-2">
             {leafNode.capabilities.versions.map((version) => (
               <Badge key={version} variant="outline">
-                {version} ({protocolVersions[version] || "Unknown"})
+                {version}
               </Badge>
             ))}
           </div>
@@ -47,7 +47,10 @@ export function LeafNodeCapabilitiesSection(props: {
         <DetailsField label="Cipher Suites">
           <div className="flex flex-wrap gap-2">
             {leafNode.capabilities.ciphersuites.map((suite) => (
-              <CipherSuiteBadge key={suite} cipherSuite={suite} />
+              <CipherSuiteBadge
+                key={suite}
+                cipherSuite={suite as CiphersuiteId}
+              />
             ))}
           </div>
         </DetailsField>

@@ -11,7 +11,7 @@ import {
   safeParse,
 } from "applesauce-core/helpers";
 import { NostrConnectSigner } from "applesauce-signers";
-import { KEY_PACKAGE_RELAY_LIST_KIND } from "marmot-ts";
+import { KEY_PACKAGE_RELAY_LIST_KIND } from "@internet-privacy/marmots";
 import { map } from "rxjs";
 import { eventStore, pool } from "./nostr";
 import { extraRelays$, lookupRelays$ } from "./settings";
