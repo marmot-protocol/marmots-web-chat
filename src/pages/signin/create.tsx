@@ -29,7 +29,7 @@ interface NewUserProps {
 interface PreviewUser {
   name: string;
   pubkey: string;
-  account: PrivateKeyAccount<any>;
+  account: PrivateKeyAccount;
 }
 
 export default function CreateUserTab({ onSuccess }: NewUserProps) {

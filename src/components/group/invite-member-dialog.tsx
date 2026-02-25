@@ -1,4 +1,4 @@
-import type { MarmotGroup } from "@internet-privacy/marmots";
+import type { GroupRumorHistory, MarmotGroup } from "@internet-privacy/marmots";
 import {
   getKeyPackageCipherSuiteId,
   getKeyPackageClient,
@@ -38,7 +38,7 @@ import { formatTimeAgo } from "@/lib/time";
 interface InviteMemberDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  group: MarmotGroup<any>;
+  group: MarmotGroup<GroupRumorHistory>;
   isAdmin: boolean;
 }
 
@@ -126,25 +126,23 @@ function UserSelectionStep({ onSelectPubkey }: UserSelectionStepProps) {
       </div>
 
       <div className="h-[300px] border rounded-lg overflow-y-auto">
-        {filteredContacts && filteredContacts.length > 0
-          ? (
-            <div className="divide-y">
-              {filteredContacts.map((contact) => (
-                <UserItem
-                  key={contact.pubkey}
-                  user={contact}
-                  onSelect={onSelectPubkey}
-                />
-              ))}
-            </div>
-          )
-          : (
-            <div className="p-8 text-center text-muted-foreground">
-              {searchQuery.trim()
-                ? "No MLS-capable contacts found matching your search"
-                : "No contacts with MLS capability found. Ask your contacts to set up MarmotTS."}
-            </div>
-          )}
+        {filteredContacts && filteredContacts.length > 0 ? (
+          <div className="divide-y">
+            {filteredContacts.map((contact) => (
+              <UserItem
+                key={contact.pubkey}
+                user={contact}
+                onSelect={onSelectPubkey}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 text-center text-muted-foreground">
+            {searchQuery.trim()
+              ? "No MLS-capable contacts found matching your search"
+              : "No contacts with MLS capability found. Ask your contacts to set up MarmotTS."}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -315,9 +313,8 @@ export function InviteMemberDialog({
 }: InviteMemberDialogProps) {
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedPubkey, setSelectedPubkey] = useState("");
-  const [selectedKeyPackageEventId, setSelectedKeyPackageEventId] = useState(
-    "",
-  );
+  const [selectedKeyPackageEventId, setSelectedKeyPackageEventId] =
+    useState("");
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
@@ -380,9 +377,10 @@ export function InviteMemberDialog({
       return;
     }
 
-    const selectedEvent = contactKeyPackages?.find(
-      (e: NostrEvent) => e.id === selectedKeyPackageEventId,
-    ) ?? null;
+    const selectedEvent =
+      contactKeyPackages?.find(
+        (e: NostrEvent) => e.id === selectedKeyPackageEventId,
+      ) ?? null;
     if (!selectedEvent) {
       setInviteError("Select a KeyPackage event to invite");
       return;
@@ -424,23 +422,21 @@ export function InviteMemberDialog({
             </Alert>
           )}
 
-          {step === 1
-            ? (
-              <UserSelectionStep
-                onSelectPubkey={(pubkey) => {
-                  setSelectedPubkey(pubkey);
-                  setStep(2);
-                }}
-              />
-            )
-            : (
-              <KeyPackageSelectionStep
-                selectedPubkey={selectedPubkey}
-                groupCipherSuite={groupCipherSuite}
-                selectedKeyPackageEventId={selectedKeyPackageEventId}
-                onSelectKeyPackage={setSelectedKeyPackageEventId}
-              />
-            )}
+          {step === 1 ? (
+            <UserSelectionStep
+              onSelectPubkey={(pubkey) => {
+                setSelectedPubkey(pubkey);
+                setStep(2);
+              }}
+            />
+          ) : (
+            <KeyPackageSelectionStep
+              selectedPubkey={selectedPubkey}
+              groupCipherSuite={groupCipherSuite}
+              selectedKeyPackageEventId={selectedKeyPackageEventId}
+              onSelectKeyPackage={setSelectedKeyPackageEventId}
+            />
+          )}
 
           {inviteError && (
             <Alert variant="destructive">
@@ -467,16 +463,14 @@ export function InviteMemberDialog({
                 onClick={handleInvite}
                 disabled={!selectedKeyPackageEventId || !isAdmin || isInviting}
               >
-                {isInviting
-                  ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Inviting...
-                    </>
-                  )
-                  : (
-                    "Send invite"
-                  )}
+                {isInviting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Inviting...
+                  </>
+                ) : (
+                  "Send invite"
+                )}
               </Button>
             </>
           )}
