@@ -1,8 +1,10 @@
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import type { NostrEvent } from "applesauce-core/helpers";
 import {
-  deserializeApplicationRumor,
+  deserializeApplicationData,
+  getNostrGroupIdHex,
   GROUP_EVENT_KIND,
+  type GroupRumorHistory,
   MarmotClient,
   MarmotGroup,
 } from "@internet-privacy/marmots";
@@ -26,7 +28,7 @@ export class GroupSubscriptionManager {
     }
   >();
 
-  private readonly client: MarmotClient;
+  private readonly client: MarmotClient<GroupRumorHistory>;
   private isActive = false;
   private reconcileInterval: ReturnType<typeof setInterval> | null = null;
   private applicationMessageCallbacks = new Map<
@@ -46,7 +48,7 @@ export class GroupSubscriptionManager {
   /** Last seen timestamp per group (seconds), persisted in localStorage. */
   private lastSeenAtByGroup = new Map<string, number>();
 
-  constructor(client: MarmotClient) {
+  constructor(client: MarmotClient<GroupRumorHistory>) {
     this.client = client;
   }
 
@@ -133,6 +135,10 @@ export class GroupSubscriptionManager {
       const group = await this.client.getGroup(groupIdHex);
       const relays = group.relays;
 
+      // In v2, group events are tagged by *nostr_group_id* (network identity),
+      // but we still keep subscriptions keyed by MLS group_id (storage identity).
+      const nostrGroupIdHex = getNostrGroupIdHex(group.state);
+
       if (!relays || relays.length === 0) {
         console.warn(
           `[GroupSubscriptionManager] No relays for group ${groupIdHex}`,
@@ -140,9 +146,16 @@ export class GroupSubscriptionManager {
         return;
       }
 
+      if (!nostrGroupIdHex) {
+        console.warn(
+          `[GroupSubscriptionManager] Missing nostr_group_id for group ${groupIdHex}`,
+        );
+        return;
+      }
+
       const filters = {
         kinds: [GROUP_EVENT_KIND],
-        "#h": [groupIdHex],
+        "#h": [nostrGroupIdHex],
       };
 
       const observable = pool.subscription(relays, filters);
@@ -199,7 +212,7 @@ export class GroupSubscriptionManager {
 
   private async processEvents(
     groupIdHex: string,
-    group: MarmotGroup,
+    group: MarmotGroup<GroupRumorHistory>,
     events: NostrEvent[],
     seenEventIds: Set<string>,
   ): Promise<void> {
@@ -215,7 +228,7 @@ export class GroupSubscriptionManager {
       for await (const result of group.ingest(newEvents)) {
         if (result.kind === "applicationMessage") {
           try {
-            const rumor = deserializeApplicationRumor(result.message);
+            const rumor = deserializeApplicationData(result.message);
             newMessages.push(rumor);
           } catch (parseErr) {
             console.error(
@@ -263,13 +276,16 @@ export class GroupSubscriptionManager {
   private async fetchHistoricalEvents(
     groupIdHex: string,
     relays: string[],
-    group: MarmotGroup,
+    group: MarmotGroup<GroupRumorHistory>,
     seenEventIds: Set<string>,
   ): Promise<void> {
     try {
+      const nostrGroupIdHex = getNostrGroupIdHex(group.state);
+      if (!nostrGroupIdHex) return;
+
       const filters = {
         kinds: [GROUP_EVENT_KIND],
-        "#h": [groupIdHex],
+        "#h": [nostrGroupIdHex],
       };
 
       const events = await this.client.network.request(relays, filters);

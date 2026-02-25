@@ -1,4 +1,4 @@
-import type { MarmotGroup } from "@internet-privacy/marmots";
+import type { GroupRumorHistory, MarmotGroup } from "@internet-privacy/marmots";
 import {
   getKeyPackageCipherSuiteId,
   getKeyPackageClient,
@@ -38,7 +38,7 @@ import { formatTimeAgo } from "@/lib/time";
 interface InviteMemberDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  group: MarmotGroup<any>;
+  group: MarmotGroup<GroupRumorHistory>;
   isAdmin: boolean;
 }
 

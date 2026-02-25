@@ -1,6 +1,6 @@
 node_modules
 dist
-marmot-ts
+# marmot-ts
 
 # Ingore custom nsite deployment config
 .nsite

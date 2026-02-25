@@ -330,7 +330,7 @@ function CreateGroupPage() {
       });
 
       // Navigate directly to the group detail page
-      navigate(`/groups/${bytesToHex(group.id)}`);
+      navigate(`/groups/${group.idStr}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setIsCreating(false);
