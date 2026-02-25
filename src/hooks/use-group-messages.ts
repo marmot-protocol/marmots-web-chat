@@ -1,5 +1,8 @@
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
-import { type MarmotGroup, type GroupRumorHistory } from "marmot-ts";
+import {
+  type MarmotGroup,
+  type GroupRumorHistory,
+} from "@internet-privacy/marmots";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**

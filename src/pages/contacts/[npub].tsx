@@ -17,11 +17,11 @@ import {
   getKeyPackageRelays,
   KEY_PACKAGE_KIND,
   KEY_PACKAGE_RELAY_LIST_KIND,
-} from "marmot-ts";
+} from "@internet-privacy/marmots";
 import { useMemo, useState } from "react";
 import { useParams } from "react-router";
 import { map } from "rxjs/operators";
-import { KeyPackage } from "ts-mls";
+import { defaultCredentialTypes, KeyPackage } from "ts-mls";
 
 import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import FollowButton from "@/components/follow-button";
@@ -177,7 +177,8 @@ function KeyPackageCard({ event }: { event: NostrEvent }) {
       {expanded && keyPackage && (
         <div className="space-y-2 border-t pt-3">
           {/* Credential Info */}
-          {keyPackage.leafNode.credential.credentialType === "basic" && (
+          {keyPackage.leafNode.credential.credentialType ===
+            defaultCredentialTypes.basic && (
             <div>
               <div className="text-xs text-muted-foreground mb-1">
                 Credential Pubkey

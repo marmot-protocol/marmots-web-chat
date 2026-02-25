@@ -1,6 +1,9 @@
 import { use$ } from "applesauce-react/hooks";
 import { AlertCircle, Copy } from "lucide-react";
-import { createMarmotGroupData, decodeMarmotGroupData } from "marmot-ts";
+import {
+  createMarmotGroupData,
+  decodeMarmotGroupData,
+} from "@internet-privacy/marmots";
 import { useEffect, useRef, useState } from "react";
 
 import { PageBody } from "@/components/page-body";

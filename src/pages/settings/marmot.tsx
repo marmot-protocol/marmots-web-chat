@@ -5,9 +5,9 @@ import {
 import { relaySet } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import {
-  KEY_PACKAGE_RELAY_LIST_KIND,
   createKeyPackageRelayListEvent,
-} from "marmot-ts";
+  KEY_PACKAGE_RELAY_LIST_KIND,
+} from "@internet-privacy/marmots";
 import { useState } from "react";
 import { combineLatest, of, switchMap } from "rxjs";
 
@@ -102,10 +102,11 @@ function KeyPackageRelaysSection() {
         lookupRelays,
       );
 
-      if (allPublishingRelays.length === 0)
+      if (allPublishingRelays.length === 0) {
         throw new Error(
           "No relays available for publishing. Configure your account or add relays.",
         );
+      }
 
       // Publish to all publishing relays in parallel
       await actions.publish(signedEvent, allPublishingRelays);

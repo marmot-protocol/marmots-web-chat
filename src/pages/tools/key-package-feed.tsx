@@ -3,10 +3,10 @@ import { type NostrEvent } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { onlyEvents } from "applesauce-relay";
 import {
-  KEY_PACKAGE_KIND,
   getKeyPackageCipherSuiteId,
   getKeyPackageClient,
-} from "marmot-ts";
+  KEY_PACKAGE_KIND,
+} from "@internet-privacy/marmots";
 import { useMemo, useState } from "react";
 import { EMPTY, of } from "rxjs";
 import { catchError, map } from "rxjs/operators";

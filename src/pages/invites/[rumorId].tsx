@@ -7,7 +7,7 @@ import {
   getWelcomeGroupRelays,
   getWelcomeKeyPackageEventId,
   UnreadInvite,
-} from "marmot-ts";
+} from "@internet-privacy/marmots";
 import { ComponentProps, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
@@ -29,6 +29,7 @@ import {
 import { eventStore } from "@/lib/nostr";
 import { catchError, from, map, of } from "rxjs";
 import { Badge } from "../../components/ui/badge";
+import { CiphersuiteId } from "ts-mls";
 
 function JoinButton({
   invite,
@@ -216,7 +217,9 @@ export function InviteDetailPage() {
             <div className="text-muted-foreground">Cipher Suite</div>
             {welcome && (
               <div className="mb-2">
-                <CipherSuiteBadge cipherSuite={welcome.cipherSuite} />
+                <CipherSuiteBadge
+                  cipherSuite={welcome.cipherSuite as CiphersuiteId}
+                />
               </div>
             )}
           </div>

@@ -1,8 +1,8 @@
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { AlertCircle, Download, Info } from "lucide-react";
-import type { StoredKeyPackage } from "marmot-ts";
+import type { StoredKeyPackage } from "@internet-privacy/marmots";
 import { useMemo, useState } from "react";
-import { encodeKeyPackage } from "ts-mls/keyPackage.js";
+import { encode, keyPackageEncoder } from "ts-mls";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -60,7 +60,9 @@ function downloadJsonFile(content: string, filename: string) {
  */
 function encodeKeyPackageToJson(keyPackage: StoredKeyPackage): string {
   // Encode public key package
-  const publicHex = bytesToHex(encodeKeyPackage(keyPackage.publicPackage));
+  const publicHex = bytesToHex(
+    encode(keyPackageEncoder, keyPackage.publicPackage),
+  );
 
   // Encode private key package fields
   const privateData = {

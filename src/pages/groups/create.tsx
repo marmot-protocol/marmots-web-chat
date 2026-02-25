@@ -5,15 +5,13 @@ import {
   CompleteKeyPackage,
   createCredential,
   generateKeyPackage,
-} from "marmot-ts";
+} from "@internet-privacy/marmots";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import type { CiphersuiteName, KeyPackage } from "ts-mls";
-import {
-  defaultCryptoProvider,
-  getCiphersuiteFromName,
-  getCiphersuiteImpl,
-} from "ts-mls";
+import { defaultCryptoProvider } from "ts-mls";
+import type { KeyPackage } from "ts-mls";
+import type { CiphersuiteName } from "ts-mls/crypto/ciphersuite.js";
+import { ciphersuites } from "ts-mls/crypto/ciphersuite.js";
 
 import { PubkeyListCreator } from "@/components/form/pubkey-list-creator";
 import { RelayListCreator } from "@/components/form/relay-list-creator";
@@ -129,11 +127,9 @@ function ConfigurationForm({
           "MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519";
 
         // Get cipher suite implementation
-        const selectedCiphersuite = getCiphersuiteFromName(defaultCipherSuite);
-        const ciphersuiteImpl = await getCiphersuiteImpl(
-          selectedCiphersuite,
-          defaultCryptoProvider,
-        );
+        const ciphersuiteId = ciphersuites[defaultCipherSuite];
+        const ciphersuiteImpl =
+          await defaultCryptoProvider.getCiphersuiteImpl(ciphersuiteId);
 
         // Create credential and key package
         const credential = createCredential(account.pubkey);
@@ -334,7 +330,7 @@ function CreateGroupPage() {
       });
 
       // Navigate directly to the group detail page
-      navigate(`/groups/${bytesToHex(group.id)}`);
+      navigate(`/groups/${group.idStr}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setIsCreating(false);

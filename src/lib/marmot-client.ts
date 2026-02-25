@@ -9,7 +9,7 @@ import {
   MarmotGroup,
   NostrNetworkInterface,
   PublishResponse,
-} from "marmot-ts";
+} from "@internet-privacy/marmots";
 import {
   combineLatest,
   firstValueFrom,
@@ -63,7 +63,9 @@ const networkInterface: NostrNetworkInterface = {
 };
 
 // Create an observable that creates a MarmotClient instance based on the current active account and stores.
-export const marmotClient$ = accounts.active$.pipe(
+export const marmotClient$: Observable<
+  MarmotClient<GroupRumorHistory> | undefined
+> = accounts.active$.pipe(
   switchMap(async (account) => {
     // Ensure all stores are created and setup
     if (!account) return;
@@ -73,7 +75,7 @@ export const marmotClient$ = accounts.active$.pipe(
       await databaseBroker.getStorageInterfacesForAccount(account.pubkey);
 
     // Create a new marmot client for the active account
-    return new MarmotClient({
+    return new MarmotClient<GroupRumorHistory>({
       signer: account.signer,
       groupStateBackend,
       keyPackageStore,

@@ -40,7 +40,7 @@ function AccountItem({
   const getPrivateKey = () => {
     if (!isPrivateKeyAccount) return null;
     try {
-      const serialized = (account as PrivateKeyAccount<any>).toJSON();
+      const serialized = (account as PrivateKeyAccount).toJSON();
       const keyBytes = hexToBytes(serialized.signer.key);
       return nsecEncode(keyBytes);
     } catch {

@@ -1,6 +1,9 @@
-import { bytesToHex, relaySet, type NostrEvent } from "applesauce-core/helpers";
+import {
+  getKeyPackageClient,
+  ListedKeyPackage,
+} from "@internet-privacy/marmots";
+import { bytesToHex, type NostrEvent, relaySet } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
-import { getKeyPackageClient, ListedKeyPackage } from "marmot-ts";
 import { useMemo } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { combineLatest, map, shareReplay } from "rxjs";
@@ -18,6 +21,7 @@ import { liveKeyPackages$ } from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
 import { formatTimeAgo } from "@/lib/time";
 import { SettingsIcon } from "lucide-react";
+import { CiphersuiteId } from "ts-mls";
 
 /** An observable of all relays to read key packages from */
 const readRelays$ = combineLatest([
@@ -68,7 +72,9 @@ function KeyPackageItem({
         </span>
       </div>
       <div className="flex items-center gap-2">
-        <CipherSuiteBadge cipherSuite={keyPackage.publicPackage.cipherSuite} />
+        <CipherSuiteBadge
+          cipherSuite={keyPackage.publicPackage.cipherSuite as CiphersuiteId}
+        />
       </div>
       {/* <span className="line-clamp-1 w-full text-xs text-muted-foreground font-mono">
         {matchedEvent?.id ||

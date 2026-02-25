@@ -3,7 +3,7 @@ import { castUser, User } from "applesauce-common/casts/user";
 import { normalizeToProfilePointer } from "applesauce-core/helpers";
 import { npubEncode } from "applesauce-core/helpers/pointers";
 import { use$ } from "applesauce-react/hooks";
-import { KEY_PACKAGE_RELAY_LIST_KIND } from "marmot-ts";
+import { KEY_PACKAGE_RELAY_LIST_KIND } from "@internet-privacy/marmots";
 import { useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { BehaviorSubject } from "rxjs";

@@ -1,5 +1,5 @@
 import { use$ } from "applesauce-react/hooks";
-import { GroupRumorHistory, MarmotGroup } from "marmot-ts";
+import { GroupRumorHistory, MarmotGroup } from "@internet-privacy/marmots";
 import { Link, Outlet, useLocation } from "react-router";
 
 import { AppSidebar } from "@/components/app-sidebar";

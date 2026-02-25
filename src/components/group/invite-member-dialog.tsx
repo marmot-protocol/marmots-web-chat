@@ -1,20 +1,20 @@
-import { IconLock } from "@tabler/icons-react";
-import { castUser, User } from "applesauce-common/casts/user";
-import { mapEventsToTimeline } from "applesauce-core";
-import { normalizeToProfilePointer, npubEncode } from "applesauce-core/helpers";
-import type { NostrEvent } from "applesauce-core/helpers";
-import { use$ } from "applesauce-react/hooks";
-import { Loader2, XCircle } from "lucide-react";
-import type { MarmotGroup } from "marmot-ts";
+import type { GroupRumorHistory, MarmotGroup } from "@internet-privacy/marmots";
 import {
   getKeyPackageCipherSuiteId,
   getKeyPackageClient,
   getKeyPackageRelayList,
   KEY_PACKAGE_RELAY_LIST_KIND,
-} from "marmot-ts";
+} from "@internet-privacy/marmots";
+import { IconLock } from "@tabler/icons-react";
+import { castUser, User } from "applesauce-common/casts/user";
+import { mapEventsToTimeline } from "applesauce-core";
+import type { NostrEvent } from "applesauce-core/helpers";
+import { normalizeToProfilePointer, npubEncode } from "applesauce-core/helpers";
+import { use$ } from "applesauce-react/hooks";
+import { Loader2, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { map } from "rxjs/operators";
-import { ciphersuites, type CiphersuiteId } from "ts-mls/crypto/ciphersuite.js";
+import type { CiphersuiteId } from "ts-mls/crypto/ciphersuite.js";
 
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -38,7 +38,7 @@ import { formatTimeAgo } from "@/lib/time";
 interface InviteMemberDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  group: MarmotGroup<any>;
+  group: MarmotGroup<GroupRumorHistory>;
   isAdmin: boolean;
 }
 
@@ -318,9 +318,9 @@ export function InviteMemberDialog({
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
-  // Get group's cipher suite
-  const groupCipherSuite: CiphersuiteId =
-    ciphersuites[group.state.groupContext.cipherSuite];
+  // Get group's cipher suite (already a numeric ID in v2)
+  const groupCipherSuite = group.state.groupContext
+    .cipherSuite as CiphersuiteId;
 
   // Fetch key packages for validation in invite handler
   const selectedUser = useMemo(

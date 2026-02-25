@@ -1,12 +1,12 @@
-import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
-import { watchEventUpdates } from "applesauce-core";
-import { getSeenRelays, NostrEvent, relaySet } from "applesauce-core/helpers";
-import { use$ } from "applesauce-react/hooks";
 import {
   createKeyPackageEvent,
   getKeyPackageClient,
   StoredKeyPackage,
-} from "marmot-ts";
+} from "@internet-privacy/marmots";
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
+import { watchEventUpdates } from "applesauce-core";
+import { getSeenRelays, NostrEvent, relaySet } from "applesauce-core/helpers";
+import { use$ } from "applesauce-react/hooks";
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { from, map } from "rxjs";
@@ -31,7 +31,7 @@ import { keyPackageRelays$, publishedKeyPackages$ } from "@/lib/lifecycle";
 import { marmotClient$ } from "@/lib/marmot-client";
 import { eventStore, pool } from "@/lib/nostr";
 import { formatTimeAgo } from "@/lib/time";
-import { KeyPackage } from "ts-mls";
+import { CiphersuiteId, KeyPackage } from "ts-mls";
 import accounts, { publish, user$ } from "../../lib/accounts";
 
 /** A key package that is not stored locally but read from an event */
@@ -155,14 +155,14 @@ function PublishKeyPackageButton({
   const handlePublishKeyPackage = async () => {
     try {
       if (event) throw new Error("Event already published");
-      if (!keyPackageRelays || keyPackageRelays.length === 0)
+      if (!keyPackageRelays || keyPackageRelays.length === 0) {
         throw new Error("No key package relays configured");
+      }
       if (!account) throw new Error("No active account");
 
       setIsPublishing(true);
-      const unsignedEvent = createKeyPackageEvent({
+      const unsignedEvent = await createKeyPackageEvent({
         keyPackage: keyPackage,
-        pubkey: account.pubkey,
         relays: keyPackageRelays,
         client: "marmot-chat",
       });
@@ -299,7 +299,7 @@ function KeyPackageDetailBody({
   const event = publishedKeyPackages?.find(
     (pkg) => bytesToHex(pkg.keyPackageRef) === refString,
   )?.event;
-  const cipherSuiteId = keyPackage.publicPackage.cipherSuite;
+  const cipherSuiteId = keyPackage.publicPackage.cipherSuite as CiphersuiteId;
   const clientInfo = event ? getKeyPackageClient(event) : undefined;
   const timeAgo = event ? formatTimeAgo(event.created_at) : "Unpublished";
   const isLocal = "privatePackage" in keyPackage;

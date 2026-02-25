@@ -1,11 +1,10 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { extendedExtensionTypes } from "marmot-ts";
-import type { ExtensionType } from "ts-mls";
+import { extendedExtensionTypes } from "@internet-privacy/marmots";
 import { greaseValues } from "ts-mls/grease.js";
 
 interface ExtensionBadgeProps {
-  extensionType: ExtensionType;
+  extensionType: number;
   className?: string;
 }
 

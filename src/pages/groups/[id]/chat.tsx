@@ -2,7 +2,12 @@ import { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { getEventHash } from "applesauce-core/helpers";
 import { use$, useRenderedContent } from "applesauce-react/hooks";
 import { Loader2, XCircle } from "lucide-react";
-import { getNostrGroupIdHex, MarmotGroup, unixNow } from "marmot-ts";
+import {
+  getNostrGroupIdHex,
+  type GroupRumorHistory,
+  MarmotGroup,
+  unixNow,
+} from "@internet-privacy/marmots";
 import { memo, useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 
@@ -21,7 +26,7 @@ import { getGroupSubscriptionManager } from "@/lib/runtime";
 // ============================================================================
 
 interface GroupOutletContext {
-  group: MarmotGroup<any>;
+  group: MarmotGroup<GroupRumorHistory>;
   groupDetails: {
     name: string;
     epoch: number;
@@ -173,7 +178,7 @@ function MessageForm({ isSending, onSend }: MessageFormProps) {
 // Hook: useMessageSender
 // ============================================================================
 
-function useMessageSender(group: MarmotGroup<any> | null) {
+function useMessageSender(group: MarmotGroup<GroupRumorHistory> | null) {
   const account = use$(accounts.active$);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
