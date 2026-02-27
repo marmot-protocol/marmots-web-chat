@@ -25,30 +25,12 @@ import { defaultCredentialTypes, KeyPackage } from "ts-mls";
 
 import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import FollowButton from "@/components/follow-button";
+import { InviteToGroupDialog } from "@/components/group/invite-to-group-dialog";
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { PageHeader } from "@/components/page-header";
 import QRButton from "@/components/qr-button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { liveGroups$, marmotClient$ } from "@/lib/marmot-client";
 import { eventStore, pool } from "@/lib/nostr";
 
 function KeyPackageCard({ event }: { event: NostrEvent }) {
@@ -361,11 +343,6 @@ function ContactDetailContent({ user }: { user: User }) {
   const outboxes = use$(user.outboxes$);
 
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
-  const [selectedKeyPackageEventId, setSelectedKeyPackageEventId] =
-    useState<string>("");
-  const [isInviting, setIsInviting] = useState(false);
-  const [inviteError, setInviteError] = useState<string | null>(null);
 
   const keyPackageRelayList = use$(
     () => user.replaceable(KEY_PACKAGE_RELAY_LIST_KIND, undefined, outboxes),
@@ -393,44 +370,6 @@ function ContactDetailContent({ user }: { user: User }) {
       );
   }, [user.pubkey, keyPackageRelays?.join(",")]);
 
-  const groups = use$(liveGroups$);
-
-  const client = use$(marmotClient$);
-
-  const handleInvite = async () => {
-    setInviteError(null);
-    if (!client) {
-      setInviteError("Client not ready");
-      return;
-    }
-    if (!selectedGroupId) {
-      setInviteError("Select a group");
-      return;
-    }
-    const selectedEvent =
-      (keyPackages as NostrEvent[] | undefined)?.find(
-        (e) => e.id === selectedKeyPackageEventId,
-      ) ?? null;
-    if (!selectedEvent) {
-      setInviteError("Select a KeyPackage event");
-      return;
-    }
-
-    try {
-      setIsInviting(true);
-      const group = await client.getGroup(selectedGroupId);
-      await group.inviteByKeyPackageEvent(selectedEvent);
-      setInviteOpen(false);
-      setSelectedGroupId("");
-      setSelectedKeyPackageEventId("");
-    } catch (err) {
-      console.error("Failed to invite:", err);
-      setInviteError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setIsInviting(false);
-    }
-  };
-
   return (
     <>
       <PageHeader
@@ -457,82 +396,18 @@ function ContactDetailContent({ user }: { user: User }) {
           <div className="flex">
             <QRButton data={user.npub} size="lg" label="NPUB" />
             <FollowButton pubkey={user.pubkey} size="lg" />
-            <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="lg">
-                  Invite to group
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Invite to group</DialogTitle>
-                  <DialogDescription>
-                    Choose a group and one of this contact's KeyPackage events.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Group</Label>
-                    <Select
-                      value={selectedGroupId}
-                      onValueChange={setSelectedGroupId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a group" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(groups ?? []).map((group) => {
-                          const groupName =
-                            group.groupData?.name || "Unnamed Group";
-                          return (
-                            <SelectItem key={group.idStr} value={group.idStr}>
-                              <div className="flex flex-col items-start">
-                                <span className="font-medium">{groupName}</span>
-                                <span className="text-xs text-muted-foreground font-mono">
-                                  {group.idStr.slice(0, 16)}...
-                                </span>
-                              </div>
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>KeyPackage event</Label>
-                    <Select
-                      value={selectedKeyPackageEventId}
-                      onValueChange={setSelectedKeyPackageEventId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select KeyPackage event" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(keyPackages ?? []).map((e) => (
-                          <SelectItem key={e.id} value={e.id}>
-                            {e.id.slice(0, 16)}...
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {inviteError && (
-                    <Alert variant="destructive">
-                      <AlertDescription>{inviteError}</AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-
-                <DialogFooter>
-                  <Button onClick={handleInvite} disabled={isInviting}>
-                    {isInviting ? "Inviting..." : "Send invite"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => setInviteOpen(true)}
+            >
+              Invite to group
+            </Button>
+            <InviteToGroupDialog
+              open={inviteOpen}
+              onOpenChange={setInviteOpen}
+              pubkey={user.pubkey}
+            />
           </div>
         </div>
 

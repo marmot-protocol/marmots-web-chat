@@ -1,23 +1,48 @@
 import { use$ } from "applesauce-react/hooks";
-import { GroupRumorHistory, MarmotGroup } from "@internet-privacy/marmots";
+import {
+  getGroupMembers,
+  GroupRumorHistory,
+  MarmotGroup,
+} from "@internet-privacy/marmots";
 import { Link, Outlet, useLocation } from "react-router";
 
 import { AppSidebar } from "@/components/app-sidebar";
+import { UserAvatar } from "@/components/nostr-user";
+import { AvatarGroup, AvatarGroupCount } from "@/components/ui/avatar";
 import { SidebarInset } from "@/components/ui/sidebar";
+import accounts from "@/lib/accounts";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { liveGroups$ } from "../lib/marmot-client";
+
+const MAX_AVATARS = 3;
 
 function GroupItem({ group }: { group: MarmotGroup<GroupRumorHistory> }) {
   const location = useLocation();
   const isActive = location.pathname.startsWith(`/groups/${group.idStr}`);
   const marmotData = group.groupData;
   const name = marmotData?.name || "Unnamed Group";
+  const description = marmotData?.description || "";
+
+  const account = use$(accounts.active$);
+  const selfPubkey = account?.pubkey;
 
   const groupMgr = getGroupSubscriptionManager();
   const unreadGroups = use$(groupMgr?.unreadGroupIds$ ?? undefined);
   const hasUnread = Array.isArray(unreadGroups)
     ? unreadGroups.includes(group.idStr)
     : false;
+
+  const allMembers = getGroupMembers(group.state);
+  const otherMembers = selfPubkey
+    ? allMembers.filter((pk) => pk !== selfPubkey)
+    : allMembers;
+
+  const visibleAvatars = otherMembers.slice(0, MAX_AVATARS);
+  const overflowCount = otherMembers.length - visibleAvatars.length;
+
+  const subtitle =
+    description ||
+    `${allMembers.length} ${allMembers.length === 1 ? "member" : "members"}`;
 
   return (
     <Link
@@ -26,6 +51,22 @@ function GroupItem({ group }: { group: MarmotGroup<GroupRumorHistory> }) {
         isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""
       }`}
     >
+      {/* Avatar stack */}
+      <AvatarGroup className="shrink-0">
+        {visibleAvatars.map((pk) => (
+          <UserAvatar
+            key={pk}
+            pubkey={pk}
+            size="sm"
+            className="ring-background ring-2"
+          />
+        ))}
+        {overflowCount > 0 && (
+          <AvatarGroupCount>+{overflowCount}</AvatarGroupCount>
+        )}
+      </AvatarGroup>
+
+      {/* Text */}
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate flex items-center gap-2">
           <span className="truncate">{name}</span>
@@ -37,9 +78,7 @@ function GroupItem({ group }: { group: MarmotGroup<GroupRumorHistory> }) {
             />
           )}
         </div>
-        <div className="text-xs text-muted-foreground truncate font-mono">
-          {group.idStr.slice(0, 16)}...
-        </div>
+        <div className="text-xs text-muted-foreground truncate">{subtitle}</div>
       </div>
     </Link>
   );
