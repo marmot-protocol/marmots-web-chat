@@ -16,6 +16,7 @@ import GroupsPage from "./pages/groups.tsx";
 import GroupDetailPage from "./pages/groups/[id].tsx";
 import GroupAdminPage from "./pages/groups/[id]/admin.tsx";
 import GroupChatPage from "./pages/groups/[id]/chat.tsx";
+import GroupDebugPage from "./pages/groups/[id]/debug.tsx";
 import GroupMembersPage from "./pages/groups/[id]/members.tsx";
 import CreateGroupPage from "./pages/groups/create.tsx";
 import GroupsIndexPage from "./pages/groups/index.tsx";
@@ -65,6 +66,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="chat" element={<GroupChatPage />} />
                 <Route path="members" element={<GroupMembersPage />} />
                 <Route path="admin" element={<GroupAdminPage />} />
+                <Route path="debug" element={<GroupDebugPage />} />
               </Route>
             </Route>
             <Route path="/invites" element={<InvitesPage />}>
