@@ -1,15 +1,19 @@
-import { IconAlertCircle } from "@tabler/icons-react";
-import { use$ } from "applesauce-react/hooks";
 import {
-  calculateKeyPackageRef,
-  getKeyPackage,
+  decodeMarmotGroupData,
   getWelcome,
   getWelcomeGroupRelays,
   getWelcomeKeyPackageEventId,
+  getWelcomeKeyPackageRefs,
+  isMarmotGroupDataExtension,
   UnreadInvite,
 } from "@internet-privacy/marmots";
+import { bytesToHex } from "@noble/hashes/utils.js";
+import { IconAlertCircle } from "@tabler/icons-react";
+import { use$ } from "applesauce-react/hooks";
 import { ComponentProps, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
+import { filter, from, map, merge, of, startWith, take } from "rxjs";
+import { CiphersuiteId } from "ts-mls";
 
 import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import DataView from "@/components/data-view";
@@ -20,16 +24,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { keyPackageRelays$ } from "@/lib/lifecycle";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   inviteReader$,
   liveUnreadInvites$,
   marmotClient$,
 } from "@/lib/marmot-client";
-import { eventStore } from "@/lib/nostr";
-import { catchError, from, map, of } from "rxjs";
 import { Badge } from "../../components/ui/badge";
-import { CiphersuiteId } from "ts-mls";
 
 function JoinButton({
   invite,
@@ -138,29 +139,36 @@ export function InviteDetailPage() {
   }, [invite]);
 
   // get the key package event that this invite is referencing
-  const keyPackageRelays = use$(keyPackageRelays$);
   const keyPackage = use$(() => {
-    if (!invite) return;
-    const id = getWelcomeKeyPackageEventId(invite);
-    if (!id) return;
+    if (!invite || !client) return;
 
-    return eventStore.event({ id, relays: keyPackageRelays }).pipe(
-      // Parse the event to a public key package
-      map((e) => e && getKeyPackage(e)),
-      // Ingore all errors
-      catchError(() => of(null)),
+    const refs = getWelcomeKeyPackageRefs(invite);
+    if (refs.length === 0) return;
+
+    // Return the first key package that is found in the manager
+    return merge(...refs.map((ref) => client.keyPackages.get(ref))).pipe(
+      filter((v) => v !== null),
+      take(1),
+      startWith(undefined),
     );
-  }, [invite, keyPackageRelays?.join(",")]);
+  }, [invite]);
 
   /** Check if the private key for this key package is stored locally */
-  const hasKeyPackage = use$(() => {
-    if (!client || !keyPackage) return of(false);
-    return from(
-      calculateKeyPackageRef(keyPackage, client.cryptoProvider).then((ref) =>
-        client.keyPackages.getPrivateKey(ref),
-      ),
-    ).pipe(map((pk) => pk !== null));
-  }, [keyPackage, client]);
+  const hasKeyPackage = !!keyPackage;
+
+  /**
+   * Read group data from the welcome without joining.
+   * Returns undefined while loading, null if decryption failed, or MarmotGroupData on success.
+   */
+  const groupData = use$(() => {
+    if (!client || !invite) return of(undefined);
+    return from(client.readInviteGroupInfo(invite)).pipe(map((info) => {
+      if (!info) return null;
+      const ext = info.groupContext.extensions.find(isMarmotGroupDataExtension);
+      if (!ext) return null;
+      return decodeMarmotGroupData(ext.extensionData);
+    }));
+  }, [client, invite]);
 
   if (!inviteReader) {
     return (
@@ -193,15 +201,71 @@ export function InviteDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Invite details</CardTitle>
+          <CardTitle>
+            {groupData === undefined
+              ? <Skeleton className="h-6 w-48" />
+              : groupData?.name
+              ? (
+                groupData.name
+              )
+              : (
+                "Invite details"
+              )}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div>
-            <div className="text-muted-foreground">Rumor ID</div>
-            <div className="font-mono">{invite.id}</div>
-          </div>
+          {/* Group info from decrypted welcome */}
+          {groupData === undefined && (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+          )}
 
-          <Separator />
+          {groupData && (
+            <>
+              {groupData.description && (
+                <div>
+                  <div className="text-muted-foreground">Description</div>
+                  <div>{groupData.description}</div>
+                </div>
+              )}
+
+              {groupData.relays.length > 0 && (
+                <div>
+                  <div className="text-muted-foreground">Group relays</div>
+                  <div className="font-mono text-sm">
+                    {groupData.relays.join(", ")}
+                  </div>
+                </div>
+              )}
+
+              {groupData.adminPubkeys.length > 0 && (
+                <div>
+                  <div className="text-muted-foreground">Admins</div>
+                  <div className="space-y-1">
+                    {groupData.adminPubkeys.map((pubkey) => (
+                      <div key={pubkey} className="flex gap-2 items-center">
+                        <UserAvatar pubkey={pubkey} size="sm" />
+                        <UserName pubkey={pubkey} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {groupData.nostrGroupId.length > 0 && (
+                <div>
+                  <div className="text-muted-foreground">Group ID</div>
+                  <div className="font-mono text-sm break-all">
+                    {bytesToHex(groupData.nostrGroupId)}
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+            </>
+          )}
 
           <div>
             <div className="text-muted-foreground">Sender</div>
@@ -230,16 +294,15 @@ export function InviteDetailPage() {
             <div className="font-mono mb-1">
               Event ID: {getWelcomeKeyPackageEventId(invite)}
             </div>
-            {hasKeyPackage === true ? (
-              <Badge variant="default">Has private key</Badge>
-            ) : hasKeyPackage === false ? (
-              <Badge variant="destructive">No private key</Badge>
-            ) : (
-              <Badge variant="outline">Checking key package...</Badge>
-            )}
+            {hasKeyPackage === true
+              ? <Badge variant="default">Has private key</Badge>
+              : hasKeyPackage === false
+              ? <Badge variant="destructive">No private key</Badge>
+              : <Badge variant="outline">Checking key package...</Badge>}
           </div>
 
-          {getWelcomeGroupRelays(invite).length > 0 && (
+          {/* Fallback relay display when group data is not available */}
+          {groupData === null && getWelcomeGroupRelays(invite).length > 0 && (
             <div>
               <div className="text-muted-foreground">Group relays</div>
               <div>{getWelcomeGroupRelays(invite).join(", ")}</div>
@@ -275,7 +338,7 @@ export function InviteDetailPage() {
             <CardTitle>KeyPackage</CardTitle>
           </CardHeader>
           <CardContent>
-            <KeyPackageDataView keyPackage={keyPackage} />
+            <KeyPackageDataView keyPackage={keyPackage.publicPackage} />
           </CardContent>
         </Card>
       )}

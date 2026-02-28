@@ -8,10 +8,10 @@ import {
   MarmotClient,
   MarmotGroup,
 } from "@internet-privacy/marmots";
-import { BehaviorSubject, Subscription } from "rxjs";
-
+import { BehaviorSubject, Subscription, bufferTime } from "rxjs";
 import { pool } from "@/lib/nostr";
 import { bytesToHex } from "@noble/hashes/utils.js";
+import { onlyEvents } from "applesauce-relay";
 
 /**
  * Manages persistent subscriptions for all groups in the store.
@@ -158,13 +158,15 @@ export class GroupSubscriptionManager {
         "#h": [nostrGroupIdHex],
       };
 
-      const observable = pool.subscription(relays, filters);
+      const observable = pool
+        .subscription(relays, filters)
+        // NOTE: buffering as a hack to ensure events don't get lost when processing
+        // This will need to be handled better in the marmot group
+        .pipe(onlyEvents(), bufferTime(2_000));
       const seenEventIds = new Set<string>();
 
       const subscription = observable.subscribe({
-        next: async (value) => {
-          if (value === "EOSE") return;
-          const events: NostrEvent[] = Array.isArray(value) ? value : [value];
+        next: async (events) => {
           await this.processEvents(groupIdHex, group, events, seenEventIds);
         },
         error: (err) => {
