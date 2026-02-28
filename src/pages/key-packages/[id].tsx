@@ -184,11 +184,55 @@ function PublishKeyPackageButton({
   );
 }
 
-function DeleteKeyPackageButton({
-  event,
+function RotateKeyPackageButton({
   keyPackageRef,
 }: {
-  event?: NostrEvent;
+  keyPackageRef: Uint8Array;
+}) {
+  const client = use$(marmotClient$);
+  const keyPackageRelays = use$(keyPackageRelays$);
+  const navigate = useNavigate();
+
+  const [rotating, setRotating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleRotate = async () => {
+    if (!client) return;
+
+    try {
+      setRotating(true);
+      setError(null);
+
+      // Rotate publishes a kind-5 deletion for the old package, then creates
+      // and publishes a fresh key package. Relays are reused from the old
+      // package's last published event unless overridden.
+      const newKeyPackage = await client.keyPackages.rotate(keyPackageRef, {
+        relays: keyPackageRelays ?? undefined,
+        client: "marmot-chat",
+      });
+
+      navigate(`/key-packages/${bytesToHex(newKeyPackage.keyPackageRef)}`);
+    } catch (err) {
+      console.error("Error rotating key package:", err);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRotating(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Button onClick={handleRotate} disabled={rotating} variant="outline">
+        {rotating ? "Rotating..." : "Rotate key package"}
+      </Button>
+      {error && <span className="text-xs text-red-600">{error}</span>}
+    </div>
+  );
+}
+
+function DeleteKeyPackageButton({
+  keyPackageRef,
+}: {
   keyPackageRef: Uint8Array;
 }) {
   const client = use$(marmotClient$);
@@ -196,18 +240,14 @@ function DeleteKeyPackageButton({
 
   const [deleting, setDeleting] = useState(false);
   const handleDeleteKeyPackage = async () => {
-    if (!event) return;
+    if (!client) return;
 
     try {
       setDeleting(true);
 
-      // Remove from local store
-      if (client) {
-        await client.keyPackageStore.remove(keyPackageRef);
-      }
-
-      // TODO: Implement deletion from relays (requires NIP-09 or similar)
-      // For now, just navigate back
+      // Purge removes local private key material and publishes kind-5
+      // deletion events to all relays where this package was published.
+      await client.keyPackages.purge(keyPackageRef);
     } catch (err) {
       console.error("Error deleting key package:", err);
     } finally {
@@ -235,25 +275,19 @@ function BroadcastKeyPackageButton({
 }) {
   const keyPackageRelays = use$(keyPackageRelays$);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
-  const [broadcastStatus, setBroadcastStatus] = useState<
-    "idle" | "success" | "error"
-  >("idle");
 
   const handleBroadcast = async () => {
     if (!event) return;
 
     try {
       if (!keyPackageRelays || keyPackageRelays.length === 0) {
-        setBroadcastStatus("error");
         return;
       }
+
       setIsBroadcasting(true);
-      setBroadcastStatus("idle");
       await pool.publish(keyPackageRelays, event);
-      setBroadcastStatus("success");
     } catch (err) {
       console.error("Error broadcasting event:", err);
-      setBroadcastStatus("error");
     } finally {
       setIsBroadcasting(false);
     }
@@ -262,23 +296,13 @@ function BroadcastKeyPackageButton({
   if (!event) return null;
 
   return (
-    <div className="flex flex-col gap-1">
-      <Button
-        onClick={handleBroadcast}
-        disabled={isBroadcasting}
-        variant="outline"
-      >
-        {isBroadcasting ? "Broadcasting..." : "Broadcast event"}
-      </Button>
-      {broadcastStatus === "success" && (
-        <span className="text-xs text-green-600">Event broadcasted</span>
-      )}
-      {broadcastStatus === "error" && !isBroadcasting && (
-        <span className="text-xs text-red-600">
-          No key package relays configured
-        </span>
-      )}
-    </div>
+    <Button
+      onClick={handleBroadcast}
+      disabled={isBroadcasting}
+      variant="outline"
+    >
+      {isBroadcasting ? "Broadcasting..." : "Broadcast"}
+    </Button>
   );
 }
 
@@ -302,7 +326,8 @@ function KeyPackageDetailBody({
   const cipherSuiteId = keyPackage.publicPackage.cipherSuite as CiphersuiteId;
   const clientInfo = event ? getKeyPackageClient(event) : undefined;
   const timeAgo = event ? formatTimeAgo(event.created_at) : "Unpublished";
-  const isLocal = "privatePackage" in keyPackage;
+  const isLocal =
+    "privatePackage" in keyPackage && keyPackage.privatePackage != null;
 
   return (
     <>
@@ -383,7 +408,7 @@ function KeyPackageDetailBody({
             </div>
           </CardContent>
           <CardFooter className="flex gap-2 flex-wrap">
-            {isLocal ? (
+            {isLocal && (
               <>
                 <PublishKeyPackageButton
                   event={event}
@@ -393,25 +418,15 @@ function KeyPackageDetailBody({
                   event={event}
                   keyPackage={keyPackage.publicPackage}
                 />
-                <Button
-                  variant="outline"
-                  onClick={() => setExportModalOpen(true)}
-                >
-                  Export Key Package
-                </Button>
-                <DeleteKeyPackageButton
-                  event={event}
-                  keyPackageRef={keyPackage.keyPackageRef}
-                />
               </>
-            ) : (
+            )}
+            <RotateKeyPackageButton keyPackageRef={keyPackage.keyPackageRef} />
+            <Button variant="outline" onClick={() => setExportModalOpen(true)}>
+              Export Key Package
+            </Button>
+            <DeleteKeyPackageButton keyPackageRef={keyPackage.keyPackageRef} />
+            {!isLocal && (
               <>
-                <Button
-                  variant="outline"
-                  onClick={() => setExportModalOpen(true)}
-                >
-                  Export Key Package
-                </Button>
                 <div className="text-sm text-muted-foreground w-full">
                   This key package is published on relays but not stored
                   locally. Private key material is not available.
@@ -450,10 +465,7 @@ export default function KeyPackageDetailPage() {
   const publishedKeyPackages = use$(publishedKeyPackages$);
 
   const keyPackage = use$(
-    () =>
-      client && ref
-        ? from(client.keyPackageStore.getKeyPackage(ref))
-        : undefined,
+    () => (client && ref ? from(client.keyPackages.get(ref)) : undefined),
     [client, ref],
   );
 

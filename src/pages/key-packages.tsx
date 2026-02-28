@@ -1,7 +1,4 @@
-import {
-  getKeyPackageClient,
-  ListedKeyPackage,
-} from "@internet-privacy/marmots";
+import { getKeyPackageClient } from "@internet-privacy/marmots";
 import { bytesToHex, type NostrEvent, relaySet } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { useMemo } from "react";
@@ -36,9 +33,14 @@ const readRelays$ = combineLatest([
 function KeyPackageItem({
   keyPackage,
   event,
+  isLocal,
 }: {
-  keyPackage: ListedKeyPackage & { isLocal?: boolean };
+  keyPackage: {
+    keyPackageRef: Uint8Array;
+    publicPackage: { cipherSuite: number };
+  };
   event?: NostrEvent;
+  isLocal: boolean;
 }) {
   const location = useLocation();
 
@@ -62,7 +64,7 @@ function KeyPackageItem({
         <span className="font-medium truncate">
           {client?.name || "Unknown Client"}
         </span>
-        {!keyPackage.isLocal && (
+        {!isLocal && (
           <Badge variant="outline" className="text-xs ml-2 shrink-0">
             Not stored locally
           </Badge>
@@ -76,58 +78,57 @@ function KeyPackageItem({
           cipherSuite={keyPackage.publicPackage.cipherSuite as CiphersuiteId}
         />
       </div>
-      {/* <span className="line-clamp-1 w-full text-xs text-muted-foreground font-mono">
-        {matchedEvent?.id ||
-          Array.from(keyPackage.publicPackage.initKey)
-            .map((b) => b.toString(16).padStart(2, "0"))
-            .join("")
-            .slice(0, 16) + "..."}
-      </span> */}
     </Link>
   );
 }
 
 function KeyPackagesPage() {
-  const keyPackages = use$(liveKeyPackages$);
+  // Local key packages from the manager — each entry includes its published Nostr events
+  const localKeyPackages = use$(liveKeyPackages$);
+  // Published key packages from relays — includes packages not stored locally
   const published = use$(publishedKeyPackages$);
 
-  // Combine published and local key packages to show all published packages
+  // Build display list: start from locally-stored packages (with their published events),
+  // then add any relay-published packages that aren't in local storage.
   const displayItems = useMemo(() => {
-    if (!published || published.length === 0) {
-      return { items: [], uniqueCount: 0 };
-    }
-
-    // Deduplicate by keyPackageRef - use first occurrence (most likely from best relay)
     const seen = new Set<string>();
-    const uniquePublished: typeof published = [];
+    const items: Array<{
+      keyPackageRef: Uint8Array;
+      publicPackage: { cipherSuite: number };
+      event?: NostrEvent;
+      isLocal: boolean;
+    }> = [];
 
-    for (const pkg of published) {
-      const hexRef = bytesToHex(pkg.keyPackageRef);
-      if (!seen.has(hexRef)) {
-        seen.add(hexRef);
-        uniquePublished.push(pkg);
-      }
+    // Add local key packages first — they have the richest data
+    for (const entry of localKeyPackages ?? []) {
+      const hexRef = bytesToHex(entry.keyPackageRef);
+      if (seen.has(hexRef)) continue;
+      seen.add(hexRef);
+      // Use the most recent published event if available
+      const event = entry.published?.[entry.published.length - 1];
+      items.push({
+        keyPackageRef: entry.keyPackageRef,
+        publicPackage: entry.publicPackage,
+        event,
+        isLocal: true,
+      });
     }
 
-    const items = uniquePublished.map((publishedPkg) => {
-      // Try to find matching local key package
-      const localKeyPackage = keyPackages?.find(
-        (pkg) =>
-          bytesToHex(pkg.keyPackageRef) ===
-          bytesToHex(publishedPkg.keyPackageRef),
-      );
+    // Add relay-published packages that aren't in local storage
+    for (const pkg of published ?? []) {
+      const hexRef = bytesToHex(pkg.keyPackageRef);
+      if (seen.has(hexRef)) continue;
+      seen.add(hexRef);
+      items.push({
+        keyPackageRef: pkg.keyPackageRef,
+        publicPackage: pkg.keyPackage,
+        event: pkg.event,
+        isLocal: false,
+      });
+    }
 
-      return {
-        keyPackageRef: publishedPkg.keyPackageRef,
-        publicPackage:
-          localKeyPackage?.publicPackage || publishedPkg.keyPackage,
-        event: publishedPkg.event,
-        isLocal: !!localKeyPackage,
-      };
-    });
-
-    return { items, uniqueCount: seen.size };
-  }, [published, keyPackages]);
+    return items;
+  }, [localKeyPackages, published]);
 
   return (
     <>
@@ -148,12 +149,13 @@ function KeyPackagesPage() {
           <Button asChild variant="default" className="m-2">
             <Link to="/key-packages/create">Create Key Package</Link>
           </Button>
-          {displayItems.items.length > 0 ? (
-            displayItems.items.map((item) => (
+          {displayItems.length > 0 ? (
+            displayItems.map((item) => (
               <KeyPackageItem
                 key={bytesToHex(item.keyPackageRef)}
                 keyPackage={item}
                 event={item.event}
+                isLocal={item.isLocal}
               />
             ))
           ) : (
@@ -164,7 +166,7 @@ function KeyPackagesPage() {
         </div>
 
         <div className="p-4 text-sm text-muted-foreground text-center">
-          Found {displayItems.uniqueCount} published key packages
+          Found {displayItems.length} key packages
         </div>
       </AppSidebar>
       <SidebarInset>

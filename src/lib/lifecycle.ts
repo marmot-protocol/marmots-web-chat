@@ -89,6 +89,10 @@ export const publishedKeyPackages$ = combineLatest([
           keyPackage,
           client?.cryptoProvider,
         );
+        // Track the published event with the key package manager so it knows
+        // which relays to send kind-5 deletions to, even for packages where
+        // private key material is not held locally (e.g. published by another device).
+        client?.keyPackages.track(event);
         return { event, keyPackage, keyPackageRef } as PublishedKeyPackage;
       } catch {
         return null;

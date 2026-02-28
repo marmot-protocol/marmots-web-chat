@@ -4,12 +4,12 @@ import { onlyEvents } from "applesauce-relay";
 import {
   GroupRumorHistory,
   InviteReader,
-  KeyPackageStore,
   MarmotClient,
   MarmotGroup,
   NostrNetworkInterface,
   PublishResponse,
 } from "@internet-privacy/marmots";
+import type { KeyPackageEntry } from "@internet-privacy/marmots";
 import {
   combineLatest,
   firstValueFrom,
@@ -117,39 +117,39 @@ export const liveUnreadInvites$ = inviteReader$.pipe(
 );
 
 /**
- * Converts the client's watchKeyPackages async generator to an RxJS Observable.
+ * Converts the client's key package manager watchKeyPackages async generator to an RxJS Observable.
  * This provides a reactive stream of key package updates.
  */
 export const liveKeyPackages$ = marmotClient$.pipe(
   switchMap((client) => {
     if (!client) return of([]);
 
-    // Use the new watchKeyPackages async generator from MarmotClient
-    return new Observable<Awaited<ReturnType<KeyPackageStore["list"]>>>(
-      (subscriber) => {
-        const abortController = new AbortController();
-        const iterator = client.watchKeyPackages()[Symbol.asyncIterator]();
+    // Use the watchKeyPackages async generator from the KeyPackageManager
+    return new Observable<KeyPackageEntry[]>((subscriber) => {
+      const abortController = new AbortController();
+      const iterator = client.keyPackages
+        .watchKeyPackages()
+        [Symbol.asyncIterator]();
 
-        (async () => {
-          try {
-            while (!abortController.signal.aborted) {
-              const { value, done } = await iterator.next();
-              if (done) break;
-              subscriber.next(value);
-            }
-          } catch (error) {
-            subscriber.error(error);
-          } finally {
-            subscriber.complete();
+      (async () => {
+        try {
+          while (!abortController.signal.aborted) {
+            const { value, done } = await iterator.next();
+            if (done) break;
+            subscriber.next(value);
           }
-        })();
+        } catch (error) {
+          subscriber.error(error);
+        } finally {
+          subscriber.complete();
+        }
+      })();
 
-        return () => {
-          abortController.abort();
-          iterator.return?.(undefined);
-        };
-      },
-    );
+      return () => {
+        abortController.abort();
+        iterator.return?.(undefined);
+      };
+    });
   }),
   shareReplay(1),
 );

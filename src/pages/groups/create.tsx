@@ -1,18 +1,10 @@
-import { bytesToHex } from "@noble/hashes/utils.js";
 import { use$ } from "applesauce-react/hooks";
 import { Loader2, XCircle } from "lucide-react";
-import {
-  CompleteKeyPackage,
-  createCredential,
-  generateKeyPackage,
-} from "@internet-privacy/marmots";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { defaultCryptoProvider } from "ts-mls";
-import type { KeyPackage } from "ts-mls";
 import type { CiphersuiteName } from "ts-mls/crypto/ciphersuite.js";
-import { ciphersuites } from "ts-mls/crypto/ciphersuite.js";
 
+import { CipherSuitePicker } from "@/components/form/cipher-suite-picker";
 import { PubkeyListCreator } from "@/components/form/pubkey-list-creator";
 import { RelayListCreator } from "@/components/form/relay-list-creator";
 import { PageBody } from "@/components/page-body";
@@ -26,19 +18,17 @@ import { withActiveAccount } from "@/components/with-active-account";
 import accountManager from "@/lib/accounts";
 import { marmotClient$ } from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
-import { from, merge } from "rxjs";
 
 // ============================================================================
 // Types
 // ============================================================================
 
 interface ConfigurationFormData {
-  selectedKeyPackageId: string;
-  selectedKeyPackage: CompleteKeyPackage | null;
   groupName: string;
   groupDescription: string;
   adminPubkeys: string[];
   relays: string[];
+  ciphersuite: CiphersuiteName;
 }
 
 // ============================================================================
@@ -46,27 +36,23 @@ interface ConfigurationFormData {
 // ============================================================================
 
 interface ConfigurationFormProps {
-  keyPackages: KeyPackage[];
-  keyPackageStore: any;
   isCreating: boolean;
   defaultRelays: string[];
   onSubmit: (data: ConfigurationFormData) => void;
 }
 
 function ConfigurationForm({
-  keyPackages,
-  keyPackageStore,
   isCreating,
   defaultRelays,
   onSubmit,
 }: ConfigurationFormProps) {
-  const [selectedKeyPackageId, setSelectedKeyPackageId] = useState("");
-  const [selectedKeyPackage, setSelectedKeyPackage] =
-    useState<CompleteKeyPackage | null>(null);
   const [groupName, setGroupName] = useState("My Group");
   const [groupDescription, setGroupDescription] = useState("");
   const [adminPubkeys, setAdminPubkeys] = useState<string[]>([]);
   const [relays, setRelays] = useState<string[]>(defaultRelays);
+  const [ciphersuite, setCiphersuite] = useState<CiphersuiteName>(
+    "MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519",
+  );
 
   // Keep relays populated with the user's default relays unless the user has
   // already made an explicit change.
@@ -80,75 +66,15 @@ function ConfigurationForm({
     setRelays(defaultRelays);
   }, [defaultRelays.join(","), hasTouchedRelays]);
 
-  const handleKeyPackageSelect = async (keyPackageId: string) => {
-    if (!keyPackageStore || !keyPackageId) {
-      setSelectedKeyPackageId("");
-      setSelectedKeyPackage(null);
-      return;
-    }
-
-    try {
-      setSelectedKeyPackageId(keyPackageId);
-
-      const keyPackage = keyPackages.find(
-        (kp) => bytesToHex(kp.initKey) === keyPackageId,
-      );
-      if (!keyPackage) {
-        return;
-      }
-
-      const completePackage =
-        await keyPackageStore.getCompletePackage(keyPackage);
-      if (completePackage) {
-        setSelectedKeyPackage(completePackage);
-      }
-    } catch (err) {
-      // Silently handle key package loading errors
-    }
-  };
-
-  const handleSubmit = async () => {
-    // Default to the user's relay set if none selected.
-    // The parent can still override, but this ensures the form is valid.
+  const handleSubmit = () => {
     const effectiveRelays = relays.length > 0 ? relays : defaultRelays;
 
-    // If no key package is selected, generate a new one with defaults
-    let keyPackageToUse = selectedKeyPackage;
-
-    if (!keyPackageToUse) {
-      try {
-        const account = accountManager.active;
-        if (!account) {
-          return;
-        }
-
-        // Use default cipher suite
-        const defaultCipherSuite: CiphersuiteName =
-          "MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519";
-
-        // Get cipher suite implementation
-        const ciphersuiteId = ciphersuites[defaultCipherSuite];
-        const ciphersuiteImpl =
-          await defaultCryptoProvider.getCiphersuiteImpl(ciphersuiteId);
-
-        // Create credential and key package
-        const credential = createCredential(account.pubkey);
-        keyPackageToUse = await generateKeyPackage({
-          credential,
-          ciphersuiteImpl,
-        });
-      } catch (err) {
-        return;
-      }
-    }
-
     onSubmit({
-      selectedKeyPackageId,
-      selectedKeyPackage: keyPackageToUse,
       groupName,
       groupDescription,
       adminPubkeys,
       relays: effectiveRelays,
+      ciphersuite,
     });
   };
 
@@ -162,41 +88,14 @@ function ConfigurationForm({
       </div>
 
       <div className="space-y-6">
-        {/* Key Package Selection */}
+        {/* Cipher Suite */}
         <div className="space-y-2">
-          <Label htmlFor="key-package">Select Key Package (Optional)</Label>
-          {keyPackages.length === 0 ? (
-            <Alert>
-              <AlertDescription>
-                No key packages available. A new one will be generated
-                automatically with default settings.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <>
-              <select
-                id="key-package"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={selectedKeyPackageId}
-                onChange={(e) => handleKeyPackageSelect(e.target.value)}
-                disabled={isCreating}
-              >
-                <option value="">Generate new key package (default)</option>
-                {keyPackages.map((kp) => (
-                  <option
-                    key={bytesToHex(kp.initKey)}
-                    value={bytesToHex(kp.initKey)}
-                  >
-                    Key Package ({bytesToHex(kp.initKey).slice(0, 16)}...)
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-muted-foreground">
-                Leave unselected to generate a new key package with default
-                cipher suite
-              </p>
-            </>
-          )}
+          <Label>Cipher Suite</Label>
+          <CipherSuitePicker
+            value={ciphersuite}
+            onChange={setCiphersuite}
+            disabled={isCreating}
+          />
         </div>
 
         {/* Group Name */}
@@ -280,14 +179,6 @@ function ConfigurationForm({
 function CreateGroupPage() {
   const client = use$(marmotClient$);
   const extraRelays = use$(extraRelays$);
-  const storedKeyPackages = use$(
-    () => client && merge(from(client.keyPackageStore.list())),
-    [client],
-  );
-  const keyPackages = useMemo(
-    () => storedKeyPackages?.map((kp) => kp.publicPackage) ?? [],
-    [storedKeyPackages],
-  );
 
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -295,10 +186,6 @@ function CreateGroupPage() {
   const navigate = useNavigate();
 
   const handleFormSubmit = async (data: ConfigurationFormData) => {
-    if (!data.selectedKeyPackage) {
-      return;
-    }
-
     if (!client) {
       setError("Marmot client not available");
       return;
@@ -323,10 +210,12 @@ function CreateGroupPage() {
       ];
       const allRelays = [...data.relays];
 
+      // createGroup handles key package generation internally
       const group = await client.createGroup(data.groupName, {
         description: data.groupDescription,
         adminPubkeys: adminPubkeysList,
         relays: allRelays,
+        ciphersuite: data.ciphersuite,
       });
 
       // Navigate directly to the group detail page
@@ -349,8 +238,6 @@ function CreateGroupPage() {
       <PageBody>
         {/* Configuration Form */}
         <ConfigurationForm
-          keyPackages={keyPackages}
-          keyPackageStore={client?.keyPackageStore}
           isCreating={isCreating}
           defaultRelays={extraRelays ?? []}
           onSubmit={(data) => {

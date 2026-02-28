@@ -1,16 +1,9 @@
-import { relaySet } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { AlertCircle, Loader2, XCircle } from "lucide-react";
-import {
-  createCredential,
-  createKeyPackageEvent,
-  generateKeyPackage,
-} from "@internet-privacy/marmots";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { defaultCryptoProvider } from "ts-mls";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import type { CiphersuiteName } from "ts-mls/crypto/ciphersuite.js";
-import { ciphersuites } from "ts-mls/crypto/ciphersuite.js";
 
 import { CipherSuitePicker } from "@/components/form/cipher-suite-picker";
 import { PageBody } from "@/components/page-body";
@@ -26,10 +19,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { withActiveAccount } from "@/components/with-active-account";
-import { accounts, user$ } from "@/lib/accounts";
 import { keyPackageRelays$ } from "@/lib/lifecycle";
 import { marmotClient$ } from "@/lib/marmot-client";
-import { eventStore, pool } from "@/lib/nostr";
 
 /**
  * Reusable alert component that directs users to set up their key package relays
@@ -55,10 +46,9 @@ export function KeyPackageRelaysAlert() {
 }
 
 function CreateKeyPackagePage() {
-  // Subscribe to the user's key package relays and mailboxes
+  // Subscribe to the user's key package relays and marmot client
   const keyPackageRelays = use$(keyPackageRelays$);
   const client = use$(marmotClient$);
-  const outboxes = use$(user$.outboxes$);
   const navigate = useNavigate();
 
   const [cipherSuite, setCipherSuite] = useState<CiphersuiteName>(
@@ -68,72 +58,22 @@ function CreateKeyPackagePage() {
   const [error, setError] = useState<string | null>(null);
 
   const handleCreate = async () => {
-    if (!keyPackageRelays || keyPackageRelays.length === 0) {
-      return;
-    }
-
-    const publishRelays = relaySet(outboxes || [], keyPackageRelays);
-    if (publishRelays.length === 0) {
-      return;
-    }
+    if (!keyPackageRelays || keyPackageRelays.length === 0) return;
+    if (!client) throw new Error("No active marmot client");
 
     try {
       setIsCreating(true);
       setError(null);
 
-      const account = accounts.active;
-      if (!account) throw new Error("No active account");
-
-      const pubkey = account.pubkey;
-
-      // Get cipher suite implementation
-      const ciphersuiteId = ciphersuites[cipherSuite];
-      const ciphersuiteImpl =
-        await defaultCryptoProvider.getCiphersuiteImpl(ciphersuiteId);
-
-      // Create credential and key package
-      console.log("Creating credential for pubkey:", pubkey);
-      const credential = createCredential(pubkey);
-
-      console.log("Generating key package with cipher suite:", cipherSuite);
-      const keyPackage = await generateKeyPackage({
-        credential,
-        ciphersuiteImpl,
-      });
-
-      // Create the unsigned event using the library function
-      // Use key package relays in the event tags (for discovery)
-      console.log("Creating key package event...");
-      const unsignedEvent = await createKeyPackageEvent({
-        keyPackage: keyPackage.publicPackage,
+      // The key package manager handles credential creation, key generation,
+      // event signing, relay publication, and local storage in one call.
+      const keyPackage = await client.keyPackages.create({
         relays: keyPackageRelays,
+        ciphersuite: cipherSuite,
         client: "marmot-chat",
       });
 
-      // Sign the event
-      console.log("Signing event...");
-      const signedEvent = await account.signEvent(unsignedEvent);
-      console.log("Signed event:", signedEvent);
-
-      // Publish to both key package relays and outboxes
-      console.log("Publishing to relays:", publishRelays.join(", "));
-      await pool.publish(publishRelays, signedEvent);
-      console.log("Published to", publishRelays.join(", "));
-
-      // Store the signed event in the event store
-      eventStore.add(signedEvent);
-
-      // Store the key package locally only after successful publication
-      if (client?.keyPackageStore) {
-        console.log("Storing key package locally...");
-        await client.keyPackageStore.add(keyPackage);
-        console.log("Stored key package");
-      }
-
-      console.log("✅ Key package published successfully!");
-
-      // Redirect to the detail page
-      navigate(`/key-packages/${signedEvent.id}`);
+      navigate(`/key-packages/${bytesToHex(keyPackage.keyPackageRef)}`);
     } catch (err) {
       console.error("Error creating key package:", err);
       setError(err instanceof Error ? err.message : String(err));
@@ -187,7 +127,7 @@ function CreateKeyPackagePage() {
           <CardFooter>
             <Button
               onClick={handleCreate}
-              disabled={isCreating}
+              disabled={isCreating || !client}
               className="w-full"
             >
               {isCreating ? (

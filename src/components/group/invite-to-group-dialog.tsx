@@ -77,9 +77,7 @@ function KeyPackageSelectionStep({
         authors: [pubkey],
         limit: 50,
       })
-      .pipe(
-        mapEventsToTimeline(),
-      );
+      .pipe(mapEventsToTimeline());
   }, [pubkey, keyPackageRelays?.join(",")]);
 
   if (!keyPackageRelays) {
@@ -115,8 +113,7 @@ function KeyPackageSelectionStep({
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Select which key package to use for the invite. {keyPackages.length}
-        {" "}
+        Select which key package to use for the invite. {keyPackages.length}{" "}
         package
         {keyPackages.length === 1 ? "" : "s"} available.
       </p>
@@ -278,16 +275,14 @@ function NewGroupForm({
           onClick={handleCreateAndInvite}
           disabled={isCreating || !groupName.trim()}
         >
-          {isCreating
-            ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating...
-              </>
-            )
-            : (
-              "Create & Invite"
-            )}
+          {isCreating ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Creating...
+            </>
+          ) : (
+            "Create & Invite"
+          )}
         </Button>
       </div>
     </div>
@@ -319,7 +314,7 @@ function GroupSelectionStep({
     return groups.filter(
       (g) =>
         (g.state.groupContext.cipherSuite as CiphersuiteId) ===
-          selectedCipherSuiteId,
+        selectedCipherSuiteId,
     );
   }, [groups, selectedCipherSuiteId]);
 
@@ -351,53 +346,47 @@ function GroupSelectionStep({
 
   return (
     <div className="space-y-4">
-      {compatibleGroups.length > 0
-        ? (
-          <div className="max-h-[240px] overflow-y-auto border rounded-lg divide-y">
-            {compatibleGroups.map((group) => {
-              const name = group.groupData?.name ?? "Unnamed Group";
-              const memberCount = getGroupMembers(group.state).length;
-              const groupId = group.idStr;
-              const isBusy = isInviting === groupId;
+      {compatibleGroups.length > 0 ? (
+        <div className="max-h-[240px] overflow-y-auto border rounded-lg divide-y">
+          {compatibleGroups.map((group) => {
+            const name = group.groupData?.name ?? "Unnamed Group";
+            const memberCount = getGroupMembers(group.state).length;
+            const groupId = group.idStr;
+            const isBusy = isInviting === groupId;
 
-              return (
-                <div
-                  key={groupId}
-                  className="flex items-center justify-between gap-3 p-3"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {memberCount} member{memberCount === 1 ? "" : "s"}
-                    </div>
+            return (
+              <div
+                key={groupId}
+                className="flex items-center justify-between gap-3 p-3"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {memberCount} member{memberCount === 1 ? "" : "s"}
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleInviteToGroup(groupId)}
-                    disabled={!!isInviting}
-                  >
-                    {isBusy
-                      ? (
-                        <>
-                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                          Inviting...
-                        </>
-                      )
-                      : (
-                        "Invite"
-                      )}
-                  </Button>
                 </div>
-              );
-            })}
-          </div>
-        )
-        : (
-          <p className="text-sm text-muted-foreground">
-            No compatible groups.
-          </p>
-        )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleInviteToGroup(groupId)}
+                  disabled={!!isInviting}
+                >
+                  {isBusy ? (
+                    <>
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      Inviting...
+                    </>
+                  ) : (
+                    "Invite"
+                  )}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">No compatible groups.</p>
+      )}
 
       {inviteError && (
         <Alert variant="destructive">
@@ -440,12 +429,10 @@ export function InviteToGroupDialog({
   pubkey,
 }: InviteToGroupDialogProps) {
   const [step, setStep] = useState<1 | 2>(1);
-  const [selectedKeyPackageEventId, setSelectedKeyPackageEventId] = useState(
-    "",
-  );
-  const [selectedCipherSuiteId, setSelectedCipherSuiteId] = useState<
-    CiphersuiteId | null
-  >(null);
+  const [selectedKeyPackageEventId, setSelectedKeyPackageEventId] =
+    useState("");
+  const [selectedCipherSuiteId, setSelectedCipherSuiteId] =
+    useState<CiphersuiteId | null>(null);
 
   // We need the actual event object for step 2 — keep a ref to it
   const outboxes = use$(user$.outboxes$);
@@ -526,40 +513,42 @@ export function InviteToGroupDialog({
         {/* Step indicator */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span
-            className={step === 1
-              ? "text-foreground font-medium"
-              : "text-muted-foreground"}
+            className={
+              step === 1
+                ? "text-foreground font-medium"
+                : "text-muted-foreground"
+            }
           >
             1. Key Package
           </span>
           <span>›</span>
           <span
-            className={step === 2
-              ? "text-foreground font-medium"
-              : "text-muted-foreground"}
+            className={
+              step === 2
+                ? "text-foreground font-medium"
+                : "text-muted-foreground"
+            }
           >
             2. Group
           </span>
         </div>
 
-        {step === 1
-          ? (
-            <KeyPackageSelectionStep
-              pubkey={pubkey}
-              onSelectKeyPackage={handleKeyPackageSelect}
+        {step === 1 ? (
+          <KeyPackageSelectionStep
+            pubkey={pubkey}
+            onSelectKeyPackage={handleKeyPackageSelect}
+          />
+        ) : (
+          selectedKeyPackageEvent &&
+          selectedCipherSuiteId !== null && (
+            <GroupSelectionStep
+              selectedKeyPackageEvent={selectedKeyPackageEvent}
+              selectedCipherSuiteId={selectedCipherSuiteId}
+              contactPubkey={pubkey}
+              onInvited={() => onOpenChange(false)}
             />
           )
-          : (
-            selectedKeyPackageEvent &&
-            selectedCipherSuiteId !== null && (
-              <GroupSelectionStep
-                selectedKeyPackageEvent={selectedKeyPackageEvent}
-                selectedCipherSuiteId={selectedCipherSuiteId}
-                contactPubkey={pubkey}
-                onInvited={() => onOpenChange(false)}
-              />
-            )
-          )}
+        )}
 
         {step === 2 && (
           <DialogFooter>

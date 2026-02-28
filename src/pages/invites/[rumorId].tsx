@@ -1,7 +1,7 @@
 import { IconAlertCircle } from "@tabler/icons-react";
-import { bytesToHex } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import {
+  calculateKeyPackageRef,
   getKeyPackage,
   getWelcome,
   getWelcomeGroupRelays,
@@ -52,15 +52,14 @@ function JoinButton({
       setLoading(true);
       // The selected invite is now a Rumor (UnreadInvite extends Rumor)
       // Pass it directly as welcomeRumor
-      const group = await client.joinGroupFromWelcome({
+      const { group } = await client.joinGroupFromWelcome({
         welcomeRumor: invite,
-        keyPackageEventId: getWelcomeKeyPackageEventId(invite),
       });
 
       // Mark invite as read (removes from unread, keeps in seen)
       await inviteReader.markAsRead(invite.id);
 
-      navigate(`/groups/${bytesToHex(group.state.groupContext.groupId)}`);
+      navigate(`/groups/${group.idStr}`);
     } catch (err) {
       console.error("Failed to join group:", err);
       setError(err instanceof Error ? err.message : String(err));
@@ -156,9 +155,11 @@ export function InviteDetailPage() {
   /** Check if the private key for this key package is stored locally */
   const hasKeyPackage = use$(() => {
     if (!client || !keyPackage) return of(false);
-    return from(client.keyPackageStore.getPrivateKey(keyPackage)).pipe(
-      map((pk) => pk !== null),
-    );
+    return from(
+      calculateKeyPackageRef(keyPackage, client.cryptoProvider).then((ref) =>
+        client.keyPackages.getPrivateKey(ref),
+      ),
+    ).pipe(map((pk) => pk !== null));
   }, [keyPackage, client]);
 
   if (!inviteReader) {

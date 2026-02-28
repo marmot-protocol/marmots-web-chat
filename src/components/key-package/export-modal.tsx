@@ -1,6 +1,9 @@
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { AlertCircle, Download, Info } from "lucide-react";
-import type { StoredKeyPackage } from "@internet-privacy/marmots";
+import type {
+  LocalKeyPackage,
+  StoredKeyPackage,
+} from "@internet-privacy/marmots";
 import { useMemo, useState } from "react";
 import { encode, keyPackageEncoder } from "ts-mls";
 
@@ -58,7 +61,7 @@ function downloadJsonFile(content: string, filename: string) {
 /**
  * Encode a key package to JSON with hex-encoded fields
  */
-function encodeKeyPackageToJson(keyPackage: StoredKeyPackage): string {
+function encodeKeyPackageToJson(keyPackage: LocalKeyPackage): string {
   // Encode public key package
   const publicHex = bytesToHex(
     encode(keyPackageEncoder, keyPackage.publicPackage),
@@ -95,14 +98,14 @@ export default function ExportKeyPackageModal({
 }: ExportKeyPackageModalProps) {
   const [showContent, setShowContent] = useState(false);
 
-  // Check if this key package has private key material
-  const hasPrivateKey = keyPackage.privatePackage !== null;
+  // Check if this key package has private key material (LocalKeyPackage has privatePackage defined)
+  const hasPrivateKey = keyPackage.privatePackage != null;
 
   // Encode the key package to JSON (only when needed)
   const encodedJson = useMemo(() => {
     if (!showContent || !hasPrivateKey) return "";
     try {
-      return encodeKeyPackageToJson(keyPackage as StoredKeyPackage);
+      return encodeKeyPackageToJson(keyPackage);
     } catch (error) {
       console.error("Failed to encode key package:", error);
       return "";
