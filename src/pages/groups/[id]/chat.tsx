@@ -14,12 +14,15 @@ import { useOutletContext } from "react-router";
 import { defaultContentComponents } from "@/components/content-renderers";
 import { UserBadge } from "@/components/nostr-user";
 import { TranscriptionButton } from "@/components/transcription-button";
+import { WebxdcAppCard } from "@/components/webxdc-app-card";
+import { WebxdcRuntime } from "@/components/webxdc-runtime";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useGroupMessages } from "@/hooks/use-group-messages";
 import { accounts } from "@/lib/accounts";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
+import { isWebxdcMessage } from "@/lib/webxdc";
 
 // ============================================================================
 // Types for outlet context
@@ -40,7 +43,15 @@ interface GroupOutletContext {
 // Component: MessageItem
 // ============================================================================
 
-const MessageItem = memo(function MessageItem({ rumor }: { rumor: Rumor }) {
+interface MessageItemProps {
+  rumor: Rumor;
+  onLaunch: (webxdcId: string, xdcUrl: string) => void;
+}
+
+const MessageItem = memo(function MessageItem({
+  rumor,
+  onLaunch,
+}: MessageItemProps) {
   const account = use$(accounts.active$);
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
@@ -48,9 +59,13 @@ const MessageItem = memo(function MessageItem({ rumor }: { rumor: Rumor }) {
   };
 
   const isOwnMessage = rumor.pubkey === account?.pubkey;
+  const isWebxdc = isWebxdcMessage(rumor);
 
-  // Render content with rich text formatting
-  const content = useRenderedContent(rumor, defaultContentComponents);
+  // Render content with rich text formatting (for non-webxdc messages)
+  const content = useRenderedContent(
+    isWebxdc ? { ...rumor, content: "" } : rumor,
+    defaultContentComponents,
+  );
 
   return (
     <div
@@ -64,17 +79,24 @@ const MessageItem = memo(function MessageItem({ rumor }: { rumor: Rumor }) {
           {formatTimestamp(rumor.created_at)}
         </span>
       </div>
-      <div
-        className={`p-3 max-w-[80%] rounded-lg ${
-          isOwnMessage
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-foreground"
-        }`}
-      >
-        <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">
-          {content}
+
+      {isWebxdc ? (
+        // Render app card for .xdc messages
+        <WebxdcAppCard rumor={rumor} onLaunch={onLaunch} />
+      ) : (
+        // Render normal text bubble
+        <div
+          className={`p-3 max-w-[80%] rounded-lg ${
+            isOwnMessage
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-foreground"
+          }`}
+        >
+          <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">
+            {content}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 });
@@ -83,11 +105,15 @@ const MessageItem = memo(function MessageItem({ rumor }: { rumor: Rumor }) {
 // Component: MessageList
 // ============================================================================
 
+interface MessageListProps {
+  messages: Rumor[];
+  onLaunch: (webxdcId: string, xdcUrl: string) => void;
+}
+
 const MessageList = memo(function MessageList({
   messages,
-}: {
-  messages: Rumor[];
-}) {
+  onLaunch,
+}: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -105,7 +131,11 @@ const MessageList = memo(function MessageList({
   return (
     <div className="flex flex-col gap-4">
       {messages.map((rumor, index) => (
-        <MessageItem key={`${rumor.id}-${index}`} rumor={rumor} />
+        <MessageItem
+          key={`${rumor.id}-${index}`}
+          rumor={rumor}
+          onLaunch={onLaunch}
+        />
       ))}
       <div ref={messagesEndRef} />
     </div>
@@ -144,7 +174,7 @@ function MessageForm({ isSending, onSend }: MessageFormProps) {
       <Input
         ref={input}
         type="text"
-        placeholder="Type your message..."
+        placeholder="Type your message or paste a .xdc URL…"
         value={messageText}
         onChange={(e) => setMessageText(e.target.value)}
         onKeyDown={(e) => {
@@ -232,6 +262,16 @@ export default function GroupChatPage() {
 
   const groupIdHex = getNostrGroupIdHex(group.state);
 
+  // Active webxdc app session (if any)
+  const [activeWebxdc, setActiveWebxdc] = useState<{
+    webxdcId: string;
+    xdcUrl: string;
+  } | null>(null);
+
+  const handleLaunch = (webxdcId: string, xdcUrl: string) => {
+    setActiveWebxdc({ webxdcId, xdcUrl });
+  };
+
   // Mark group as seen when new messages arrive
   useEffect(() => {
     if (!groupIdHex) return;
@@ -275,7 +315,7 @@ export default function GroupChatPage() {
 
       {/* Messages - flex-col-reverse for scroll-to-bottom behavior */}
       <div className="flex flex-col-reverse h-full overflow-y-auto overflow-x-hidden px-2 pt-10">
-        <MessageList messages={messages} />
+        <MessageList messages={messages} onLaunch={handleLaunch} />
         {loadMoreMessages && !loadingDone && (
           <div className="flex justify-center py-2">
             <Button onClick={loadMoreMessages} disabled={loadingMore}>
@@ -296,6 +336,16 @@ export default function GroupChatPage() {
       <div className="border-t p-4 bg-background">
         <MessageForm isSending={isSending} onSend={handleSendMessage} />
       </div>
+
+      {/* Webxdc runtime modal */}
+      {activeWebxdc && (
+        <WebxdcRuntime
+          group={group}
+          webxdcId={activeWebxdc.webxdcId}
+          xdcUrl={activeWebxdc.xdcUrl}
+          onClose={() => setActiveWebxdc(null)}
+        />
+      )}
     </div>
   );
 }

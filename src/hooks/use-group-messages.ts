@@ -1,9 +1,11 @@
-import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import {
-  type MarmotGroup,
   type GroupRumorHistory,
+  type MarmotGroup,
 } from "@internet-privacy/marmots";
+import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { kinds } from "applesauce-core/helpers";
 
 /**
  * Hook that loads and subscribes to group messages: paginated history from the
@@ -43,9 +45,13 @@ export function useGroupMessages(
       prev.forEach((msg) => {
         if (msg.id) messageMap.set(msg.id, msg);
       });
-      newMessages.forEach((msg) => {
-        if (msg.id) messageMap.set(msg.id, msg);
-      });
+      // Filter out webxdc protocol kinds (state updates, realtime) — they are
+      // routed to the webxdc runtime, not displayed in the chat list.
+      newMessages
+        .filter((msg) => msg.kind === kinds.ChatMessage)
+        .forEach((msg) => {
+          if (msg.id) messageMap.set(msg.id, msg);
+        });
       const combined = Array.from(messageMap.values());
       return combined.sort((a, b) => a.created_at - b.created_at);
     });
