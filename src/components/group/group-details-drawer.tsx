@@ -77,6 +77,7 @@ export function GroupDetailsDrawer({
   const navigate = useNavigate();
   const [isPurgingGroup, setIsPurgingGroup] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
+  const [isSelfUpdating, setIsSelfUpdating] = useState(false);
 
   const groupIdHex = group ? getNostrGroupIdHex(group.state) : null;
 
@@ -92,6 +93,19 @@ export function GroupDetailsDrawer({
       console.error("Failed to purge group:", error);
     } finally {
       setIsPurgingGroup(false);
+    }
+  };
+
+  const handleSelfUpdate = async () => {
+    if (!group) return;
+
+    try {
+      setIsSelfUpdating(true);
+      await group.selfUpdate();
+    } catch (error) {
+      console.error("Failed to perform self update:", error);
+    } finally {
+      setIsSelfUpdating(false);
     }
   };
 
@@ -194,6 +208,23 @@ export function GroupDetailsDrawer({
         </div>
 
         <SheetFooter className="flex-col gap-2 sm:flex-col border-t pt-4">
+          {/* Self Update Button */}
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={isSelfUpdating}
+            onClick={handleSelfUpdate}
+          >
+            {isSelfUpdating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Updating...
+              </>
+            ) : (
+              "Self update"
+            )}
+          </Button>
+
           {/* Clear Chat History Button */}
           <AlertDialog>
             <AlertDialogTrigger asChild>

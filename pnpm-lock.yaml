@@ -180,6 +180,9 @@ importers:
       applesauce-core:
         specifier: ^5.1.0
         version: 5.1.0(typescript@5.9.3)
+      debug:
+        specifier: ^4.4.3
+        version: 4.4.3
       eventemitter3:
         specifier: ^5.0.4
         version: 5.0.4
@@ -193,6 +196,9 @@ importers:
       '@changesets/cli':
         specifier: ^2.29.8
         version: 2.29.8(@types/node@24.10.13)
+      '@types/debug':
+        specifier: ^4.1.12
+        version: 4.1.12
       '@types/node':
         specifier: ^24.10.13
         version: 24.10.13

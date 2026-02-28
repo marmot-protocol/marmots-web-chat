@@ -1,95 +1,177 @@
-import type { Rumor } from "applesauce-common/helpers/gift-wrap";
-import type { NostrEvent } from "applesauce-core/helpers";
+import { eventStore, pool } from "@/lib/nostr";
 import {
   deserializeApplicationData,
-  getNostrGroupIdHex,
-  GROUP_EVENT_KIND,
-  type GroupRumorHistory,
   MarmotClient,
-  MarmotGroup,
+  type GroupRumorHistory,
 } from "@internet-privacy/marmots";
-import { BehaviorSubject, Subscription, bufferTime } from "rxjs";
-import { pool } from "@/lib/nostr";
 import { bytesToHex } from "@noble/hashes/utils.js";
-import { onlyEvents } from "applesauce-relay";
+import { mapEventsToStore } from "applesauce-core";
+import { unixNow, type NostrEvent } from "applesauce-core/helpers";
+import { onlyEvents } from "applesauce-relay/operators";
+import {
+  BehaviorSubject,
+  concatMap,
+  EMPTY,
+  from,
+  merge,
+  NEVER,
+  Observable,
+  Subscription,
+  switchMap,
+  tap,
+  throttleTime,
+} from "rxjs";
 
 /**
  * Manages persistent subscriptions for all groups in the store.
  *
  * Why: In MLS, the group epoch advances with commits. If we don't ingest commits
  * in the background, the UI can drift and messages may fail to decrypt.
+ *
+ * Architecture:
+ * - Relay subscriptions store raw group events into the shared eventStore.
+ * - Each group independently subscribes to the eventStore timeline and ingests
+ *   only events that have not yet been successfully processed.
  */
 export class GroupSubscriptionManager {
-  private groupSubscriptions = new Map<
-    string,
-    {
-      subscription: Subscription;
-      seenEventIds: Set<string>;
-    }
-  >();
-
   private readonly client: MarmotClient<GroupRumorHistory>;
-  private isActive = false;
-  private reconcileInterval: ReturnType<typeof setInterval> | null = null;
-  private applicationMessageCallbacks = new Map<
-    string,
-    (messages: Rumor[]) => void
-  >();
-
+  private running = false;
   /** GroupIds that currently have messages newer than the last "seen" timestamp. */
   readonly unreadGroupIds$ = new BehaviorSubject<string[]>([]);
 
   /** Last known message timestamp per group (seconds). */
   private lastMessageAtByGroup = new Map<string, number>();
 
-  /** In-memory buffer of recent application messages per group (sorted). */
-  private messageBufferByGroup = new Map<string, Rumor[]>();
-
   /** Last seen timestamp per group (seconds), persisted in localStorage. */
   private lastSeenAtByGroup = new Map<string, number>();
 
+  /** An observable that subscribes to all group events form their relays */
+  #live$: Observable<NostrEvent>;
+
+  #processedEventIds = new Map<string, Set<string>>();
+
+  /** An observable that sends events from the store to the group.ingest() method */
+  #ingest$: Observable<any>;
+
+  #subscriptions: Subscription[] = [];
+
   constructor(client: MarmotClient<GroupRumorHistory>) {
     this.client = client;
+
+    this.#live$ = from(this.client.watchGroups()).pipe(
+      switchMap((groups) =>
+        merge(
+          ...groups.map((group) => {
+            if (!group.relays || !group.groupData) {
+              console.warn(
+                `[GroupSubscriptionManager] No relays or group data for group: ${group.groupData?.name ?? group.idStr}`,
+              );
+              return NEVER;
+            }
+
+            return pool.subscription(group.relays, {
+              "#h": [bytesToHex(group.groupData?.nostrGroupId)],
+              // Live events in the last 10 days
+              since: unixNow() - 60 * 60 * 24 * 10, // 10 days
+            });
+          }),
+        ),
+      ),
+      onlyEvents(),
+      mapEventsToStore(eventStore),
+    );
+
+    this.#ingest$ = from(this.client.watchGroups()).pipe(
+      switchMap((groups) =>
+        merge(
+          ...groups.map((group) => {
+            if (!group.relays || !group.groupData) return NEVER;
+
+            // Get in-memory set of processed event ids
+            const processed = this.getProcessedEventIds(group.idStr);
+
+            return eventStore
+              .timeline({ "#h": [bytesToHex(group.groupData.nostrGroupId)] })
+              .pipe(
+                throttleTime(5_000),
+                concatMap((events) => {
+                  const newEvents = events.filter((e) => !processed.has(e.id));
+                  if (newEvents.length === 0) return EMPTY;
+
+                  console.debug(
+                    `[GroupSubscriptionManager] Ingesting ${newEvents.length} events into group: ${group.groupData?.name ?? group.idStr}`,
+                  );
+
+                  return from(group.ingest(newEvents));
+                }),
+                tap((result) => {
+                  processed.add(result.event.id);
+
+                  if (result.result.kind === "applicationMessage") {
+                    try {
+                      const rumor = deserializeApplicationData(
+                        result.result.message,
+                      );
+                      const prevNewest =
+                        this.lastMessageAtByGroup.get(group.idStr) ?? 0;
+                      if (rumor.created_at > prevNewest) {
+                        this.lastMessageAtByGroup.set(
+                          group.idStr,
+                          rumor.created_at,
+                        );
+                        this.recomputeUnreadGroupIds();
+                      }
+                    } catch (parseErr) {
+                      console.error(
+                        "[GroupSubscriptionManager] Failed to parse application message:",
+                        parseErr,
+                      );
+                    }
+                  }
+                }),
+              );
+          }),
+        ),
+      ),
+    );
+  }
+
+  /**
+   * Returns the set of successfully processed event IDs for a group.
+   * Useful for filtering already-decrypted events in UI layers.
+   */
+  getProcessedEventIds(groupIdHex: string): Set<string> {
+    const existing = this.#processedEventIds.get(groupIdHex);
+    if (existing) return existing;
+
+    const events = new Set<string>();
+    this.#processedEventIds.set(groupIdHex, events);
+    return events;
   }
 
   /** Start managing subscriptions for all groups in the store. */
   async start(): Promise<void> {
-    if (this.isActive) return;
+    if (this.running) return;
 
-    this.isActive = true;
-    this.loadLastSeenFromStorage();
-    await this.reconcileSubscriptions();
+    this.running = true;
 
-    // Keep subscriptions in sync with the store over time.
-    // Rationale: after a user joins/leaves a group, the store updates but the
-    // app should not require a full reload to start/stop subscriptions.
-    if (!this.reconcileInterval) {
-      this.reconcileInterval = setInterval(() => {
-        this.reconcileSubscriptions().catch(() => {
-          // ignore
-        });
-      }, 2_000);
-    }
+    // Start listening for live events
+    this.#subscriptions.push(this.#live$.subscribe());
+
+    // Start ingesting events
+    this.#subscriptions.push(this.#ingest$.subscribe());
   }
 
   /** Stop all subscriptions and clean up resources. */
   stop(): void {
-    this.isActive = false;
+    this.running = false;
 
-    if (this.reconcileInterval) {
-      clearInterval(this.reconcileInterval);
-      this.reconcileInterval = null;
-    }
-
-    for (const [groupId, sub] of this.groupSubscriptions) {
-      sub.subscription.unsubscribe();
-      this.groupSubscriptions.delete(groupId);
-    }
+    this.#subscriptions.forEach((sub) => sub.unsubscribe());
+    this.#subscriptions = [];
 
     this.unreadGroupIds$.next([]);
     this.lastMessageAtByGroup.clear();
     this.lastSeenAtByGroup.clear();
-    this.messageBufferByGroup.clear();
   }
 
   /** Mark a group as seen up to a given timestamp (seconds). */
@@ -100,223 +182,8 @@ export class GroupSubscriptionManager {
     this.recomputeUnreadGroupIds();
   }
 
-  /**
-   * Reconcile subscriptions with the current state of the group store.
-   * Adds subscriptions for new groups and removes subscriptions for deleted groups.
-   */
-  async reconcileSubscriptions(): Promise<void> {
-    if (!this.isActive) return;
-
-    try {
-      const groups = await this.client.groupStateStore.list();
-      const groupIds = new Set<string>();
-
-      for (const groupId of groups) {
-        const groupIdHex = bytesToHex(groupId);
-        groupIds.add(groupIdHex);
-
-        if (!this.groupSubscriptions.has(groupIdHex)) {
-          await this.subscribeToGroup(groupIdHex);
-        }
-      }
-
-      for (const [groupId] of this.groupSubscriptions) {
-        if (!groupIds.has(groupId)) {
-          this.unsubscribeFromGroup(groupId);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to reconcile group subscriptions:", error);
-    }
-  }
-
-  private async subscribeToGroup(groupIdHex: string): Promise<void> {
-    try {
-      const group = await this.client.getGroup(groupIdHex);
-      const relays = group.relays;
-
-      // In v2, group events are tagged by *nostr_group_id* (network identity),
-      // but we still keep subscriptions keyed by MLS group_id (storage identity).
-      const nostrGroupIdHex = getNostrGroupIdHex(group.state);
-
-      if (!relays || relays.length === 0) {
-        console.warn(
-          `[GroupSubscriptionManager] No relays for group ${groupIdHex}`,
-        );
-        return;
-      }
-
-      if (!nostrGroupIdHex) {
-        console.warn(
-          `[GroupSubscriptionManager] Missing nostr_group_id for group ${groupIdHex}`,
-        );
-        return;
-      }
-
-      const filters = {
-        kinds: [GROUP_EVENT_KIND],
-        "#h": [nostrGroupIdHex],
-      };
-
-      const observable = pool
-        .subscription(relays, filters)
-        // NOTE: buffering as a hack to ensure events don't get lost when processing
-        // This will need to be handled better in the marmot group
-        .pipe(onlyEvents(), bufferTime(2_000));
-      const seenEventIds = new Set<string>();
-
-      const subscription = observable.subscribe({
-        next: async (events) => {
-          await this.processEvents(groupIdHex, group, events, seenEventIds);
-        },
-        error: (err) => {
-          console.error(
-            `[GroupSubscriptionManager] Subscription error for group ${groupIdHex}:`,
-            err,
-          );
-        },
-        complete: () => {
-          console.debug(
-            `[GroupSubscriptionManager] Subscription completed for group ${groupIdHex}`,
-          );
-        },
-      });
-
-      this.groupSubscriptions.set(groupIdHex, {
-        subscription,
-        seenEventIds,
-      });
-
-      console.debug(
-        `[GroupSubscriptionManager] Started subscription for group ${groupIdHex} on relays:`,
-        relays,
-      );
-
-      await this.fetchHistoricalEvents(groupIdHex, relays, group, seenEventIds);
-    } catch (error) {
-      console.error(
-        `[GroupSubscriptionManager] Failed to subscribe to group ${groupIdHex}:`,
-        error,
-      );
-    }
-  }
-
-  private unsubscribeFromGroup(groupIdHex: string): void {
-    const sub = this.groupSubscriptions.get(groupIdHex);
-    if (!sub) return;
-
-    sub.subscription.unsubscribe();
-    this.groupSubscriptions.delete(groupIdHex);
-    console.debug(
-      `[GroupSubscriptionManager] Stopped subscription for group ${groupIdHex}`,
-    );
-  }
-
-  private async processEvents(
-    groupIdHex: string,
-    group: MarmotGroup<GroupRumorHistory>,
-    events: NostrEvent[],
-    seenEventIds: Set<string>,
-  ): Promise<void> {
-    if (events.length === 0) return;
-
-    const newEvents = events.filter((e) => !seenEventIds.has(e.id));
-    if (newEvents.length === 0) return;
-    newEvents.forEach((e) => seenEventIds.add(e.id));
-
-    try {
-      const newMessages: Rumor[] = [];
-
-      for await (const result of group.ingest(newEvents)) {
-        if (result.kind === "applicationMessage") {
-          try {
-            const rumor = deserializeApplicationData(result.message);
-            newMessages.push(rumor);
-          } catch (parseErr) {
-            console.error(
-              "[GroupSubscriptionManager] Failed to parse application message:",
-              parseErr,
-            );
-          }
-        }
-      }
-
-      if (newMessages.length > 0) {
-        // Update in-memory message buffer
-        const prev = this.messageBufferByGroup.get(groupIdHex) ?? [];
-        const mapById = new Map<string, Rumor>();
-        for (const m of prev) mapById.set(m.id, m);
-        for (const m of newMessages) mapById.set(m.id, m);
-        const merged = Array.from(mapById.values()).sort(
-          (a, b) => a.created_at - b.created_at,
-        );
-        // Keep it small and predictable
-        const capped = merged.slice(-200);
-        this.messageBufferByGroup.set(groupIdHex, capped);
-
-        const newest = newMessages.reduce(
-          (acc, m) => Math.max(acc, m.created_at),
-          0,
-        );
-        const prevNewest = this.lastMessageAtByGroup.get(groupIdHex) ?? 0;
-        if (newest > prevNewest) {
-          this.lastMessageAtByGroup.set(groupIdHex, newest);
-          this.recomputeUnreadGroupIds();
-        }
-
-        const callback = this.applicationMessageCallbacks.get(groupIdHex);
-        callback?.(newMessages);
-      }
-    } catch (err) {
-      console.error(
-        `[GroupSubscriptionManager] Failed to process events for group ${groupIdHex}:`,
-        err,
-      );
-    }
-  }
-
-  private async fetchHistoricalEvents(
-    groupIdHex: string,
-    relays: string[],
-    group: MarmotGroup<GroupRumorHistory>,
-    seenEventIds: Set<string>,
-  ): Promise<void> {
-    try {
-      const nostrGroupIdHex = getNostrGroupIdHex(group.state);
-      if (!nostrGroupIdHex) return;
-
-      const filters = {
-        kinds: [GROUP_EVENT_KIND],
-        "#h": [nostrGroupIdHex],
-      };
-
-      const events = await this.client.network.request(relays, filters);
-      if (events.length === 0) return;
-
-      console.debug(
-        `[GroupSubscriptionManager] Fetched ${events.length} historical events for group ${groupIdHex}`,
-      );
-
-      await this.processEvents(groupIdHex, group, events, seenEventIds);
-    } catch (error) {
-      console.error(
-        `[GroupSubscriptionManager] Failed to fetch historical events for group ${groupIdHex}:`,
-        error,
-      );
-    }
-  }
-
   private storageKey(groupIdHex: string): string {
     return `marmot:last-seen:${groupIdHex}`;
-  }
-
-  private loadLastSeenFromStorage(): void {
-    try {
-      // We don't know group ids yet at this stage; load lazily in recompute.
-      // This is intentionally best-effort.
-    } catch {
-      // ignore
-    }
   }
 
   private persistLastSeenToStorage(groupIdHex: string, seenAt: number): void {
@@ -340,7 +207,7 @@ export class GroupSubscriptionManager {
 
   private recomputeUnreadGroupIds(): void {
     const unread: string[] = [];
-    for (const groupIdHex of this.groupSubscriptions.keys()) {
+    for (const groupIdHex of this.lastMessageAtByGroup.keys()) {
       const lastMsg = this.lastMessageAtByGroup.get(groupIdHex) ?? 0;
 
       let lastSeen = this.lastSeenAtByGroup.get(groupIdHex);
