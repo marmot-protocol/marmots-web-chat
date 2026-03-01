@@ -107,20 +107,18 @@ function KeyPackagesPage() {
           <Button asChild variant="default" className="m-2">
             <Link to="/key-packages/create">Create Key Package</Link>
           </Button>
-          {keyPackages && keyPackages.length > 0
-            ? keyPackages.map((pkg) => (
+          {keyPackages && keyPackages.length > 0 ? (
+            keyPackages.map((pkg) => (
               <KeyPackageItem
                 key={bytesToHex(pkg.keyPackageRef)}
                 keyPackage={pkg}
               />
             ))
-            : (
-              <div className="p-4 text-sm text-muted-foreground text-center">
-                {keyPackages === undefined
-                  ? "Loading..."
-                  : "No key packages yet"}
-              </div>
-            )}
+          ) : (
+            <div className="p-4 text-sm text-muted-foreground text-center">
+              {keyPackages === undefined ? "Loading..." : "No key packages yet"}
+            </div>
+          )}
         </div>
 
         <div className="p-4 text-sm text-muted-foreground text-center">

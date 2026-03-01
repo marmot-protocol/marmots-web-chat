@@ -1,5 +1,5 @@
 import { Rumor } from "applesauce-common/helpers/gift-wrap";
-import { getEventHash } from "applesauce-core/helpers";
+import { getEventHash, kinds } from "applesauce-core/helpers";
 import { use$, useRenderedContent } from "applesauce-react/hooks";
 import { Loader2, XCircle } from "lucide-react";
 import {
@@ -12,7 +12,8 @@ import { memo, useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 
 import { defaultContentComponents } from "@/components/content-renderers";
-import { UserBadge } from "@/components/nostr-user";
+import { MessageReactions } from "@/components/message-reactions";
+import { UserAvatar, UserName } from "@/components/nostr-user";
 import { TranscriptionButton } from "@/components/transcription-button";
 import { WebxdcAppCard } from "@/components/webxdc-app-card";
 import { WebxdcRuntime } from "@/components/webxdc-runtime";
@@ -20,6 +21,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useGroupMessages } from "@/hooks/use-group-messages";
+import { useMessageReactions } from "@/hooks/use-message-reactions";
+import { useSendReaction } from "@/hooks/use-send-reaction";
 import { accounts } from "@/lib/accounts";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { isWebxdcMessage } from "@/lib/webxdc";
@@ -46,20 +49,23 @@ interface GroupOutletContext {
 interface MessageItemProps {
   rumor: Rumor;
   onLaunch: (webxdcId: string, xdcUrl: string) => void;
+  reactions: { emoji: string; by: string }[];
+  onAddReaction: (emoji: string) => void;
 }
 
 const MessageItem = memo(function MessageItem({
   rumor,
   onLaunch,
+  reactions,
+  onAddReaction,
 }: MessageItemProps) {
-  const account = use$(accounts.active$);
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
     return date.toLocaleTimeString();
   };
 
-  const isOwnMessage = rumor.pubkey === account?.pubkey;
   const isWebxdc = isWebxdcMessage(rumor);
+  const hasReactions = reactions.length > 0;
 
   // Render content with rich text formatting (for non-webxdc messages)
   const content = useRenderedContent(
@@ -68,35 +74,46 @@ const MessageItem = memo(function MessageItem({
   );
 
   return (
-    <div
-      className={`flex flex-col gap-1 ${
-        isOwnMessage ? "items-end" : "items-start"
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        <UserBadge pubkey={rumor.pubkey} size="sm" />
-        <span className="text-xs text-muted-foreground/70">
-          {formatTimestamp(rumor.created_at)}
-        </span>
-      </div>
+    // Avatar floats left, everything else stacks to its right
+    <div className="flex items-start gap-2">
+      <UserAvatar pubkey={rumor.pubkey} size="sm" />
 
-      {isWebxdc ? (
-        // Render app card for .xdc messages
-        <WebxdcAppCard rumor={rumor} onLaunch={onLaunch} />
-      ) : (
-        // Render normal text bubble
-        <div
-          className={`p-3 max-w-[80%] rounded-lg ${
-            isOwnMessage
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted text-foreground"
-          }`}
-        >
-          <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">
+      <div className="flex flex-col gap-0.5 min-w-0">
+        {/* Title row: name · timestamp · add-reaction button (when no reactions yet) */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="font-bold">
+            <UserName pubkey={rumor.pubkey} />
+          </span>
+          <span className="text-sm text-muted-foreground/60">
+            {formatTimestamp(rumor.created_at)}
+          </span>
+          {!hasReactions && (
+            <MessageReactions
+              rumorId={rumor.id}
+              reactions={[]}
+              onAddReaction={onAddReaction}
+            />
+          )}
+        </div>
+
+        {/* Message content */}
+        {isWebxdc ? (
+          <WebxdcAppCard rumor={rumor} onLaunch={onLaunch} />
+        ) : (
+          <div className="whitespace-pre-wrap break-words overflow-hidden">
             {content}
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Reactions row — only shown when there are reactions */}
+        {hasReactions && (
+          <MessageReactions
+            rumorId={rumor.id}
+            reactions={reactions}
+            onAddReaction={onAddReaction}
+          />
+        )}
+      </div>
     </div>
   );
 });
@@ -107,12 +124,20 @@ const MessageItem = memo(function MessageItem({
 
 interface MessageListProps {
   messages: Rumor[];
+  reactionsMap: Map<string, { emoji: string; by: string }[]>;
   onLaunch: (webxdcId: string, xdcUrl: string) => void;
+  onAddReaction: (
+    targetId: string,
+    authorPubkey: string,
+    emoji: string,
+  ) => void;
 }
 
 const MessageList = memo(function MessageList({
   messages,
+  reactionsMap,
   onLaunch,
+  onAddReaction,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -120,7 +145,10 @@ const MessageList = memo(function MessageList({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  if (messages.length === 0) {
+  // Only render kind-9 chat messages; kind-7 reactions are handled via reactionsMap
+  const chatMessages = messages.filter((r) => r.kind === kinds.ChatMessage);
+
+  if (chatMessages.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
         <p>No messages yet. Start the conversation!</p>
@@ -130,11 +158,15 @@ const MessageList = memo(function MessageList({
 
   return (
     <div className="flex flex-col gap-4">
-      {messages.map((rumor, index) => (
+      {chatMessages.map((rumor, index) => (
         <MessageItem
           key={`${rumor.id}-${index}`}
           rumor={rumor}
           onLaunch={onLaunch}
+          reactions={reactionsMap.get(rumor.id) ?? []}
+          onAddReaction={(emoji) =>
+            onAddReaction(rumor.id, rumor.pubkey, emoji)
+          }
         />
       ))}
       <div ref={messagesEndRef} />
@@ -260,6 +292,19 @@ export default function GroupChatPage() {
   const { messages, loadMoreMessages, loadingMore, loadingDone } =
     useGroupMessages(group ?? null);
 
+  // Derive per-message reaction data from all rumors (kind-7 among them)
+  const reactionsMap = useMessageReactions(messages);
+
+  const { sendReaction } = useSendReaction(group ?? null);
+
+  const handleAddReaction = async (
+    targetId: string,
+    authorPubkey: string,
+    emoji: string,
+  ) => {
+    await sendReaction(targetId, authorPubkey, emoji);
+  };
+
   const groupIdHex = getNostrGroupIdHex(group.state);
 
   // Active webxdc app session (if any)
@@ -315,7 +360,12 @@ export default function GroupChatPage() {
 
       {/* Messages - flex-col-reverse for scroll-to-bottom behavior */}
       <div className="flex flex-col-reverse h-full overflow-y-auto overflow-x-hidden px-2 pt-10">
-        <MessageList messages={messages} onLaunch={handleLaunch} />
+        <MessageList
+          messages={messages}
+          reactionsMap={reactionsMap}
+          onLaunch={handleLaunch}
+          onAddReaction={handleAddReaction}
+        />
         {loadMoreMessages && !loadingDone && (
           <div className="flex justify-center py-2">
             <Button onClick={loadMoreMessages} disabled={loadingMore}>

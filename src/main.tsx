@@ -16,7 +16,7 @@ import GroupsPage from "./pages/groups.tsx";
 import GroupDetailPage from "./pages/groups/[id].tsx";
 import GroupAdminPage from "./pages/groups/[id]/admin.tsx";
 import GroupChatPage from "./pages/groups/[id]/chat.tsx";
-import GroupDebugPage from "./pages/groups/[id]/debug.tsx";
+import GroupTreePage from "./pages/groups/[id]/tree.tsx";
 import GroupEventsPage from "./pages/groups/[id]/events.tsx";
 import GroupMembersPage from "./pages/groups/[id]/members.tsx";
 import CreateGroupPage from "./pages/groups/create.tsx";
@@ -67,8 +67,8 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="chat" element={<GroupChatPage />} />
                 <Route path="members" element={<GroupMembersPage />} />
                 <Route path="admin" element={<GroupAdminPage />} />
-                <Route path="debug" element={<GroupDebugPage />} />
-                <Route path="events" element={<GroupEventsPage />} />
+                <Route path="tree" element={<GroupTreePage />} />
+                <Route path="timeline" element={<GroupEventsPage />} />
               </Route>
             </Route>
             <Route path="/invites" element={<InvitesPage />}>

@@ -45,10 +45,12 @@ export function useGroupMessages(
       prev.forEach((msg) => {
         if (msg.id) messageMap.set(msg.id, msg);
       });
-      // Filter out webxdc protocol kinds (state updates, realtime) — they are
-      // routed to the webxdc runtime, not displayed in the chat list.
+      // Allow chat messages (kind 9) and reactions (kind 7)
       newMessages
-        .filter((msg) => msg.kind === kinds.ChatMessage)
+        .filter(
+          (msg) =>
+            msg.kind === kinds.ChatMessage || msg.kind === kinds.Reaction,
+        )
         .forEach((msg) => {
           if (msg.id) messageMap.set(msg.id, msg);
         });

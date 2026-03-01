@@ -1,3 +1,4 @@
+import { getPubkeyLeafNodes } from "@internet-privacy/marmots";
 import { npubEncode } from "applesauce-core/helpers";
 import { Loader2, Trash2 } from "lucide-react";
 import type { GroupRumorHistory, MarmotGroup } from "@internet-privacy/marmots";
@@ -19,7 +20,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 interface UserMemberCardProps {
   pubkey: string;
@@ -38,6 +38,8 @@ export function UserMemberCard({
 }: UserMemberCardProps) {
   const [isRemoving, setIsRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const leafCount = group ? getPubkeyLeafNodes(group.state, pubkey).length : 0;
 
   const handleRemove = async () => {
     if (!group || !canRemove) return;
@@ -62,76 +64,85 @@ export function UserMemberCard({
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
+    <div className="ring-foreground/10 bg-card text-card-foreground rounded-none ring-1 overflow-hidden">
+      {/* Main row */}
+      <div className="flex items-center gap-3 px-4 py-3">
         <Link
           to={`/contacts/${pubkey}`}
-          className="flex items-start gap-3 hover:opacity-80 transition-opacity"
+          className="shrink-0 hover:opacity-80 transition-opacity"
         >
-          <UserAvatar pubkey={pubkey} size="md" className="shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+          <UserAvatar pubkey={pubkey} size="md" />
+        </Link>
+
+        <div className="flex-1 min-w-0">
+          <Link
+            to={`/contacts/${pubkey}`}
+            className="hover:opacity-80 transition-opacity"
+          >
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="font-bold truncate">
                 <UserName pubkey={pubkey} />
               </span>
               {isAdmin && (
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-xs shrink-0">
                   Admin
+                </Badge>
+              )}
+              {leafCount > 1 && (
+                <Badge variant="outline" className="text-xs shrink-0 font-mono">
+                  ×{leafCount}
                 </Badge>
               )}
             </div>
             <code className="text-xs text-muted-foreground truncate font-mono block">
               {npubEncode(pubkey)}
             </code>
-          </div>
-        </Link>
-      </CardHeader>
+          </Link>
+        </div>
+      </div>
 
-      {canRemove && (
-        <CardContent className="pt-0 pb-3">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="destructive"
-                size="sm"
-                className="w-full"
-                disabled={isRemoving}
-              >
-                {isRemoving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Removing...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Remove
-                  </>
-                )}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove member?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will remove{" "}
-                  <strong>{npubEncode(pubkey).slice(0, 16)}...</strong> from the
-                  group. This action will create a new commit in the group
-                  state.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleRemove}>
-                  Remove member
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          {error && <p className="text-xs text-destructive mt-2">{error}</p>}
-        </CardContent>
+      {/* Footer — only rendered when there's an action or error */}
+      {(canRemove || error) && (
+        <div className="px-4 pb-3 flex flex-col items-end gap-2">
+          {error && <p className="text-xs text-destructive w-full">{error}</p>}
+          {canRemove && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" disabled={isRemoving}>
+                  {isRemoving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Removing...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Remove
+                    </>
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove member?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will remove{" "}
+                    <strong>{npubEncode(pubkey).slice(0, 16)}...</strong> from
+                    the group. This action will create a new commit in the group
+                    state.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleRemove}>
+                    Remove member
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
       )}
-    </Card>
+    </div>
   );
 }

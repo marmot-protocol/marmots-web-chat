@@ -2,6 +2,12 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { hierarchy, tree } from "d3-hierarchy";
 import { getCredentialPubkey } from "@internet-privacy/marmots";
 import { defaultCredentialTypes, nodeTypes } from "ts-mls";
+import {
+  left as treeLeft,
+  right as treeRight,
+  rootFromNodeWidth,
+  toNodeIndex,
+} from "ts-mls/treemath.js";
 
 import type { ClientState } from "ts-mls";
 import type { LeafNode } from "ts-mls/leafNode.js";
@@ -32,6 +38,8 @@ export type RatchetTreeNodeInfo =
 interface TreeNode {
   id: string;
   nodeIndex: number;
+  /** BFS order index (root=1, then left-to-right per level) for display labels */
+  displayIndex: number;
   info: RatchetTreeNodeInfo;
   children?: TreeNode[];
 }
@@ -42,59 +50,16 @@ function bytesToHex(bytes: Uint8Array): string {
     .join("");
 }
 
-/** Convert the flat ratchet tree array into a nested TreeNode for d3 */
+/**
+ * Recursively build a TreeNode from the flat ratchet tree array.
+ * Uses the correct MLS bit-level child index formulas from ts-mls/treemath.
+ */
 function buildTreeNode(
-  tree: (import("ts-mls").Node | undefined)[],
-  nodeIndex: number,
-): TreeNode {
-  const rawNode = tree[nodeIndex];
-  const isLeaf = nodeIndex % 2 === 0;
-
-  let info: RatchetTreeNodeInfo;
-  if (rawNode === undefined) {
-    info = isLeaf
-      ? { kind: "blank", nodeIndex, leafIndex: nodeIndex / 2 }
-      : { kind: "blank", nodeIndex };
-  } else if (rawNode.nodeType === nodeTypes.leaf) {
-    info = {
-      kind: "leaf",
-      nodeIndex,
-      leafIndex: nodeIndex / 2,
-      leafNode: rawNode.leaf,
-    };
-  } else {
-    info = {
-      kind: "parent",
-      nodeIndex,
-      parentNode: rawNode.parent,
-    };
-  }
-
-  const treeNode: TreeNode = { id: `n${nodeIndex}`, nodeIndex, info };
-
-  // Build children for parent nodes
-  if (!isLeaf) {
-    const leftChild = nodeIndex - 1; // left child (one level down, left)
-    const rightChild = nodeIndex + 1; // right child
-    // Only add children if within tree bounds
-    if (leftChild >= 0 && rightChild < tree.length) {
-      treeNode.children = [
-        buildTreeFromIndex(tree, leftChild),
-        buildTreeFromIndex(tree, rightChild),
-      ];
-    }
-  }
-
-  return treeNode;
-}
-
-/** Recursively build tree from a given node index, handling sub-trees */
-function buildTreeFromIndex(
   flatTree: (import("ts-mls").Node | undefined)[],
   nodeIndex: number,
 ): TreeNode {
-  const isLeaf = nodeIndex % 2 === 0;
   const rawNode = flatTree[nodeIndex];
+  const isLeaf = nodeIndex % 2 === 0;
 
   let info: RatchetTreeNodeInfo;
   if (rawNode === undefined) {
@@ -116,20 +81,22 @@ function buildTreeFromIndex(
     };
   }
 
-  const treeNode: TreeNode = { id: `n${nodeIndex}`, nodeIndex, info };
+  const treeNode: TreeNode = {
+    id: `n${nodeIndex}`,
+    nodeIndex,
+    displayIndex: 0,
+    info,
+  };
 
+  // Parent nodes (odd indices) have children.
+  // Use the MLS-spec bit-level formulas (from ts-mls/treemath) — NOT nodeIndex±1.
   if (!isLeaf) {
-    // For a parent at nodeIndex, children in a left-complete binary tree are:
-    // the sub-tree below this node.
-    // In the flat array: left subtree root is at nodeIndex - 1 (its right child),
-    // but this gets complex. Use a proper approach:
-    // parent at odd index k has left child k-1 and right child k+1
-    const left = nodeIndex - 1;
-    const right = nodeIndex + 1;
-    if (left >= 0 && right < flatTree.length) {
+    const leftIndex = treeLeft(toNodeIndex(nodeIndex));
+    const rightIndex = treeRight(toNodeIndex(nodeIndex));
+    if (leftIndex >= 0 && rightIndex < flatTree.length) {
       treeNode.children = [
-        buildTreeFromIndex(flatTree, left),
-        buildTreeFromIndex(flatTree, right),
+        buildTreeNode(flatTree, leftIndex),
+        buildTreeNode(flatTree, rightIndex),
       ];
     }
   }
@@ -138,18 +105,11 @@ function buildTreeFromIndex(
 }
 
 /**
- * Find the root of the ratchet tree.
- * In a left-complete binary tree with n leaves:
- * - nodeWidth = 2 * leafCount - 1
- * - root = nodeWidth / 2 (integer division, must be odd for a proper tree)
- * For a tree with 1 leaf, the root is leaf 0 (nodeIndex 0).
+ * Find the root index of the flat ratchet tree using the MLS spec formula.
  */
 function findRoot(flatTree: (import("ts-mls").Node | undefined)[]): number {
-  const nodeWidth = flatTree.length;
-  if (nodeWidth === 0) return 0;
-  if (nodeWidth === 1) return 0;
-  // Root is the middle node
-  return Math.floor(nodeWidth / 2);
+  if (flatTree.length <= 1) return 0;
+  return rootFromNodeWidth(flatTree.length);
 }
 
 function buildRatchetTreeHierarchy(
@@ -157,7 +117,18 @@ function buildRatchetTreeHierarchy(
 ): TreeNode | null {
   if (flatTree.length === 0) return null;
   const rootIndex = findRoot(flatTree);
-  return buildTreeNode(flatTree, rootIndex);
+  const root = buildTreeNode(flatTree, rootIndex);
+
+  // Assign displayIndex via BFS so nodes are numbered top-to-bottom, left-to-right.
+  let counter = 1;
+  const queue: TreeNode[] = [root];
+  while (queue.length > 0) {
+    const node = queue.shift()!;
+    node.displayIndex = counter++;
+    if (node.children) queue.push(...node.children);
+  }
+
+  return root;
 }
 
 // ─── Visual node dimensions ───────────────────────────────────────────────────
@@ -173,6 +144,7 @@ interface NodeVisualProps {
   x: number;
   y: number;
   info: RatchetTreeNodeInfo;
+  displayIndex: number;
   ownLeafIndex: number;
   selected: boolean;
   onClick: () => void;
@@ -193,6 +165,7 @@ function NodeVisual({
   x,
   y,
   info,
+  displayIndex,
   ownLeafIndex,
   selected,
   onClick,
@@ -330,7 +303,7 @@ function NodeVisual({
         fontWeight={600}
         fill={selected ? "white" : "var(--color-foreground)"}
       >
-        Node {info.nodeIndex}
+        Node {displayIndex}
       </text>
       <text
         textAnchor="middle"
@@ -410,6 +383,7 @@ export function RatchetTreeGraph({
       y: number;
       info: RatchetTreeNodeInfo;
       nodeIndex: number;
+      displayIndex: number;
     }> = [];
 
     const positionedLinks: Array<{
@@ -427,6 +401,7 @@ export function RatchetTreeGraph({
         y: d.y + padding + NODE_HEIGHT / 2,
         info: d.data.info,
         nodeIndex: d.data.nodeIndex,
+        displayIndex: d.data.displayIndex,
       });
     });
 
@@ -482,6 +457,7 @@ export function RatchetTreeGraph({
               x={node.x}
               y={node.y}
               info={node.info}
+              displayIndex={node.displayIndex}
               ownLeafIndex={ownLeafIndex}
               selected={selectedNodeIndex === node.nodeIndex}
               onClick={() => onNodeClick(node.info)}

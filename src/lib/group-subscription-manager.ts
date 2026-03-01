@@ -5,7 +5,7 @@ import {
   type GroupRumorHistory,
   type IngestResult,
 } from "@internet-privacy/marmots";
-import { bytesToHex } from "@noble/hashes/utils.js";
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { mapEventsToStore } from "applesauce-core";
 import { unixNow, type NostrEvent } from "applesauce-core/helpers";
 import { onlyEvents } from "applesauce-relay/operators";
@@ -13,8 +13,8 @@ import localforage from "localforage";
 import {
   BehaviorSubject,
   combineLatest,
-  concatMap,
   EMPTY,
+  exhaustMap,
   from,
   map,
   merge,
@@ -23,7 +23,6 @@ import {
   Subscription,
   switchMap,
   tap,
-  throttleTime,
 } from "rxjs";
 
 /** A record of any ingest outcome for a group event. */
@@ -49,6 +48,8 @@ export type StoredIngestRecord =
       kind: "processed";
       /** The kind of MLS result (applicationMessage | newState). */
       resultKind: string;
+      /** Hex-encoded application message payload (only set when resultKind === "applicationMessage"). */
+      messageHex?: string;
       event: NostrEvent;
       processedAt: number;
     }
@@ -82,6 +83,10 @@ function toStoredRecord(r: IngestEventRecord): StoredIngestRecord {
       return {
         kind: "processed",
         resultKind: r.result.kind,
+        messageHex:
+          r.result.kind === "applicationMessage"
+            ? bytesToHex(r.result.message)
+            : undefined,
         event: r.event,
         processedAt: r.processedAt,
       };
@@ -126,14 +131,26 @@ function fromStoredRecord(s: StoredIngestRecord): IngestEventRecord {
   const message = null as never;
 
   if (s.kind === "processed") {
+    const result =
+      s.resultKind === "applicationMessage" && s.messageHex !== undefined
+        ? ({
+            kind: "applicationMessage",
+            message: hexToBytes(s.messageHex),
+            newState: null as never,
+            consumed: [],
+            aad: new Uint8Array(),
+          } as IngestEventRecord extends { kind: "processed"; result: infer R }
+            ? R
+            : never)
+        : ({ kind: s.resultKind } as IngestEventRecord extends {
+            kind: "processed";
+            result: infer R;
+          }
+            ? R
+            : never);
     return {
       kind: "processed",
-      result: { kind: s.resultKind } as IngestEventRecord extends {
-        kind: "processed";
-        result: infer R;
-      }
-        ? R
-        : never,
+      result,
       message,
       event: s.event,
       processedAt: s.processedAt,
@@ -256,8 +273,8 @@ export class GroupSubscriptionManager {
             return eventStore
               .timeline({ "#h": [bytesToHex(group.groupData.nostrGroupId)] })
               .pipe(
-                throttleTime(5_000),
-                concatMap((events) => {
+                // TODO: small bug here if messages arrive while processing they won't be ingested until next message after finished
+                exhaustMap((events) => {
                   const newEvents = events.filter((e) => !processed.has(e.id));
                   if (newEvents.length === 0) return EMPTY;
 

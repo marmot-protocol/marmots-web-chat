@@ -36,7 +36,6 @@ import { TriangleAlertIcon } from "lucide-react";
 import { CiphersuiteId, KeyPackage } from "ts-mls";
 import accounts, { publish, user$ } from "../../lib/accounts";
 
-
 function KeyPackageRelayStatus({ event }: { event: NostrEvent | undefined }) {
   const keyPackageRelays = use$(keyPackageRelays$);
   const seenRelays = use$(
@@ -473,15 +472,12 @@ export default function KeyPackageDetailPage() {
   // Re-evaluate whenever liveKeyPackages$ emits — it fires on keyPackageAdded,
   // keyPackageRemoved, and keyPackagePublished, so the view updates as soon as
   // track() records a new relay event for a remote package.
-  const keyPackage = use$(
-    () => {
-      if (!client || !ref) return undefined;
-      return liveKeyPackages$.pipe(
-        switchMap(() => from(client.keyPackages.get(ref))),
-      );
-    },
-    [client, ref],
-  );
+  const keyPackage = use$(() => {
+    if (!client || !ref) return undefined;
+    return liveKeyPackages$.pipe(
+      switchMap(() => from(client.keyPackages.get(ref))),
+    );
+  }, [client, ref]);
 
   if (!ref) {
     return (

@@ -325,7 +325,18 @@ function ParentNodeDetails({
           Keys
         </span>
         <CopyableHex label="HPKE Public Key" value={parent.hpkePublicKey} />
-        <CopyableHex label="Parent Hash" value={parent.parentHash} />
+        {parent.parentHash.length > 0 ? (
+          <CopyableHex label="Parent Hash" value={parent.parentHash} />
+        ) : (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Parent Hash
+            </span>
+            <span className="text-xs text-muted-foreground italic">
+              none — this is the root node
+            </span>
+          </div>
+        )}
       </div>
 
       {parent.unmergedLeaves.length > 0 && (

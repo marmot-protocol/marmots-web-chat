@@ -114,9 +114,33 @@ function IngestKindIndicator({ record }: { record: IngestEventRecord }) {
 /** Sub-line detail shown below the event ID for a processed record. */
 function IngestRecordDetail({ record }: { record: IngestEventRecord }) {
   if (record.kind === "processed") {
+    const appMsg =
+      record.result.kind === "applicationMessage" ? record.result : null;
+    const msgBytes = appMsg?.message ?? null;
+    const msgHex = msgBytes
+      ? Array.from(msgBytes as Uint8Array)
+          .map((b) => (b as number).toString(16).padStart(2, "0"))
+          .join("")
+      : null;
+
     return (
-      <div className="text-xs text-muted-foreground">
-        processed at {formatDateTime(Math.floor(record.processedAt / 1000))}
+      <div className="flex flex-col gap-0.5">
+        {appMsg && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="font-mono">{msgBytes?.length ?? 0} bytes</span>
+            {msgHex && (
+              <IconCopyButton
+                text={msgHex}
+                variant="ghost"
+                size="icon"
+                className="h-4 w-4 shrink-0"
+              />
+            )}
+          </div>
+        )}
+        <div className="text-xs text-muted-foreground">
+          processed at {formatDateTime(Math.floor(record.processedAt / 1000))}
+        </div>
       </div>
     );
   }
@@ -131,9 +155,10 @@ function IngestRecordDetail({ record }: { record: IngestEventRecord }) {
   }
 
   if (record.kind === "skipped") {
-    const label = record.reason === "past-epoch"
-      ? "commit from a past epoch, already applied"
-      : "unexpected MLS wireformat";
+    const label =
+      record.reason === "past-epoch"
+        ? "commit from a past epoch, already applied"
+        : "unexpected MLS wireformat";
     return (
       <div className="text-xs text-muted-foreground">
         {label} &mdash; observed at{" "}
@@ -172,8 +197,8 @@ function EventRow({
   ingestRecord?: IngestEventRecord;
 }) {
   const isPending = status === "pending";
-  const isFailed = ingestRecord?.kind === "unreadable" ||
-    ingestRecord?.kind === "rejected";
+  const isFailed =
+    ingestRecord?.kind === "unreadable" || ingestRecord?.kind === "rejected";
 
   return (
     <div
@@ -195,19 +220,19 @@ function EventRow({
             size="icon"
             className="h-5 w-5 shrink-0"
           />
-          {isPending || !ingestRecord
-            ? (
-              <>
-                <div className="w-2 h-2 rounded-full bg-muted-foreground/40 ring-1 ring-muted-foreground/20 shrink-0" />
-                <Badge
-                  variant="outline"
-                  className="font-mono text-[10px] text-muted-foreground"
-                >
-                  pending
-                </Badge>
-              </>
-            )
-            : <IngestKindIndicator record={ingestRecord} />}
+          {isPending || !ingestRecord ? (
+            <>
+              <div className="w-2 h-2 rounded-full bg-muted-foreground/40 ring-1 ring-muted-foreground/20 shrink-0" />
+              <Badge
+                variant="outline"
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                pending
+              </Badge>
+            </>
+          ) : (
+            <IngestKindIndicator record={ingestRecord} />
+          )}
           <span className="text-xs text-muted-foreground ml-auto tabular-nums">
             {formatTime(event.created_at)}
           </span>
@@ -334,40 +359,36 @@ export default function GroupEventsPage() {
         <div className="flex items-center gap-1.5">
           <div className="w-2 h-2 rounded-full bg-muted-foreground/40 ring-1 ring-muted-foreground/20" />
           <span>
-            <span className="font-mono text-foreground">{pendingCount}</span>
-            {" "}
+            <span className="font-mono text-foreground">{pendingCount}</span>{" "}
             pending
           </span>
         </div>
         <div className="flex items-center gap-1.5 ml-auto">
-          <span className="font-mono text-foreground">{timeline.length}</span>
-          {" "}
+          <span className="font-mono text-foreground">{timeline.length}</span>{" "}
           total
         </div>
       </div>
 
       {/* Timeline */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {timeline.length === 0
-          ? (
-            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-              No events yet
-            </div>
-          )
-          : (
-            <div>
-              {timeline.map((entry) => (
-                <EventRow
-                  key={entry.event.id}
-                  event={entry.event}
-                  status={entry.status}
-                  ingestRecord={entry.status === "ingested"
-                    ? entry.record
-                    : undefined}
-                />
-              ))}
-            </div>
-          )}
+        {timeline.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+            No events yet
+          </div>
+        ) : (
+          <div>
+            {timeline.map((entry) => (
+              <EventRow
+                key={entry.event.id}
+                event={entry.event}
+                status={entry.status}
+                ingestRecord={
+                  entry.status === "ingested" ? entry.record : undefined
+                }
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

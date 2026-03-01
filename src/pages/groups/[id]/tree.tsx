@@ -26,7 +26,7 @@ function bytesToHex(bytes: Uint8Array): string {
     .join("");
 }
 
-export default function GroupDebugPage() {
+export default function GroupTreePage() {
   const { group } = useOutletContext<GroupOutletContext>();
   const [selectedNode, setSelectedNode] = useState<RatchetTreeNodeInfo | null>(
     null,

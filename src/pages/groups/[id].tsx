@@ -26,6 +26,7 @@ import { marmotClient$ } from "@/lib/marmot-client";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
 import { withActiveAccount } from "../../components/with-active-account";
+import { SubscriptionStatusButton } from "../../components/subscription-status-button";
 
 function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -102,8 +103,8 @@ function GroupDetailPage() {
     currentPath === `/groups/${id}` || currentPath === `/groups/${id}/chat`;
   const isOnMembersTab = currentPath === `/groups/${id}/members`;
   const isOnAdminTab = currentPath === `/groups/${id}/admin`;
-  const isOnDebugTab = currentPath === `/groups/${id}/debug`;
-  const isOnEventsTab = currentPath === `/groups/${id}/events`;
+  const isOnTreeTab = currentPath === `/groups/${id}/tree`;
+  const isOnEventsTab = currentPath === `/groups/${id}/timeline`;
 
   if (!id) {
     return (
@@ -168,18 +169,21 @@ function GroupDetailPage() {
           { label: groupName },
         ]}
         actions={
-          <GroupDetailsDrawer
-            open={detailsOpen}
-            onOpenChange={setDetailsOpen}
-            groupDetails={groupDetails}
-            isAdmin={isAdmin}
-            group={group}
-            trigger={
-              <Button variant="ghost" size="icon">
-                <Menu className="h-5 w-5" />
-              </Button>
-            }
-          />
+          <div className="flex gap-2">
+            {group.relays && <SubscriptionStatusButton relays={group.relays} />}
+            <GroupDetailsDrawer
+              open={detailsOpen}
+              onOpenChange={setDetailsOpen}
+              groupDetails={groupDetails}
+              isAdmin={isAdmin}
+              group={group}
+              trigger={
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              }
+            />
+          </div>
         }
       />
 
@@ -224,19 +228,19 @@ function GroupDetailPage() {
           </Link>
         )}
         <Link
-          to={`/groups/${id}/debug`}
+          to={`/groups/${id}/tree`}
           className={cn(
             "px-4 py-2 text-sm font-medium transition-colors",
             "hover:text-foreground",
-            isOnDebugTab
+            isOnTreeTab
               ? "text-foreground border-b-2 border-primary"
               : "text-muted-foreground",
           )}
         >
-          Debug
+          Ratchet Tree
         </Link>
         <Link
-          to={`/groups/${id}/events`}
+          to={`/groups/${id}/timeline`}
           className={cn(
             "px-4 py-2 text-sm font-medium transition-colors",
             "hover:text-foreground",
@@ -245,7 +249,7 @@ function GroupDetailPage() {
               : "text-muted-foreground",
           )}
         >
-          Events
+          MLS Timeline
         </Link>
       </div>
 
