@@ -21,6 +21,8 @@ import { GroupDetailsDrawer } from "@/components/group/group-details-drawer";
 import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { GroupEventStoreContext } from "@/contexts/group-event-store-context";
+import { useGroupEventStore } from "@/hooks/use-group-event-store";
 import { accounts } from "@/lib/accounts";
 import { marmotClient$ } from "@/lib/marmot-client";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
@@ -46,6 +48,12 @@ function GroupDetailPage() {
       ),
     [id],
   );
+
+  // Build and populate the per-group EventStore from the group's rumor history.
+  // This is the single source of truth for all group-private events (messages,
+  // reactions, etc.) and is provided to all child routes via context.
+  const { groupEventStore, loadingMore, loadingDone, loadMoreMessages } =
+    useGroupEventStore(group ?? null);
 
   const groupIdHex = useMemo(() => {
     if (!group) return null;
@@ -253,8 +261,20 @@ function GroupDetailPage() {
         </Link>
       </div>
 
-      {/* Tab Content */}
-      <Outlet context={{ group, groupDetails, isAdmin }} />
+      {/* Tab Content — group EventStore provided so all child routes can
+          query group-private events (messages, reactions, etc.) reactively */}
+      <GroupEventStoreContext.Provider value={groupEventStore}>
+        <Outlet
+          context={{
+            group,
+            groupDetails,
+            isAdmin,
+            loadingMore,
+            loadingDone,
+            loadMoreMessages,
+          }}
+        />
+      </GroupEventStoreContext.Provider>
     </>
   );
 }

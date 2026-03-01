@@ -1,9 +1,9 @@
-import type { Rumor } from "applesauce-common/helpers/gift-wrap";
+import type { NostrEvent } from "applesauce-core/helpers";
 
 import { UserAvatar, UserName } from "@/components/nostr-user";
 
 interface GroupChatQuoteProps {
-  rumor: Rumor;
+  rumor: NostrEvent;
 }
 
 /**

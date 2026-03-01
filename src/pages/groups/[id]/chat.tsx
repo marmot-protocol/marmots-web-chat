@@ -1,20 +1,19 @@
-import { Rumor } from "applesauce-common/helpers/gift-wrap";
+import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { getEventHash, kinds, neventEncode } from "applesauce-core/helpers";
 import type { ComponentMap } from "applesauce-react/helpers";
 import { use$, useRenderedContent } from "applesauce-react/hooks";
-import { Loader2, Reply, X, XCircle } from "lucide-react";
+import { Bug, Loader2, Reply, X, XCircle } from "lucide-react";
 import {
   getNostrGroupIdHex,
   type GroupRumorHistory,
   MarmotGroup,
   unixNow,
 } from "@internet-privacy/marmots";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 
 import { defaultContentComponents } from "@/components/content-renderers";
 import { GroupChatMentionRenderer } from "@/components/content-renderers/group-chat-mention";
-import { GroupMessagesContext } from "@/components/content-renderers/group-messages-context";
 import { MessageReactions } from "@/components/message-reactions";
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { TranscriptionButton } from "@/components/transcription-button";
@@ -22,9 +21,14 @@ import { WebxdcAppCard } from "@/components/webxdc-app-card";
 import { WebxdcRuntime } from "@/components/webxdc-runtime";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useGroupMessages } from "@/hooks/use-group-messages";
-import { useMessageReactions } from "@/hooks/use-message-reactions";
+import { useGroupEventStore } from "@/contexts/group-event-store-context";
 import { useSendReaction } from "@/hooks/use-send-reaction";
 import { accounts } from "@/lib/accounts";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
@@ -58,6 +62,9 @@ interface GroupOutletContext {
     admins: string[];
   } | null;
   isAdmin: boolean;
+  loadingMore: boolean;
+  loadingDone: boolean;
+  loadMoreMessages: () => Promise<void>;
 }
 
 // ============================================================================
@@ -83,6 +90,8 @@ const MessageItem = memo(function MessageItem({
     const date = new Date(timestamp * 1000);
     return date.toLocaleTimeString();
   };
+
+  const [debugOpen, setDebugOpen] = useState(false);
 
   const isWebxdc = isWebxdcMessage(rumor);
   const hasReactions = reactions.length > 0;
@@ -390,13 +399,48 @@ function useMessageSender(
 // ============================================================================
 
 export default function GroupChatPage() {
-  const { group } = useOutletContext<GroupOutletContext>();
+  const { group, loadingMore, loadingDone, loadMoreMessages } =
+    useOutletContext<GroupOutletContext>();
 
-  const { messages, loadMoreMessages, loadingMore, loadingDone } =
-    useGroupMessages(group ?? null);
+  // Per-group EventStore — provided by the [id].tsx layout via context.
+  // Contains all group-private rumors (kind 9 messages, kind 7 reactions, etc.)
+  const groupEventStore = useGroupEventStore();
 
-  // Derive per-message reaction data from all rumors (kind-7 among them)
-  const reactionsMap = useMessageReactions(messages);
+  // Reactive chat messages from the group store. timeline() returns newest-first
+  // (descending created_at). We reverse to ascending so the MessageList renders
+  // oldest→newest in DOM order, which pairs correctly with the flex-col-reverse
+  // outer scroll container that keeps the view pinned to the bottom.
+  const messagesDesc = use$(
+    () => groupEventStore.timeline({ kinds: [kinds.ChatMessage] }),
+    [groupEventStore],
+  );
+  const messages = useMemo(
+    () => (messagesDesc ? [...messagesDesc].reverse() : []),
+    [messagesDesc],
+  );
+
+  // Reactive reactions from the group store — grouped by target event id
+  const reactionEvents = use$(
+    () => groupEventStore.timeline({ kinds: [kinds.Reaction] }),
+    [groupEventStore],
+  );
+
+  // Build a map of targetId → ReactionItem[] from all kind-7 rumors in the store
+  const reactionsMap = useMemo(() => {
+    const map = new Map<string, { emoji: string; by: string }[]>();
+    for (const event of reactionEvents ?? []) {
+      const eTags = event.tags.filter((t) => t[0] === "e");
+      if (eTags.length === 0) continue;
+      const targetId = eTags[eTags.length - 1][1];
+      if (!targetId) continue;
+      const emoji =
+        !event.content || event.content === "+" ? "👍" : event.content;
+      const existing = map.get(targetId) ?? [];
+      existing.push({ emoji, by: event.pubkey });
+      map.set(targetId, existing);
+    }
+    return map;
+  }, [reactionEvents]);
 
   const { sendReaction } = useSendReaction(group ?? null);
 
@@ -445,7 +489,9 @@ export default function GroupChatPage() {
     try {
       const sentRumor = await sendMessage(text);
 
-      // Optimistically save new messages to the groups history for immediate feedback
+      // Optimistically save the rumor to the group history. The
+      // useGroupEventStore listener will pick it up via the "rumor" event and
+      // add it to the store — no manual store.add() needed here.
       if (sentRumor && group?.history) await group.history.saveRumor(sentRumor);
 
       // Clear the reply context after a successful send
@@ -468,20 +514,18 @@ export default function GroupChatPage() {
       )}
 
       {/* Messages - flex-col-reverse for scroll-to-bottom behavior.
-          GroupMessagesContext makes all loaded rumours available to the
-          group-aware mention renderer so nevent references to kind-9 rumours
-          can be resolved and rendered as inline quote blocks. */}
+          The GroupEventStoreContext (provided by the layout) is used by the
+          group-aware mention renderer to resolve nevent references to private
+          kind-9 rumours as inline quote blocks. */}
       <div className="flex flex-col-reverse h-full overflow-y-auto overflow-x-hidden px-2 pt-10">
-        <GroupMessagesContext.Provider value={messages}>
-          <MessageList
-            messages={messages}
-            reactionsMap={reactionsMap}
-            onLaunch={handleLaunch}
-            onAddReaction={handleAddReaction}
-            onReply={setReplyTo}
-          />
-        </GroupMessagesContext.Provider>
-        {loadMoreMessages && !loadingDone && (
+        <MessageList
+          messages={messages as Rumor[]}
+          reactionsMap={reactionsMap}
+          onLaunch={handleLaunch}
+          onAddReaction={handleAddReaction}
+          onReply={setReplyTo}
+        />
+        {!loadingDone && (
           <div className="flex justify-center py-2">
             <Button onClick={loadMoreMessages} disabled={loadingMore}>
               {loadingMore ? (

@@ -1,9 +1,10 @@
 import type { Mention } from "applesauce-content/nast";
 import { kinds } from "applesauce-core/helpers";
 
+import { useGroupRumor } from "@/contexts/group-event-store-context";
+
 import { GroupChatQuote } from "./group-chat-quote";
 import { MentionRenderer } from "./mention";
-import { useGroupRumor } from "./group-messages-context";
 
 /**
  * A mention renderer that is aware of the group message history.
