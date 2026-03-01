@@ -120,12 +120,6 @@ export function MessageReactions({
                 <UserName pubkey={pubkey} />
               </div>
             ))}
-            <button
-              onClick={() => onAddReaction(emoji)}
-              className="mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors text-left"
-            >
-              {byMe ? "Remove your reaction" : "React with " + emoji}
-            </button>
           </PopoverContent>
         </Popover>
       ))}

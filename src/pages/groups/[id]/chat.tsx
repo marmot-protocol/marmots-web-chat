@@ -1,7 +1,8 @@
 import { Rumor } from "applesauce-common/helpers/gift-wrap";
-import { getEventHash, kinds } from "applesauce-core/helpers";
+import { getEventHash, kinds, neventEncode } from "applesauce-core/helpers";
+import type { ComponentMap } from "applesauce-react/helpers";
 import { use$, useRenderedContent } from "applesauce-react/hooks";
-import { Loader2, XCircle } from "lucide-react";
+import { Loader2, Reply, X, XCircle } from "lucide-react";
 import {
   getNostrGroupIdHex,
   type GroupRumorHistory,
@@ -12,6 +13,8 @@ import { memo, useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 
 import { defaultContentComponents } from "@/components/content-renderers";
+import { GroupChatMentionRenderer } from "@/components/content-renderers/group-chat-mention";
+import { GroupMessagesContext } from "@/components/content-renderers/group-messages-context";
 import { MessageReactions } from "@/components/message-reactions";
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { TranscriptionButton } from "@/components/transcription-button";
@@ -26,6 +29,21 @@ import { useSendReaction } from "@/hooks/use-send-reaction";
 import { accounts } from "@/lib/accounts";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { isWebxdcMessage } from "@/lib/webxdc";
+
+// Component map that overrides the mention renderer with a group-context-aware
+// version that can resolve private kind-9 rumours as inline quote blocks.
+// Also overrides the text renderer to suppress pure-whitespace nodes that
+// appear between a quote block and the reply text (the "\n" separator that
+// NIP-C7 mandates between the nostr:nevent URI and message content would
+// otherwise produce a visible blank line due to whitespace-pre-wrap).
+const groupChatContentComponents: ComponentMap = {
+  ...defaultContentComponents,
+  mention: GroupChatMentionRenderer,
+  text: ({ node }: { node: { value: string } }) => {
+    if (node.value.trim() === "") return null;
+    return <span>{node.value}</span>;
+  },
+};
 
 // ============================================================================
 // Types for outlet context
@@ -51,6 +69,7 @@ interface MessageItemProps {
   onLaunch: (webxdcId: string, xdcUrl: string) => void;
   reactions: { emoji: string; by: string }[];
   onAddReaction: (emoji: string) => void;
+  onReply: (rumor: Rumor) => void;
 }
 
 const MessageItem = memo(function MessageItem({
@@ -58,6 +77,7 @@ const MessageItem = memo(function MessageItem({
   onLaunch,
   reactions,
   onAddReaction,
+  onReply,
 }: MessageItemProps) {
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
@@ -67,10 +87,12 @@ const MessageItem = memo(function MessageItem({
   const isWebxdc = isWebxdcMessage(rumor);
   const hasReactions = reactions.length > 0;
 
-  // Render content with rich text formatting (for non-webxdc messages)
+  // Render content with rich text formatting (for non-webxdc messages).
+  // Uses the group-aware component map so that nevent mentions that reference
+  // private kind-9 rumours are rendered as inline quote blocks.
   const content = useRenderedContent(
     isWebxdc ? { ...rumor, content: "" } : rumor,
-    defaultContentComponents,
+    groupChatContentComponents,
   );
 
   return (
@@ -79,7 +101,7 @@ const MessageItem = memo(function MessageItem({
       <UserAvatar pubkey={rumor.pubkey} size="sm" />
 
       <div className="flex flex-col gap-0.5 min-w-0">
-        {/* Title row: name · timestamp · add-reaction button (when no reactions yet) */}
+        {/* Title row: name · timestamp · action buttons (when no reactions yet) */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="font-bold">
             <UserName pubkey={rumor.pubkey} />
@@ -88,11 +110,21 @@ const MessageItem = memo(function MessageItem({
             {formatTimestamp(rumor.created_at)}
           </span>
           {!hasReactions && (
-            <MessageReactions
-              rumorId={rumor.id}
-              reactions={[]}
-              onAddReaction={onAddReaction}
-            />
+            <div className="flex items-center gap-0.5">
+              <MessageReactions
+                rumorId={rumor.id}
+                reactions={[]}
+                onAddReaction={onAddReaction}
+              />
+              <button
+                onClick={() => onReply(rumor)}
+                className="flex items-center justify-center w-6 h-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                aria-label="Reply"
+                title="Reply"
+              >
+                <Reply className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
         </div>
 
@@ -107,11 +139,21 @@ const MessageItem = memo(function MessageItem({
 
         {/* Reactions row — only shown when there are reactions */}
         {hasReactions && (
-          <MessageReactions
-            rumorId={rumor.id}
-            reactions={reactions}
-            onAddReaction={onAddReaction}
-          />
+          <div className="flex items-center gap-0.5">
+            <MessageReactions
+              rumorId={rumor.id}
+              reactions={reactions}
+              onAddReaction={onAddReaction}
+            />
+            <button
+              onClick={() => onReply(rumor)}
+              className="flex items-center justify-center w-6 h-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="Reply"
+              title="Reply"
+            >
+              <Reply className="w-3.5 h-3.5" />
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -131,6 +173,7 @@ interface MessageListProps {
     authorPubkey: string,
     emoji: string,
   ) => void;
+  onReply: (rumor: Rumor) => void;
 }
 
 const MessageList = memo(function MessageList({
@@ -138,6 +181,7 @@ const MessageList = memo(function MessageList({
   reactionsMap,
   onLaunch,
   onAddReaction,
+  onReply,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -167,6 +211,7 @@ const MessageList = memo(function MessageList({
           onAddReaction={(emoji) =>
             onAddReaction(rumor.id, rumor.pubkey, emoji)
           }
+          onReply={onReply}
         />
       ))}
       <div ref={messagesEndRef} />
@@ -181,9 +226,16 @@ const MessageList = memo(function MessageList({
 interface MessageFormProps {
   isSending: boolean;
   onSend: (text: string) => Promise<void>;
+  replyTo: Rumor | null;
+  onCancelReply: () => void;
 }
 
-function MessageForm({ isSending, onSend }: MessageFormProps) {
+function MessageForm({
+  isSending,
+  onSend,
+  replyTo,
+  onCancelReply,
+}: MessageFormProps) {
   const input = useRef<HTMLInputElement>(null);
   const [messageText, setMessageText] = useState("");
 
@@ -202,36 +254,68 @@ function MessageForm({ isSending, onSend }: MessageFormProps) {
   };
 
   return (
-    <div className="flex gap-2">
-      <Input
-        ref={input}
-        type="text"
-        placeholder="Type your message…"
-        value={messageText}
-        onChange={(e) => setMessageText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleSubmit();
-          }
-        }}
-        disabled={isSending}
-        className="flex-1"
-      />
-      <TranscriptionButton onTranscription={(text) => setMessageText(text)} />
-      <Button
-        onClick={handleSubmit}
-        disabled={isSending || !messageText.trim()}
-      >
-        {isSending ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Sending...
-          </>
-        ) : (
-          "Send"
-        )}
-      </Button>
+    <div className="flex flex-col gap-2">
+      {/* Reply banner — shown only when replying to a message */}
+      {replyTo && (
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted border text-sm text-muted-foreground">
+          <Reply className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate min-w-0">
+            Replying to{" "}
+            <span className="font-medium text-foreground">
+              <UserName pubkey={replyTo.pubkey} />
+            </span>
+            {replyTo.content ? (
+              <>
+                {": "}
+                <span className="italic">
+                  {replyTo.content.slice(0, 80)}
+                  {replyTo.content.length > 80 ? "…" : ""}
+                </span>
+              </>
+            ) : null}
+          </span>
+          <button
+            onClick={onCancelReply}
+            className="ml-auto shrink-0 flex items-center justify-center w-5 h-5 rounded-full hover:bg-background transition-colors"
+            aria-label="Cancel reply"
+            title="Cancel reply"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Input
+          ref={input}
+          type="text"
+          placeholder={replyTo ? "Write a reply…" : "Type your message…"}
+          value={messageText}
+          onChange={(e) => setMessageText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
+          disabled={isSending}
+          className="flex-1"
+        />
+        <TranscriptionButton onTranscription={(text) => setMessageText(text)} />
+        <Button
+          onClick={handleSubmit}
+          disabled={isSending || !messageText.trim()}
+        >
+          {isSending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Sending...
+            </>
+          ) : (
+            "Send"
+          )}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -240,7 +324,10 @@ function MessageForm({ isSending, onSend }: MessageFormProps) {
 // Hook: useMessageSender
 // ============================================================================
 
-function useMessageSender(group: MarmotGroup<GroupRumorHistory> | null) {
+function useMessageSender(
+  group: MarmotGroup<GroupRumorHistory> | null,
+  replyTo: Rumor | null,
+) {
   const account = use$(accounts.active$);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -252,15 +339,31 @@ function useMessageSender(group: MarmotGroup<GroupRumorHistory> | null) {
       setIsSending(true);
       setError(null);
 
-      // Create rumor (unsigned Nostr event)
       const pubkey = await account.signer.getPublicKey();
+
+      // Build tags and content per NIP-C7 reply spec:
+      // - q tag: ["q", <event-id>, <relay-hint>, <author-pubkey>]
+      // - content prefixed with nostr:nevent1... URI on its own line
+      let tags: string[][] = [];
+      let content = messageText.trim();
+
+      if (replyTo) {
+        const encoded = neventEncode({
+          id: replyTo.id,
+          author: replyTo.pubkey,
+        });
+        tags = [["q", replyTo.id, "", replyTo.pubkey]];
+        content = `nostr:${encoded}\n${content}`;
+      }
+
+      // Create rumor (unsigned Nostr event)
       const rumor: Rumor = {
         id: "", // Will be computed
         kind: 9, // Chat message kind
         pubkey,
         created_at: unixNow(),
-        content: messageText.trim(),
-        tags: [],
+        content,
+        tags,
       };
 
       // Compute event ID
@@ -317,6 +420,9 @@ export default function GroupChatPage() {
     setActiveWebxdc({ webxdcId, xdcUrl });
   };
 
+  // Reply state — holds the rumor we are replying to, or null
+  const [replyTo, setReplyTo] = useState<Rumor | null>(null);
+
   // Mark group as seen when new messages arrive
   useEffect(() => {
     if (!groupIdHex) return;
@@ -325,12 +431,12 @@ export default function GroupChatPage() {
     subscriptionManager.markGroupSeen(groupIdHex, unixNow());
   }, [groupIdHex, messages.length]);
 
-  // Message sender
+  // Message sender — receives replyTo so it can build the q tag + NIP-21 content
   const {
     sendMessage,
     isSending,
     error: sendError,
-  } = useMessageSender(group ?? null);
+  } = useMessageSender(group ?? null, replyTo);
 
   // Handle sending messages (text passed from MessageForm so page doesn't re-render on typing)
   const handleSendMessage = async (text: string) => {
@@ -341,7 +447,10 @@ export default function GroupChatPage() {
 
       // Optimistically save new messages to the groups history for immediate feedback
       if (sentRumor && group?.history) await group.history.saveRumor(sentRumor);
-    } catch (err) {
+
+      // Clear the reply context after a successful send
+      setReplyTo(null);
+    } catch {
       // Error is already set by useMessageSender
     }
   };
@@ -358,14 +467,20 @@ export default function GroupChatPage() {
         </div>
       )}
 
-      {/* Messages - flex-col-reverse for scroll-to-bottom behavior */}
+      {/* Messages - flex-col-reverse for scroll-to-bottom behavior.
+          GroupMessagesContext makes all loaded rumours available to the
+          group-aware mention renderer so nevent references to kind-9 rumours
+          can be resolved and rendered as inline quote blocks. */}
       <div className="flex flex-col-reverse h-full overflow-y-auto overflow-x-hidden px-2 pt-10">
-        <MessageList
-          messages={messages}
-          reactionsMap={reactionsMap}
-          onLaunch={handleLaunch}
-          onAddReaction={handleAddReaction}
-        />
+        <GroupMessagesContext.Provider value={messages}>
+          <MessageList
+            messages={messages}
+            reactionsMap={reactionsMap}
+            onLaunch={handleLaunch}
+            onAddReaction={handleAddReaction}
+            onReply={setReplyTo}
+          />
+        </GroupMessagesContext.Provider>
         {loadMoreMessages && !loadingDone && (
           <div className="flex justify-center py-2">
             <Button onClick={loadMoreMessages} disabled={loadingMore}>
@@ -384,7 +499,12 @@ export default function GroupChatPage() {
 
       {/* Message Input - sticky at bottom; state lives in MessageForm to avoid full-page re-renders on typing */}
       <div className="border-t p-4 bg-background">
-        <MessageForm isSending={isSending} onSend={handleSendMessage} />
+        <MessageForm
+          isSending={isSending}
+          onSend={handleSendMessage}
+          replyTo={replyTo}
+          onCancelReply={() => setReplyTo(null)}
+        />
       </div>
 
       {/* Webxdc runtime modal */}
