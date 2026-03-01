@@ -52,8 +52,12 @@ function GroupDetailPage() {
   // Build and populate the per-group EventStore from the group's rumor history.
   // This is the single source of truth for all group-private events (messages,
   // reactions, etc.) and is provided to all child routes via context.
-  const { groupEventStore, loadingMore, loadingDone, loadMoreMessages } =
-    useGroupEventStore(group ?? null);
+  const {
+    groupEventStore,
+    loadingMore,
+    loadingDone,
+    loadMore: loadMoreMessages,
+  } = useGroupEventStore(group ?? null);
 
   const groupIdHex = useMemo(() => {
     if (!group) return null;

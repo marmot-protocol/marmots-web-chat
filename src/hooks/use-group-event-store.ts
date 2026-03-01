@@ -5,7 +5,7 @@ import {
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { EventStore } from "applesauce-core";
 import type { NostrEvent } from "applesauce-core/helpers";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * Creates and populates a per-group {@link EventStore} from a group's
@@ -31,7 +31,7 @@ export function useGroupEventStore(
   groupEventStore: EventStore;
   loadingMore: boolean;
   loadingDone: boolean;
-  loadMoreMessages: () => Promise<void>;
+  loadMore: () => Promise<void>;
 } {
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadingDone, setLoadingDone] = useState(false);
@@ -46,60 +46,73 @@ export function useGroupEventStore(
   }, [group]);
 
   // Keep a stable ref to the paginated loader so page loads are sequential
-  const paginatedLoaderRef = useRef<AsyncGenerator<Rumor[], void> | null>(null);
+  const loader = useRef<AsyncGenerator<Rumor[], void> | null>(null);
 
   // Reset loader and loading state when group (and therefore store) changes
   useEffect(() => {
     if (!group?.history) {
-      paginatedLoaderRef.current = null;
+      loader.current = null;
       return;
     }
-    paginatedLoaderRef.current = group.history.createPaginatedLoader({
-      limit: 50,
+
+    loader.current = group.history.createPaginatedLoader({
+      limit: 200,
     });
+
     setLoadingDone(false);
     setLoadingMore(false);
   }, [group]);
 
   // Add a rumor to the group EventStore, casting it to NostrEvent since the
   // store API expects signed events but we've disabled verification above.
-  const addRumorToStore = (store: EventStore, rumor: Rumor) => {
-    store.add(rumor as NostrEvent);
-  };
+  const addRumorToStore = useCallback(
+    (rumor: Rumor) => {
+      groupEventStore.add(rumor as NostrEvent);
+    },
+    [groupEventStore],
+  );
 
   // Load the next page of historical rumors from IndexedDB into the store
-  const loadMoreMessages = async () => {
-    if (!paginatedLoaderRef.current || loadingDone) return;
+  const loadMore = useCallback(async () => {
+    if (!loader.current) return;
     setLoadingMore(true);
-    const page = await paginatedLoaderRef.current.next();
+    const page = await loader.current.next();
     if (page.value) {
       for (const rumor of page.value) {
-        addRumorToStore(groupEventStore, rumor);
+        addRumorToStore(rumor);
       }
     }
     if (page.done) setLoadingDone(true);
     setLoadingMore(false);
-  };
+  }, [addRumorToStore, setLoadingMore, setLoadingDone]);
 
   // Load the first page on mount / group change
   useEffect(() => {
-    loadMoreMessages();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group, groupEventStore]);
+    loadMore();
+  }, [loadMore]);
+
+  // Load first 500 events when group changes
+  useEffect(() => {
+    if (!group?.history) return;
+
+    group.history
+      .queryRumors({ limit: 500 })
+      .then((rumors) => rumors.forEach((rumor) => addRumorToStore(rumor)));
+  }, [addRumorToStore, group?.history]);
 
   // Subscribe to live rumors as they arrive (from ingest or optimistic sends)
   useEffect(() => {
     if (!group?.history) return;
 
     const listener = (rumor: Rumor) => {
-      addRumorToStore(groupEventStore, rumor);
+      addRumorToStore(rumor);
     };
 
     group.history.addListener("rumor", listener);
     return () => {
       group.history?.removeListener("rumor", listener);
     };
-  }, [group, groupEventStore]);
+  }, [group?.history, addRumorToStore]);
 
-  return { groupEventStore, loadingMore, loadingDone, loadMoreMessages };
+  return { groupEventStore, loadingMore, loadingDone, loadMore };
 }
