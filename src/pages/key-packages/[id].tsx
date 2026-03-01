@@ -9,7 +9,7 @@ import { getSeenRelays, NostrEvent, relaySet } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { from, map } from "rxjs";
+import { from, map, switchMap } from "rxjs";
 
 import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import KeyPackageDataView from "@/components/data-view/key-package";
@@ -17,6 +17,7 @@ import { EventStatusButton } from "@/components/event-status-button";
 import ExportKeyPackageModal from "@/components/key-package/export-modal";
 import { PageBody } from "@/components/page-body";
 import { PageHeader } from "@/components/page-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,16 +29,13 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { keyPackageRelays$, publishedKeyPackages$ } from "@/lib/lifecycle";
-import { marmotClient$ } from "@/lib/marmot-client";
+import { liveKeyPackages$, marmotClient$ } from "@/lib/marmot-client";
 import { eventStore, pool } from "@/lib/nostr";
 import { formatTimeAgo } from "@/lib/time";
+import { TriangleAlertIcon } from "lucide-react";
 import { CiphersuiteId, KeyPackage } from "ts-mls";
 import accounts, { publish, user$ } from "../../lib/accounts";
 
-/** A key package that is not stored locally but read from an event */
-type RemoteKeyPackage = Omit<StoredKeyPackage, "privatePackage"> & {
-  privatePackage: null;
-};
 
 function KeyPackageRelayStatus({ event }: { event: NostrEvent | undefined }) {
   const keyPackageRelays = use$(keyPackageRelays$);
@@ -309,7 +307,7 @@ function BroadcastKeyPackageButton({
 function KeyPackageDetailBody({
   keyPackage,
 }: {
-  keyPackage: StoredKeyPackage | RemoteKeyPackage;
+  keyPackage: StoredKeyPackage;
 }) {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const refString = useMemo(
@@ -317,12 +315,7 @@ function KeyPackageDetailBody({
     [keyPackage.keyPackageRef],
   );
 
-  // Get published key packages from event store and match by keyPackageRef
-  const publishedKeyPackages = use$(publishedKeyPackages$);
-
-  const event = publishedKeyPackages?.find(
-    (pkg) => bytesToHex(pkg.keyPackageRef) === refString,
-  )?.event;
+  const event = keyPackage.published?.[keyPackage.published.length - 1];
   const cipherSuiteId = keyPackage.publicPackage.cipherSuite as CiphersuiteId;
   const clientInfo = event ? getKeyPackageClient(event) : undefined;
   const timeAgo = event ? formatTimeAgo(event.created_at) : "Unpublished";
@@ -340,6 +333,16 @@ function KeyPackageDetailBody({
         actions={event ? <EventStatusButton event={event} /> : undefined}
       />
       <PageBody>
+        {keyPackage.used && (
+          <Alert variant="destructive">
+            <TriangleAlertIcon className="h-4 w-4" />
+            <AlertTitle>Key package has been used</AlertTitle>
+            <AlertDescription>
+              This key package was already consumed to join a group. Reusing it
+              weakens your security. Rotate it to generate a fresh one.
+            </AlertDescription>
+          </Alert>
+        )}
         <Card>
           <CardHeader>
             <CardTitle>Information</CardTitle>
@@ -462,20 +465,23 @@ export default function KeyPackageDetailPage() {
   const { id } = useParams<{ id: string }>();
   const ref = useMemo(() => (id ? hexToBytes(id) : undefined), [id]);
   const client = use$(marmotClient$);
-  const publishedKeyPackages = use$(publishedKeyPackages$);
 
+  // Fetch and track relay events as a side effect so the manager's published
+  // array stays populated even when navigating directly to this page.
+  use$(publishedKeyPackages$);
+
+  // Re-evaluate whenever liveKeyPackages$ emits — it fires on keyPackageAdded,
+  // keyPackageRemoved, and keyPackagePublished, so the view updates as soon as
+  // track() records a new relay event for a remote package.
   const keyPackage = use$(
-    () => (client && ref ? from(client.keyPackages.get(ref)) : undefined),
+    () => {
+      if (!client || !ref) return undefined;
+      return liveKeyPackages$.pipe(
+        switchMap(() => from(client.keyPackages.get(ref))),
+      );
+    },
     [client, ref],
   );
-
-  // Try to find the published key package if not found locally
-  const publishedKeyPackage = useMemo(() => {
-    if (!ref || !publishedKeyPackages) return undefined;
-    return publishedKeyPackages.find(
-      (pkg) => bytesToHex(pkg.keyPackageRef) === bytesToHex(ref),
-    );
-  }, [ref, publishedKeyPackages]);
 
   if (!ref) {
     return (
@@ -497,7 +503,7 @@ export default function KeyPackageDetailPage() {
     );
   }
 
-  if (!keyPackage && !publishedKeyPackage) {
+  if (!keyPackage) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center text-muted-foreground">
@@ -507,12 +513,5 @@ export default function KeyPackageDetailPage() {
     );
   }
 
-  // If not stored locally but published, create a minimal StoredKeyPackage
-  const displayKeyPackage = keyPackage || {
-    keyPackageRef: publishedKeyPackage!.keyPackageRef,
-    publicPackage: publishedKeyPackage!.keyPackage,
-    privatePackage: null, // No private package available
-  };
-
-  return <KeyPackageDetailBody keyPackage={displayKeyPackage} />;
+  return <KeyPackageDetailBody keyPackage={keyPackage} />;
 }

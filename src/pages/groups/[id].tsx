@@ -103,6 +103,7 @@ function GroupDetailPage() {
   const isOnMembersTab = currentPath === `/groups/${id}/members`;
   const isOnAdminTab = currentPath === `/groups/${id}/admin`;
   const isOnDebugTab = currentPath === `/groups/${id}/debug`;
+  const isOnEventsTab = currentPath === `/groups/${id}/events`;
 
   if (!id) {
     return (
@@ -233,6 +234,18 @@ function GroupDetailPage() {
           )}
         >
           Debug
+        </Link>
+        <Link
+          to={`/groups/${id}/events`}
+          className={cn(
+            "px-4 py-2 text-sm font-medium transition-colors",
+            "hover:text-foreground",
+            isOnEventsTab
+              ? "text-foreground border-b-2 border-primary"
+              : "text-muted-foreground",
+          )}
+        >
+          Events
         </Link>
       </div>
 

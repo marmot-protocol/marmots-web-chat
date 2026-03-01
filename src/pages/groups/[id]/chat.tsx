@@ -174,7 +174,7 @@ function MessageForm({ isSending, onSend }: MessageFormProps) {
       <Input
         ref={input}
         type="text"
-        placeholder="Type your message or paste a .xdc URL…"
+        placeholder="Type your message…"
         value={messageText}
         onChange={(e) => setMessageText(e.target.value)}
         onKeyDown={(e) => {

@@ -16,6 +16,7 @@ import {
   KeyValueGroupStateBackend,
   InviteStore,
 } from "@internet-privacy/marmots";
+import { ingestResultsDatabaseName } from "@/lib/group-subscription-manager";
 
 const DB_VERSION = 1;
 
@@ -228,11 +229,27 @@ export class MultiAccountDatabaseBroker {
    * - LocalForage group state
    * - LocalForage key packages
    * - LocalForage invite stores
+   * - LocalForage per-group ingest-results stores
    *
    * @param pubkey - The public key of the account to purge
    */
   async purgeDatabase(pubkey: string): Promise<void> {
     const databaseKey = `${pubkey}-key-value`;
+
+    // Collect group ids before we drop the groups store, so we can also drop
+    // the corresponding per-group ingest-results stores.
+    const groupIds: string[] = [];
+    try {
+      const groupsStore = localforage.createInstance({
+        name: databaseKey,
+        storeName: "groups",
+      });
+      await groupsStore.iterate<unknown, void>((_value, key) => {
+        groupIds.push(key);
+      });
+    } catch {
+      // Ignore — groups store may already be gone.
+    }
 
     // Close and delete IndexedDB database
     const db = this.customDatabases.get(pubkey);
@@ -268,6 +285,18 @@ export class MultiAccountDatabaseBroker {
       name: databaseKey,
       storeName: "invites-seen",
     });
+
+    // Drop all per-group ingest-results stores from the dedicated database.
+    // Each group's storeName is its group id string.
+    const ingestDbName = ingestResultsDatabaseName(pubkey);
+    await Promise.all(
+      groupIds.map((groupIdStr) =>
+        localforage.dropInstance({
+          name: ingestDbName,
+          storeName: groupIdStr,
+        }),
+      ),
+    );
 
     // Remove from in-memory cache
     this.#storageInterfaces.delete(pubkey);

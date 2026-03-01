@@ -1,12 +1,16 @@
-import { getKeyPackageClient } from "@internet-privacy/marmots";
-import { bytesToHex, type NostrEvent, relaySet } from "applesauce-core/helpers";
+import {
+  getKeyPackageClient,
+  isLastResortExtension,
+  KeyPackageEntry,
+} from "@internet-privacy/marmots";
+import { bytesToHex, relaySet } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
+import { SettingsIcon } from "lucide-react";
 import { useMemo } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { combineLatest, map, shareReplay } from "rxjs";
 
 import { AppSidebar } from "@/components/app-sidebar";
-import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import { SubscriptionStatusButton } from "@/components/subscription-status-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,8 +21,6 @@ import { keyPackageRelays$, publishedKeyPackages$ } from "@/lib/lifecycle";
 import { liveKeyPackages$ } from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
 import { formatTimeAgo } from "@/lib/time";
-import { SettingsIcon } from "lucide-react";
-import { CiphersuiteId } from "ts-mls";
 
 /** An observable of all relays to read key packages from */
 const readRelays$ = combineLatest([
@@ -30,18 +32,7 @@ const readRelays$ = combineLatest([
   shareReplay(1),
 );
 
-function KeyPackageItem({
-  keyPackage,
-  event,
-  isLocal,
-}: {
-  keyPackage: {
-    keyPackageRef: Uint8Array;
-    publicPackage: { cipherSuite: number };
-  };
-  event?: NostrEvent;
-  isLocal: boolean;
-}) {
+function KeyPackageItem({ keyPackage }: { keyPackage: KeyPackageEntry }) {
   const location = useLocation();
 
   const linkTo = useMemo(
@@ -49,9 +40,15 @@ function KeyPackageItem({
     [keyPackage.keyPackageRef],
   );
   const isActive = location.pathname === linkTo;
+  const isLastResort = !!keyPackage.publicPackage.extensions.some(
+    isLastResortExtension,
+  );
 
-  const client = event ? getKeyPackageClient(event) : undefined;
-  const timeAgo = event ? formatTimeAgo(event.created_at) : "Unpublished";
+  const latestEvent = keyPackage.published[keyPackage.published.length - 1];
+  const client = latestEvent ? getKeyPackageClient(latestEvent) : undefined;
+  const timeAgo = latestEvent
+    ? formatTimeAgo(latestEvent.created_at)
+    : "Unpublished";
 
   return (
     <Link
@@ -64,71 +61,32 @@ function KeyPackageItem({
         <span className="font-medium truncate">
           {client?.name || "Unknown Client"}
         </span>
-        {!isLocal && (
-          <Badge variant="outline" className="text-xs ml-2 shrink-0">
-            Not stored locally
-          </Badge>
-        )}
         <span className="ml-auto flex items-center gap-2 shrink-0">
           <span className="text-xs text-muted-foreground">{timeAgo}</span>
         </span>
       </div>
       <div className="flex items-center gap-2">
-        <CipherSuiteBadge
-          cipherSuite={keyPackage.publicPackage.cipherSuite as CiphersuiteId}
-        />
+        {keyPackage.used && (
+          <Badge variant="destructive" className="text-xs shrink-0">
+            Used
+          </Badge>
+        )}
+        {isLastResort && (
+          <Badge variant="outline" className="text-xs shrink-0">
+            Last Resort
+          </Badge>
+        )}
       </div>
     </Link>
   );
 }
 
 function KeyPackagesPage() {
-  // Local key packages from the manager — each entry includes its published Nostr events
-  const localKeyPackages = use$(liveKeyPackages$);
-  // Published key packages from relays — includes packages not stored locally
-  const published = use$(publishedKeyPackages$);
-
-  // Build display list: start from locally-stored packages (with their published events),
-  // then add any relay-published packages that aren't in local storage.
-  const displayItems = useMemo(() => {
-    const seen = new Set<string>();
-    const items: Array<{
-      keyPackageRef: Uint8Array;
-      publicPackage: { cipherSuite: number };
-      event?: NostrEvent;
-      isLocal: boolean;
-    }> = [];
-
-    // Add local key packages first — they have the richest data
-    for (const entry of localKeyPackages ?? []) {
-      const hexRef = bytesToHex(entry.keyPackageRef);
-      if (seen.has(hexRef)) continue;
-      seen.add(hexRef);
-      // Use the most recent published event if available
-      const event = entry.published?.[entry.published.length - 1];
-      items.push({
-        keyPackageRef: entry.keyPackageRef,
-        publicPackage: entry.publicPackage,
-        event,
-        isLocal: true,
-      });
-    }
-
-    // Add relay-published packages that aren't in local storage
-    for (const pkg of published ?? []) {
-      const hexRef = bytesToHex(pkg.keyPackageRef);
-      if (seen.has(hexRef)) continue;
-      seen.add(hexRef);
-      items.push({
-        keyPackageRef: pkg.keyPackageRef,
-        publicPackage: pkg.keyPackage,
-        event: pkg.event,
-        isLocal: false,
-      });
-    }
-
-    return items;
-  }, [localKeyPackages, published]);
+  const keyPackages = use$(liveKeyPackages$);
+  // Subscribe to relay fetching and remote key package tracking as a side effect.
+  // publishedKeyPackages$ opens a relay subscription and calls keyPackages.track()
+  // for each event, keeping the key package manager up to date with remote packages.
+  use$(publishedKeyPackages$);
 
   return (
     <>
@@ -149,24 +107,24 @@ function KeyPackagesPage() {
           <Button asChild variant="default" className="m-2">
             <Link to="/key-packages/create">Create Key Package</Link>
           </Button>
-          {displayItems.length > 0 ? (
-            displayItems.map((item) => (
+          {keyPackages && keyPackages.length > 0
+            ? keyPackages.map((pkg) => (
               <KeyPackageItem
-                key={bytesToHex(item.keyPackageRef)}
-                keyPackage={item}
-                event={item.event}
-                isLocal={item.isLocal}
+                key={bytesToHex(pkg.keyPackageRef)}
+                keyPackage={pkg}
               />
             ))
-          ) : (
-            <div className="p-4 text-sm text-muted-foreground text-center">
-              {published === undefined ? "Loading..." : "No key packages yet"}
-            </div>
-          )}
+            : (
+              <div className="p-4 text-sm text-muted-foreground text-center">
+                {keyPackages === undefined
+                  ? "Loading..."
+                  : "No key packages yet"}
+              </div>
+            )}
         </div>
 
         <div className="p-4 text-sm text-muted-foreground text-center">
-          Found {displayItems.length} key packages
+          Found {keyPackages?.length ?? 0} key packages
         </div>
       </AppSidebar>
       <SidebarInset>

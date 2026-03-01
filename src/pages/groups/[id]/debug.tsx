@@ -4,6 +4,7 @@ import { useOutletContext } from "react-router";
 import { RatchetTreeGraph } from "@/components/group/ratchet-tree-graph";
 import { RatchetNodeDetail } from "@/components/group/ratchet-node-detail";
 import { Badge } from "@/components/ui/badge";
+import { IconCopyButton } from "@/components/icon-copy-button";
 
 import type { GroupRumorHistory, MarmotGroup } from "@internet-privacy/marmots";
 import type { RatchetTreeNodeInfo } from "@/components/group/ratchet-tree-graph";
@@ -61,17 +62,29 @@ export default function GroupDebugPage() {
       <div className="flex flex-col h-[calc(100vh-118px)]">
         {/* Header bar: group context summary */}
         <div className="flex flex-wrap items-center gap-3 px-4 py-2 border-b bg-muted/30 text-xs">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <span className="text-muted-foreground">Epoch:</span>
             <Badge variant="outline" className="font-mono">
               {ctx.epoch.toString()}
             </Badge>
+            <IconCopyButton
+              text={ctx.epoch.toString()}
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5"
+            />
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <span className="text-muted-foreground">Ciphersuite:</span>
             <Badge variant="outline" className="font-mono">
               0x{ctx.cipherSuite.toString(16).padStart(4, "0")}
             </Badge>
+            <IconCopyButton
+              text={`0x${ctx.cipherSuite.toString(16).padStart(4, "0")}`}
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5"
+            />
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-muted-foreground">Leaves:</span>
@@ -85,11 +98,17 @@ export default function GroupDebugPage() {
               {ownLeafIndex}
             </Badge>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <span className="text-muted-foreground">Tree hash:</span>
-            <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-[10px]">
-              {bytesToHex(ctx.treeHash).slice(0, 16)}…
+            <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-[10px] break-all">
+              {bytesToHex(ctx.treeHash)}
             </code>
+            <IconCopyButton
+              text={bytesToHex(ctx.treeHash)}
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 shrink-0"
+            />
           </div>
         </div>
 

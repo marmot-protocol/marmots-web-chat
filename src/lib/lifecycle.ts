@@ -1,9 +1,7 @@
-import { defined, mapEventsToStore } from "applesauce-core";
-import { kinds, NostrEvent, relaySet } from "applesauce-core/helpers";
+import { mapEventsToStore } from "applesauce-core";
+import { Filter, kinds, relaySet } from "applesauce-core/helpers";
 import { onlyEvents } from "applesauce-relay";
 import {
-  calculateKeyPackageRef,
-  getKeyPackage,
   getKeyPackageRelayList,
   KEY_PACKAGE_KIND,
   KEY_PACKAGE_RELAY_LIST_KIND,
@@ -14,18 +12,14 @@ import {
   defer,
   EMPTY,
   from,
-  ignoreElements,
   map,
   merge,
-  mergeMap,
   of,
-  scan,
   share,
   shareReplay,
   switchMap,
   tap,
 } from "rxjs";
-import { KeyPackage } from "ts-mls";
 
 import accounts, { user$ } from "./accounts";
 import { inviteReader$, marmotClient$ } from "./marmot-client";
@@ -55,78 +49,40 @@ const readKeyPackageRelays$ = combineLatest([
   shareReplay(1),
 );
 
-export type PublishedKeyPackage = {
-  event: NostrEvent;
-  keyPackage: KeyPackage;
-  keyPackageRef: Uint8Array;
-};
-
-/** An observable of all published key packages for the current user */
+/**
+ * Background subscription that fetches the current user's key package events
+ * from relays and passes each one to the key package manager's track() method.
+ * This populates the `published` array on each KeyPackageEntry so the manager
+ * knows which relays to send kind-5 deletions to, including packages published
+ * by other devices where private key material is not held locally.
+ */
 export const publishedKeyPackages$ = combineLatest([
   user$,
   marmotClient$,
   readKeyPackageRelays$,
 ]).pipe(
-  switchMap(([user, client]) => {
-    if (!user) return of([] as PublishedKeyPackage[]);
+  switchMap(([user, client, relays]) => {
+    if (!user || !client) return EMPTY;
 
-    const filter = {
-      kinds: [KEY_PACKAGE_KIND],
-      authors: [user.pubkey],
-    };
+    const filters: Filter[] = [
+      {
+        kinds: [KEY_PACKAGE_KIND],
+        authors: [user.pubkey],
+      },
+      {
+        kinds: [kinds.EventDeletion],
+        "#k": [String(KEY_PACKAGE_KIND)],
+        authors: [user.pubkey],
+      },
+    ];
 
-    // Observable to load events from relays
-    const load = pool
-      .subscription(readKeyPackageRelays$, filter)
-      .pipe(onlyEvents());
-    // Observable: all current matching events first, then live updates from the store.
-    // eventStore.filters(filter) is shared with ReplaySubject(1), so late subscribers
-    // only see the last event; seeding with getByFilters ensures we get the full set.
-    const parseEvent = async (event: NostrEvent) => {
-      try {
-        const keyPackage = getKeyPackage(event);
-        const keyPackageRef = await calculateKeyPackageRef(
-          keyPackage,
-          client?.cryptoProvider,
-        );
-        // Track the published event with the key package manager so it knows
-        // which relays to send kind-5 deletions to, even for packages where
-        // private key material is not held locally (e.g. published by another device).
-        client?.keyPackages.track(event);
-        return { event, keyPackage, keyPackageRef } as PublishedKeyPackage;
-      } catch {
-        return null;
-      }
-    };
-    const existing$ = defer(() =>
-      from(eventStore.getByFilters(filter)).pipe(
-        mergeMap((event) => from(parseEvent(event))),
-        defined(),
-      ),
-    );
-    const updates$ = eventStore.filters(filter).pipe(
-      mergeMap((event) => from(parseEvent(event))),
-      defined(),
-    );
-    const published = merge(existing$, updates$).pipe(
-      scan((acc, curr) => {
-        const seen = acc.some((p) => p.event.id === curr.event.id);
-        return seen ? acc : [...acc, curr];
-      }, [] as PublishedKeyPackage[]),
-    );
-
-    return merge(
-      load.pipe(
-        // Send all events to the store
-        mapEventsToStore(eventStore),
-        // Ingore events
-        ignoreElements(),
-      ),
-      // Return only parsed events from the store
-      published,
+    return pool.subscription(relays, filters).pipe(
+      onlyEvents(),
+      mapEventsToStore(eventStore),
+      tap((event) => client.keyPackages.track(event)),
     );
   }),
-  shareReplay(1),
+  share(),
 );
 
 /** An observable that requests the last 2 weeks of gift wrap events from the user's inboxes and key package relays */

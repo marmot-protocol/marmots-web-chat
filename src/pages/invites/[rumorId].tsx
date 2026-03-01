@@ -162,12 +162,16 @@ export function InviteDetailPage() {
    */
   const groupData = use$(() => {
     if (!client || !invite) return of(undefined);
-    return from(client.readInviteGroupInfo(invite)).pipe(map((info) => {
-      if (!info) return null;
-      const ext = info.groupContext.extensions.find(isMarmotGroupDataExtension);
-      if (!ext) return null;
-      return decodeMarmotGroupData(ext.extensionData);
-    }));
+    return from(client.readInviteGroupInfo(invite)).pipe(
+      map((info) => {
+        if (!info) return null;
+        const ext = info.groupContext.extensions.find(
+          isMarmotGroupDataExtension,
+        );
+        if (!ext) return null;
+        return decodeMarmotGroupData(ext.extensionData);
+      }),
+    );
   }, [client, invite]);
 
   if (!inviteReader) {
@@ -202,15 +206,13 @@ export function InviteDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            {groupData === undefined
-              ? <Skeleton className="h-6 w-48" />
-              : groupData?.name
-              ? (
-                groupData.name
-              )
-              : (
-                "Invite details"
-              )}
+            {groupData === undefined ? (
+              <Skeleton className="h-6 w-48" />
+            ) : groupData?.name ? (
+              groupData.name
+            ) : (
+              "Invite details"
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -294,11 +296,13 @@ export function InviteDetailPage() {
             <div className="font-mono mb-1">
               Event ID: {getWelcomeKeyPackageEventId(invite)}
             </div>
-            {hasKeyPackage === true
-              ? <Badge variant="default">Has private key</Badge>
-              : hasKeyPackage === false
-              ? <Badge variant="destructive">No private key</Badge>
-              : <Badge variant="outline">Checking key package...</Badge>}
+            {hasKeyPackage === true ? (
+              <Badge variant="default">Has private key</Badge>
+            ) : hasKeyPackage === false ? (
+              <Badge variant="destructive">No private key</Badge>
+            ) : (
+              <Badge variant="outline">Checking key package...</Badge>
+            )}
           </div>
 
           {/* Fallback relay display when group data is not available */}

@@ -1,3 +1,9 @@
 packages:
   - .
   - marmot-ts
+
+ignoredBuiltDependencies:
+  - msw
+
+onlyBuiltDependencies:
+  - esbuild
