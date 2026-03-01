@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",
+    "@cashu/cashu-ts": "^3.5.0",
     "@charkour/react-reactions": "^0.11.0",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@internet-privacy/marmots": "workspace:*",
@@ -27,6 +28,7 @@
     "applesauce-react": "^5.1.0",
     "applesauce-relay": "^5.1.0",
     "applesauce-signers": "^5.1.0",
+    "applesauce-wallet": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "d3-hierarchy": "^3.1.2",

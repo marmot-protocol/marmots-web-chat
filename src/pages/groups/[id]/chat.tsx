@@ -9,12 +9,19 @@ import {
   MarmotGroup,
   unixNow,
 } from "@internet-privacy/marmots";
+import {
+  NUTZAP_KIND,
+  getNutzapAmount,
+  getNutzapComment,
+} from "applesauce-wallet/helpers";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 
 import { defaultContentComponents } from "@/components/content-renderers";
 import { GroupChatMentionRenderer } from "@/components/content-renderers/group-chat-mention";
+import { MessageNutzaps, type NutzapItem } from "@/components/message-nutzaps";
 import { MessageReactions } from "@/components/message-reactions";
+import { NutzapButton } from "@/components/nutzap-button";
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { TranscriptionButton } from "@/components/transcription-button";
 import { WebxdcAppCard } from "@/components/webxdc-app-card";
@@ -73,16 +80,20 @@ interface GroupOutletContext {
 
 interface MessageItemProps {
   rumor: Rumor;
+  group: MarmotGroup<GroupRumorHistory>;
   onLaunch: (webxdcId: string, xdcUrl: string) => void;
   reactions: { emoji: string; by: string }[];
+  nutzaps: NutzapItem[];
   onAddReaction: (emoji: string) => void;
   onReply: (rumor: Rumor) => void;
 }
 
 const MessageItem = memo(function MessageItem({
   rumor,
+  group,
   onLaunch,
   reactions,
+  nutzaps,
   onAddReaction,
   onReply,
 }: MessageItemProps) {
@@ -105,24 +116,66 @@ const MessageItem = memo(function MessageItem({
   );
 
   return (
-    // Avatar floats left, everything else stacks to its right
-    <div className="flex items-start gap-2">
-      <UserAvatar pubkey={rumor.pubkey} size="sm" />
+    <>
+      {/* Avatar floats left, everything else stacks to its right */}
+      <div className="flex items-start gap-2">
+        <UserAvatar pubkey={rumor.pubkey} size="sm" />
 
-      <div className="flex flex-col gap-0.5 min-w-0">
-        {/* Title row: name · timestamp · action buttons (when no reactions yet) */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="font-bold">
-            <UserName pubkey={rumor.pubkey} />
-          </span>
-          <span className="text-sm text-muted-foreground/60">
-            {formatTimestamp(rumor.created_at)}
-          </span>
-          {!hasReactions && (
+        <div className="flex flex-col gap-0.5 min-w-0">
+          {/* Title row: name · timestamp · action buttons (when no reactions yet) */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-bold">
+              <UserName pubkey={rumor.pubkey} />
+            </span>
+            <span className="text-sm text-muted-foreground/60">
+              {formatTimestamp(rumor.created_at)}
+            </span>
+            {!hasReactions && (
+              <div className="flex items-center gap-0.5">
+                <MessageReactions
+                  rumorId={rumor.id}
+                  reactions={[]}
+                  onAddReaction={onAddReaction}
+                />
+                <button
+                  onClick={() => onReply(rumor)}
+                  className="flex items-center justify-center w-6 h-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  aria-label="Reply"
+                  title="Reply"
+                >
+                  <Reply className="w-3.5 h-3.5" />
+                </button>
+                <NutzapButton group={group} rumor={rumor} />
+                <button
+                  onClick={() => setDebugOpen(true)}
+                  className="flex items-center justify-center w-6 h-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  aria-label="Debug"
+                  title="Show raw rumor"
+                >
+                  <Bug className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Message content */}
+          {isWebxdc ? (
+            <WebxdcAppCard rumor={rumor} onLaunch={onLaunch} />
+          ) : (
+            <div className="whitespace-pre-wrap break-words overflow-hidden">
+              {content}
+            </div>
+          )}
+
+          {/* Nutzap totals — shown whenever there are nutzaps on this message */}
+          <MessageNutzaps nutzaps={nutzaps} />
+
+          {/* Reactions row — only shown when there are reactions */}
+          {hasReactions && (
             <div className="flex items-center gap-0.5">
               <MessageReactions
                 rumorId={rumor.id}
-                reactions={[]}
+                reactions={reactions}
                 onAddReaction={onAddReaction}
               />
               <button
@@ -133,39 +186,32 @@ const MessageItem = memo(function MessageItem({
               >
                 <Reply className="w-3.5 h-3.5" />
               </button>
+              <NutzapButton group={group} rumor={rumor} />
+              <button
+                onClick={() => setDebugOpen(true)}
+                className="flex items-center justify-center w-6 h-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                aria-label="Debug"
+                title="Show raw rumor"
+              >
+                <Bug className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
         </div>
-
-        {/* Message content */}
-        {isWebxdc ? (
-          <WebxdcAppCard rumor={rumor} onLaunch={onLaunch} />
-        ) : (
-          <div className="whitespace-pre-wrap break-words overflow-hidden">
-            {content}
-          </div>
-        )}
-
-        {/* Reactions row — only shown when there are reactions */}
-        {hasReactions && (
-          <div className="flex items-center gap-0.5">
-            <MessageReactions
-              rumorId={rumor.id}
-              reactions={reactions}
-              onAddReaction={onAddReaction}
-            />
-            <button
-              onClick={() => onReply(rumor)}
-              className="flex items-center justify-center w-6 h-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              aria-label="Reply"
-              title="Reply"
-            >
-              <Reply className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
       </div>
-    </div>
+
+      {/* Debug dialog: raw rumor JSON */}
+      <Dialog open={debugOpen} onOpenChange={setDebugOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Raw Rumor Event</DialogTitle>
+          </DialogHeader>
+          <pre className="text-xs bg-muted rounded p-3 overflow-auto max-h-[60vh] whitespace-pre-wrap break-all">
+            {JSON.stringify(rumor, null, 2)}
+          </pre>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 });
 
@@ -175,7 +221,9 @@ const MessageItem = memo(function MessageItem({
 
 interface MessageListProps {
   messages: Rumor[];
+  group: MarmotGroup<GroupRumorHistory>;
   reactionsMap: Map<string, { emoji: string; by: string }[]>;
+  nutzapsMap: Map<string, NutzapItem[]>;
   onLaunch: (webxdcId: string, xdcUrl: string) => void;
   onAddReaction: (
     targetId: string,
@@ -187,7 +235,9 @@ interface MessageListProps {
 
 const MessageList = memo(function MessageList({
   messages,
+  group,
   reactionsMap,
+  nutzapsMap,
   onLaunch,
   onAddReaction,
   onReply,
@@ -215,8 +265,10 @@ const MessageList = memo(function MessageList({
         <MessageItem
           key={`${rumor.id}-${index}`}
           rumor={rumor}
+          group={group}
           onLaunch={onLaunch}
           reactions={reactionsMap.get(rumor.id) ?? []}
+          nutzaps={nutzapsMap.get(rumor.id) ?? []}
           onAddReaction={(emoji) =>
             onAddReaction(rumor.id, rumor.pubkey, emoji)
           }
@@ -425,6 +477,32 @@ export default function GroupChatPage() {
     [groupEventStore],
   );
 
+  // Reactive nutzap rumors from the group store (kind 9321, private to group)
+  const nutzapEvents = use$(
+    () => groupEventStore.timeline({ kinds: [NUTZAP_KIND] }),
+    [groupEventStore],
+  );
+
+  // Build a map of targetId → NutzapItem[] from all kind-9321 rumors in the store
+  const nutzapsMap = useMemo(() => {
+    const map = new Map<string, NutzapItem[]>();
+    for (const event of nutzapEvents ?? []) {
+      const eTag = event.tags.find((t) => t[0] === "e");
+      const targetId = eTag?.[1];
+      if (!targetId) continue;
+      const amount = getNutzapAmount(event);
+      if (amount === undefined) continue;
+      const existing = map.get(targetId) ?? [];
+      existing.push({
+        senderPubkey: event.pubkey,
+        amount,
+        comment: getNutzapComment(event),
+      });
+      map.set(targetId, existing);
+    }
+    return map;
+  }, [nutzapEvents]);
+
   // Build a map of targetId → ReactionItem[] from all kind-7 rumors in the store
   const reactionsMap = useMemo(() => {
     const map = new Map<string, { emoji: string; by: string }[]>();
@@ -520,7 +598,9 @@ export default function GroupChatPage() {
       <div className="flex flex-col-reverse h-full overflow-y-auto overflow-x-hidden px-2 pt-10">
         <MessageList
           messages={messages as Rumor[]}
+          group={group}
           reactionsMap={reactionsMap}
+          nutzapsMap={nutzapsMap}
           onLaunch={handleLaunch}
           onAddReaction={handleAddReaction}
           onReply={setReplyTo}

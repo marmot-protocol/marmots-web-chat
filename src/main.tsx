@@ -5,6 +5,8 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import "./index.css";
 
 import "@/lib/runtime";
+// Register applesauce-wallet extensions on User, Note, and Stream casts
+import "applesauce-wallet";
 
 import { ThemeProvider } from "./components/theme-providers";
 import { SidebarProvider } from "./components/ui/sidebar";
@@ -19,6 +21,7 @@ import GroupChatPage from "./pages/groups/[id]/chat.tsx";
 import GroupTreePage from "./pages/groups/[id]/tree.tsx";
 import GroupEventsPage from "./pages/groups/[id]/events.tsx";
 import GroupMembersPage from "./pages/groups/[id]/members.tsx";
+import GroupZapsPage from "./pages/groups/[id]/zaps.tsx";
 import CreateGroupPage from "./pages/groups/create.tsx";
 import GroupsIndexPage from "./pages/groups/index.tsx";
 import HomePage from "./pages/index.tsx";
@@ -69,6 +72,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="admin" element={<GroupAdminPage />} />
                 <Route path="tree" element={<GroupTreePage />} />
                 <Route path="timeline" element={<GroupEventsPage />} />
+                <Route path="zaps" element={<GroupZapsPage />} />
               </Route>
             </Route>
             <Route path="/invites" element={<InvitesPage />}>

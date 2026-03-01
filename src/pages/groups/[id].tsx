@@ -107,12 +107,13 @@ function GroupDetailPage() {
 
   // Determine active tab from current path
   const currentPath = location.pathname;
-  const isOnChatTab =
-    currentPath === `/groups/${id}` || currentPath === `/groups/${id}/chat`;
+  const isOnChatTab = currentPath === `/groups/${id}` ||
+    currentPath === `/groups/${id}/chat`;
   const isOnMembersTab = currentPath === `/groups/${id}/members`;
   const isOnAdminTab = currentPath === `/groups/${id}/admin`;
   const isOnTreeTab = currentPath === `/groups/${id}/tree`;
   const isOnEventsTab = currentPath === `/groups/${id}/timeline`;
+  const isOnZapsTab = currentPath === `/groups/${id}/zaps`;
 
   if (!id) {
     return (
@@ -221,6 +222,18 @@ function GroupDetailPage() {
         >
           Members
         </Link>
+        <Link
+          to={`/groups/${id}/zaps`}
+          className={cn(
+            "px-4 py-2 text-sm font-medium transition-colors",
+            "hover:text-foreground",
+            isOnZapsTab
+              ? "text-foreground border-b-2 border-primary"
+              : "text-muted-foreground",
+          )}
+        >
+          Zaps
+        </Link>
         {isAdmin && (
           <Link
             to={`/groups/${id}/admin`}
@@ -261,8 +274,10 @@ function GroupDetailPage() {
         </Link>
       </div>
 
-      {/* Tab Content — group EventStore provided so all child routes can
-          query group-private events (messages, reactions, etc.) reactively */}
+      {
+        /* Tab Content — group EventStore provided so all child routes can
+          query group-private events (messages, reactions, etc.) reactively */
+      }
       <GroupEventStoreContext.Provider value={groupEventStore}>
         <Outlet
           context={{
