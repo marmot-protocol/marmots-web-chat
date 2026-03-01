@@ -1,17 +1,15 @@
-import { mapEventsToStore } from "applesauce-core";
-import { Filter, kinds, relaySet } from "applesauce-core/helpers";
-import { onlyEvents } from "applesauce-relay";
 import {
   getKeyPackageRelayList,
   KEY_PACKAGE_KIND,
   KEY_PACKAGE_RELAY_LIST_KIND,
   unixNow,
 } from "@internet-privacy/marmots";
+import { mapEventsToStore } from "applesauce-core";
+import { Filter, kinds, relaySet } from "applesauce-core/helpers";
+import { onlyEvents } from "applesauce-relay";
 import {
   combineLatest,
-  defer,
   EMPTY,
-  from,
   map,
   merge,
   of,
