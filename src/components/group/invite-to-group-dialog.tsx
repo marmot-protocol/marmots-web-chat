@@ -7,14 +7,13 @@ import {
   KEY_PACKAGE_RELAY_LIST_KIND,
 } from "@internet-privacy/marmots";
 import { castUser } from "applesauce-common/casts/user";
-import { mapEventsToTimeline } from "applesauce-core";
+import { mapEventsToStore } from "applesauce-core";
 import type { NostrEvent } from "applesauce-core/helpers";
-import { bytesToHex } from "applesauce-core/helpers";
+import { bytesToHex, relaySet, unixNow } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { Loader2, Plus, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { map } from "rxjs/operators";
 import type { CiphersuiteId } from "ts-mls/crypto/ciphersuite.js";
 
 import { RelayListCreator } from "@/components/form/relay-list-creator";
@@ -35,7 +34,7 @@ import { Label } from "@/components/ui/label";
 import { user$ } from "@/lib/accounts";
 import { liveGroups$, marmotClient$ } from "@/lib/marmot-client";
 import { eventStore, pool } from "@/lib/nostr";
-import { extraRelays$ } from "@/lib/settings";
+import { extraRelays$, lookupRelays$ } from "@/lib/settings";
 import { formatTimeAgo } from "@/lib/time";
 
 // ============================================================================
@@ -53,42 +52,46 @@ function KeyPackageSelectionStep({
 }: KeyPackageSelectionStepProps) {
   const selectedUser = useMemo(() => castUser(pubkey, eventStore), [pubkey]);
   const outboxes = use$(user$.outboxes$);
+  const extraRelays = use$(extraRelays$);
+  const lookupRelays = use$(lookupRelays$);
 
   const keyPackageRelayList = use$(
     () =>
       selectedUser.replaceable(
         KEY_PACKAGE_RELAY_LIST_KIND,
         undefined,
-        outboxes,
+        relaySet(outboxes, lookupRelays),
       ),
-    [pubkey, outboxes?.join(",")],
+    [pubkey, outboxes?.join(","), lookupRelays?.join(",")],
   );
 
   const keyPackageRelays = useMemo(() => {
     return keyPackageRelayList && getKeyPackageRelayList(keyPackageRelayList);
   }, [keyPackageRelayList]);
 
-  const keyPackages = use$(() => {
-    if (!pubkey || !keyPackageRelays) return;
+  const keyPackageFilter = useMemo(
+    () => ({ kinds: [KEY_PACKAGE_KIND], authors: [pubkey] }),
+    [pubkey],
+  );
+
+  // Start a live subscription to populate the event store (fire-and-forget side-effect)
+  use$(() => {
+    const relays = relaySet(keyPackageRelays, extraRelays);
+    if (relays.length === 0) return;
 
     return pool
-      .request(keyPackageRelays, {
-        kinds: [KEY_PACKAGE_KIND],
-        authors: [pubkey],
-        limit: 50,
+      .subscription(relays, {
+        ...keyPackageFilter,
+        since: unixNow() - 60 * 60 * 24 * 7,
       })
-      .pipe(mapEventsToTimeline());
-  }, [pubkey, keyPackageRelays?.join(",")]);
+      .pipe(mapEventsToStore(eventStore));
+  }, [keyPackageRelays?.join(","), extraRelays.join(","), keyPackageFilter]);
 
-  if (!keyPackageRelays) {
-    return (
-      <Alert>
-        <AlertDescription>
-          Loading key package relay list for this contact...
-        </AlertDescription>
-      </Alert>
-    );
-  }
+  // Read current and future state reactively from the event store
+  const keyPackages = use$(
+    () => eventStore.timeline(keyPackageFilter),
+    [keyPackageFilter],
+  );
 
   if (!keyPackages) {
     return (
@@ -434,40 +437,14 @@ export function InviteToGroupDialog({
   const [selectedCipherSuiteId, setSelectedCipherSuiteId] =
     useState<CiphersuiteId | null>(null);
 
-  // We need the actual event object for step 2 — keep a ref to it
-  const outboxes = use$(user$.outboxes$);
-  const selectedUser = useMemo(() => castUser(pubkey, eventStore), [pubkey]);
-
-  const keyPackageRelayList = use$(
-    () =>
-      selectedUser.replaceable(
-        KEY_PACKAGE_RELAY_LIST_KIND,
-        undefined,
-        outboxes,
-      ),
-    [pubkey, outboxes?.join(",")],
-  );
-  const keyPackageRelays = useMemo(
-    () => keyPackageRelayList && getKeyPackageRelayList(keyPackageRelayList),
-    [keyPackageRelayList],
-  );
-  const keyPackages = use$(() => {
-    if (!pubkey || !keyPackageRelays) return;
-    return pool
-      .request(keyPackageRelays, {
-        kinds: [KEY_PACKAGE_KIND],
-        authors: [pubkey],
-        limit: 50,
-      })
-      .pipe(
-        mapEventsToTimeline(),
-        map((arr) => [...arr] as NostrEvent[]),
-      );
-  }, [pubkey, keyPackageRelays?.join(",")]);
-
+  // Resolve the selected key package event from the store for step 2.
+  // The store is already populated by the live subscription in KeyPackageSelectionStep.
   const selectedKeyPackageEvent = useMemo(
-    () => keyPackages?.find((e) => e.id === selectedKeyPackageEventId) ?? null,
-    [keyPackages, selectedKeyPackageEventId],
+    () =>
+      selectedKeyPackageEventId
+        ? (eventStore.getEvent(selectedKeyPackageEventId) ?? null)
+        : null,
+    [selectedKeyPackageEventId],
   );
 
   // Reset when dialog closes

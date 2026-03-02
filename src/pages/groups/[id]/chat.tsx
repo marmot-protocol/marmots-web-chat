@@ -1,14 +1,14 @@
-import type { Rumor } from "applesauce-common/helpers/gift-wrap";
-import { getEventHash, kinds, neventEncode } from "applesauce-core/helpers";
-import type { ComponentMap } from "applesauce-react/helpers";
-import { use$, useRenderedContent } from "applesauce-react/hooks";
-import { Bug, Loader2, Reply, X, XCircle } from "lucide-react";
 import {
   getNostrGroupIdHex,
   type GroupRumorHistory,
   MarmotGroup,
   unixNow,
 } from "@internet-privacy/marmots";
+import type { Rumor } from "applesauce-common/helpers/gift-wrap";
+import { getEventHash, kinds, neventEncode } from "applesauce-core/helpers";
+import type { ComponentMap } from "applesauce-react/helpers";
+import { use$, useRenderedContent } from "applesauce-react/hooks";
+import { Loader2, Reply, X, XCircle } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 
@@ -17,17 +17,11 @@ import { GroupChatMentionRenderer } from "@/components/content-renderers/group-c
 import { MessageReactions } from "@/components/message-reactions";
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { TranscriptionButton } from "@/components/transcription-button";
-import { WebxdcAppCard } from "@/components/webxdc-app-card";
-import { WebxdcRuntime } from "@/components/webxdc-runtime";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { WebxdcAppCard } from "@/components/webxdc-app-card";
+import { WebxdcRuntime } from "@/components/webxdc-runtime";
 import { useGroupEventStore } from "@/contexts/group-event-store-context";
 import { useSendReaction } from "@/hooks/use-send-reaction";
 import { accounts } from "@/lib/accounts";
@@ -90,8 +84,6 @@ const MessageItem = memo(function MessageItem({
     const date = new Date(timestamp * 1000);
     return date.toLocaleTimeString();
   };
-
-  const [debugOpen, setDebugOpen] = useState(false);
 
   const isWebxdc = isWebxdcMessage(rumor);
   const hasReactions = reactions.length > 0;

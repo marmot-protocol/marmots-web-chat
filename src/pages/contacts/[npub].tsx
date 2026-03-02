@@ -1,11 +1,3 @@
-import { castUser, User } from "applesauce-common/casts/user";
-import { mapEventsToTimeline } from "applesauce-core";
-import {
-  bytesToHex,
-  normalizeToProfilePointer,
-  NostrEvent,
-} from "applesauce-core/helpers";
-import { use$ } from "applesauce-react/hooks";
 import {
   getCredentialPubkey,
   getKeyPackage,
@@ -18,6 +10,15 @@ import {
   KEY_PACKAGE_KIND,
   KEY_PACKAGE_RELAY_LIST_KIND,
 } from "@internet-privacy/marmots";
+import { castUser, User } from "applesauce-common/casts/user";
+import { mapEventsToStore, mapEventsToTimeline } from "applesauce-core";
+import {
+  bytesToHex,
+  normalizeToProfilePointer,
+  NostrEvent,
+  relaySet,
+} from "applesauce-core/helpers";
+import { use$ } from "applesauce-react/hooks";
 import { useMemo, useState } from "react";
 import { useParams } from "react-router";
 import { map } from "rxjs/operators";
@@ -32,6 +33,7 @@ import QRButton from "@/components/qr-button";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { eventStore, pool } from "@/lib/nostr";
+import { extraRelays$, lookupRelays$ } from "@/lib/settings";
 
 function KeyPackageCard({ event }: { event: NostrEvent }) {
   const [expanded, setExpanded] = useState(false);
@@ -341,12 +343,19 @@ function ContactDetailContent({ user }: { user: User }) {
   const profile = use$(user.profile$);
   const displayName = profile?.displayName;
   const outboxes = use$(user.outboxes$);
+  const extraRelays = use$(extraRelays$);
+  const lookupRelays = use$(lookupRelays$);
 
   const [inviteOpen, setInviteOpen] = useState(false);
 
   const keyPackageRelayList = use$(
-    () => user.replaceable(KEY_PACKAGE_RELAY_LIST_KIND, undefined, outboxes),
-    [user.pubkey, outboxes?.join(",")],
+    () =>
+      user.replaceable(
+        KEY_PACKAGE_RELAY_LIST_KIND,
+        undefined,
+        relaySet(outboxes, lookupRelays),
+      ),
+    [user.pubkey, outboxes?.join(","), lookupRelays?.join(",")],
   );
 
   // Extract relays from the relay list event
@@ -354,21 +363,23 @@ function ContactDetailContent({ user }: { user: User }) {
     return keyPackageRelayList && getKeyPackageRelayList(keyPackageRelayList);
   }, [keyPackageRelayList]);
 
-  // Fetch key packages
+  // Fetch key packages from merged relay set
   const keyPackages = use$(() => {
-    if (!keyPackageRelays) return;
+    const relays = relaySet(keyPackageRelays, extraRelays);
+    if (relays.length === 0) return;
 
     return pool
-      .request(keyPackageRelays, {
+      .request(relays, {
         kinds: [KEY_PACKAGE_KIND],
         authors: [user.pubkey],
         limit: 50,
       })
       .pipe(
+        mapEventsToStore(eventStore),
         mapEventsToTimeline(),
         map((arr) => [...arr]),
       );
-  }, [user.pubkey, keyPackageRelays?.join(",")]);
+  }, [user.pubkey, keyPackageRelays?.join(","), extraRelays.join(",")]);
 
   return (
     <>
@@ -430,7 +441,7 @@ function ContactDetailContent({ user }: { user: User }) {
 
           {/* Key Packages Tab */}
           <TabsContent value="key-packages" className="space-y-4">
-            <ContactKeyPackagesTab keyPackages={keyPackages as NostrEvent[]} />
+            <ContactKeyPackagesTab keyPackages={keyPackages} />
           </TabsContent>
 
           {/* Key Package Relays Tab */}
