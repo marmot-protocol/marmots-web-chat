@@ -154,7 +154,7 @@ export function InviteDetailPage() {
   }, [invite]);
 
   /** Check if the private key for this key package is stored locally */
-  const hasKeyPackage = !!keyPackage;
+  const hasKeyPackage = !!keyPackage?.privatePackage;
 
   /**
    * Read group data from the welcome without joining.
@@ -293,9 +293,14 @@ export function InviteDetailPage() {
 
           <div>
             <div className="text-muted-foreground">Key Package</div>
-            <div className="font-mono mb-1">
+            <div className="font-mono text-sm break-all mb-1">
               Event ID: {getWelcomeKeyPackageEventId(invite)}
             </div>
+            {getWelcomeKeyPackageRefs(invite).map((ref, i) => (
+              <div key={i} className="font-mono text-sm break-all mb-1">
+                Ref {i + 1}: {bytesToHex(ref)}
+              </div>
+            ))}
             {hasKeyPackage === true ? (
               <Badge variant="default">Has private key</Badge>
             ) : hasKeyPackage === false ? (
