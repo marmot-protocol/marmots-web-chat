@@ -5,7 +5,7 @@ import {
   unixNow,
 } from "@internet-privacy/marmots";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
-import { getEventHash, kinds, neventEncode } from "applesauce-core/helpers";
+import { kinds, neventEncode } from "applesauce-core/helpers";
 import type { ComponentMap } from "applesauce-react/helpers";
 import { use$, useRenderedContent } from "applesauce-react/hooks";
 import { Loader2, Reply, X, XCircle } from "lucide-react";
@@ -333,14 +333,12 @@ function useMessageSender(
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sendMessage = async (messageText: string): Promise<Rumor | null> => {
+  const sendMessage = async (messageText: string) => {
     if (!group || !account || !messageText.trim()) return null;
 
     try {
       setIsSending(true);
       setError(null);
-
-      const pubkey = await account.signer.getPublicKey();
 
       // Build tags and content per NIP-C7 reply spec:
       // - q tag: ["q", <event-id>, <relay-hint>, <author-pubkey>]
@@ -357,23 +355,8 @@ function useMessageSender(
         content = `nostr:${encoded}\n${content}`;
       }
 
-      // Create rumor (unsigned Nostr event)
-      const rumor: Rumor = {
-        id: "", // Will be computed
-        kind: 9, // Chat message kind
-        pubkey,
-        created_at: unixNow(),
-        content,
-        tags,
-      };
-
-      // Compute event ID
-      rumor.id = getEventHash(rumor);
-
       // Send via group
-      await group.sendApplicationRumor(rumor);
-
-      return rumor;
+      await group.sendChatMessage(content, tags);
     } catch (err) {
       console.error("Failed to send message:", err);
       setError(err instanceof Error ? err.message : String(err));
