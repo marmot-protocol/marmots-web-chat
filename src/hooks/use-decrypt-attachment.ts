@@ -43,15 +43,24 @@ export function useDecryptAttachment(
     const run = async () => {
       setState({ status: "decrypting" });
 
+      const label = `[mip04] ${attachment.filename} (${attachment.sha256?.slice(0, 8)}…)`;
+
       try {
         // 1. Derive the per-file decryption key from the MLS epoch exporter secret
+        console.debug(`${label} deriving file key…`);
+        const t0 = performance.now();
         const fileKey = await deriveMip04FileKey(
           group.state,
           group.ciphersuite,
           attachment,
         );
+        console.debug(
+          `${label} key derived in ${(performance.now() - t0).toFixed(1)} ms`,
+        );
 
         // 2. Fetch the encrypted blob from Blossom
+        console.debug(`${label} fetching from ${attachment.url}`);
+        const t1 = performance.now();
         const response = await fetch(attachment.url!);
         if (!response.ok) {
           throw new Error(
@@ -59,11 +68,19 @@ export function useDecryptAttachment(
           );
         }
         const encrypted = new Uint8Array(await response.arrayBuffer());
+        console.debug(
+          `${label} fetched ${encrypted.byteLength} bytes in ${(performance.now() - t1).toFixed(1)} ms`,
+        );
 
         if (cancelled) return;
 
         // 3. Decrypt — also verifies AEAD tag and SHA-256 integrity
+        console.debug(`${label} decrypting…`);
+        const t2 = performance.now();
         const plaintext = decryptMediaFile(encrypted, fileKey, attachment);
+        console.debug(
+          `${label} decrypted ${plaintext.byteLength} bytes in ${(performance.now() - t2).toFixed(1)} ms`,
+        );
 
         if (cancelled) return;
 
@@ -74,11 +91,13 @@ export function useDecryptAttachment(
         const objectUrl = URL.createObjectURL(blob);
         createdObjectUrl = objectUrl;
 
+        console.debug(`${label} ready — objectUrl created`);
         setState({ status: "ready", objectUrl });
       } catch (err) {
         if (cancelled) return;
         const message =
           err instanceof Error ? err.message : "Decryption failed";
+        console.error(`${label} failed:`, err);
         setState({ status: "error", error: message });
       }
     };

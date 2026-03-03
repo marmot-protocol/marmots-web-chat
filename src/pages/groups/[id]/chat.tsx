@@ -6,14 +6,19 @@ import {
   unixNow,
 } from "@internet-privacy/marmots";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
-import {
-  createImetaTagForAttachment,
-  getFileMetadataFromImetaTag,
-} from "applesauce-common/helpers";
+import { createImetaTagForAttachment } from "applesauce-common/helpers";
 import { kinds, neventEncode } from "applesauce-core/helpers";
 import type { ComponentMap } from "applesauce-react/helpers";
 import { use$, useRenderedContent } from "applesauce-react/hooks";
-import { FileIcon, Loader2, Paperclip, Reply, X, XCircle } from "lucide-react";
+import {
+  Bug,
+  FileIcon,
+  Loader2,
+  Paperclip,
+  Reply,
+  X,
+  XCircle,
+} from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 
@@ -25,11 +30,18 @@ import { UserAvatar, UserName } from "@/components/nostr-user";
 import { TranscriptionButton } from "@/components/transcription-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { WebxdcAppCard } from "@/components/webxdc-app-card";
 import { WebxdcRuntime } from "@/components/webxdc-runtime";
 import { useGroupEventStore } from "@/contexts/group-event-store-context";
 import { isInlineMediaType, useMediaUpload } from "@/hooks/use-media-upload";
+import { getMip04Attachments } from "@/lib/mip04-imeta";
 import { useSendReaction } from "@/hooks/use-send-reaction";
 import { accounts } from "@/lib/accounts";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
@@ -94,6 +106,8 @@ const MessageItem = memo(function MessageItem({
     return date.toLocaleTimeString();
   };
 
+  const [debugOpen, setDebugOpen] = useState(false);
+
   const isWebxdc = isWebxdcMessage(rumor);
   const hasReactions = reactions.length > 0;
 
@@ -105,26 +119,12 @@ const MessageItem = memo(function MessageItem({
     groupChatContentComponents,
   );
 
-  // Parse MIP-04 imeta tags from the rumor — each becomes an encrypted media attachment.
-  // We only handle version "mip04-v2" (current); older/unknown versions are skipped.
-  const mip04Attachments = useMemo(() => {
-    return rumor.tags
-      .filter((t) => t[0] === "imeta")
-      .map((t) => getFileMetadataFromImetaTag(t))
-      .filter(
-        (
-          m,
-        ): m is NonNullable<typeof m> & {
-          version: "mip04-v2";
-          nonce: string;
-          filename: string;
-        } =>
-          m != null &&
-          (m as Record<string, unknown>)["version"] === "mip04-v2" &&
-          typeof (m as Record<string, unknown>)["nonce"] === "string" &&
-          typeof (m as Record<string, unknown>)["filename"] === "string",
-      );
-  }, [rumor.tags]);
+  // Parse MIP-04 imeta tags from the rumor — validates version, nonce, and
+  // filename fields and returns fully-typed Mip04MediaAttachment objects.
+  const mip04Attachments = useMemo(
+    () => getMip04Attachments(rumor.tags),
+    [rumor.tags],
+  );
 
   return (
     // Avatar floats left, everything else stacks to its right
@@ -154,6 +154,14 @@ const MessageItem = memo(function MessageItem({
                 title="Reply"
               >
                 <Reply className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setDebugOpen(true)}
+                className="flex items-center justify-center w-6 h-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                aria-label="Debug rumor"
+                title="Debug: view raw rumor"
+              >
+                <Bug className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
@@ -189,8 +197,28 @@ const MessageItem = memo(function MessageItem({
             >
               <Reply className="w-3.5 h-3.5" />
             </button>
+            <button
+              onClick={() => setDebugOpen(true)}
+              className="flex items-center justify-center w-6 h-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="Debug rumor"
+              title="Debug: view raw rumor"
+            >
+              <Bug className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
+
+        {/* Debug dialog — raw rumor JSON */}
+        <Dialog open={debugOpen} onOpenChange={setDebugOpen}>
+          <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Raw Nostr Rumor</DialogTitle>
+            </DialogHeader>
+            <pre className="overflow-auto text-xs font-mono bg-muted rounded p-3 flex-1">
+              {JSON.stringify(rumor, null, 2)}
+            </pre>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
@@ -536,7 +564,16 @@ function useMessageSender(
         // Send as a kind-9 chat message with an optional imeta tag.
         const tags: string[][] = [...replyTags];
         if (attachment) {
-          tags.push(createImetaTagForAttachment(attachment));
+          // createImetaTagForAttachment only knows standard NIP-92 fields.
+          // Append the three MIP-04-specific fields so receiving clients can
+          // derive the decryption key and nonce from the same imeta tag.
+          const imetaTag = [
+            ...createImetaTagForAttachment(attachment),
+            `filename ${attachment.filename}`,
+            `n ${attachment.nonce}`,
+            `v ${attachment.version}`,
+          ];
+          tags.push(imetaTag);
         }
         const content = `${replyPrefix}${messageText.trim()}`;
         await group.sendChatMessage(content, tags);
