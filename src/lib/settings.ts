@@ -63,3 +63,24 @@ export const relayConfig$ = combineLatest([
 /** Whether to automatically create a key package if none exists for the user */
 export const autoCreateKeyPackage$ = new BehaviorSubject<boolean>(false);
 persist("auto-create-key-package", autoCreateKeyPackage$);
+
+// ─── Blossom media upload settings ───────────────────────────────────────────
+
+/** Blossom server URLs to try when uploading encrypted media (MIP-04) */
+export const blossomServers$ = new BehaviorSubject<string[]>([
+  "https://blossom.primal.net",
+]);
+persist("blossom-servers", blossomServers$);
+
+/**
+ * How to sign Blossom upload auth events (kind 24242).
+ *
+ * - `"account"` — sign with the user's active Nostr account (identity visible to server)
+ * - `"ephemeral"` — generate a fresh random keypair per upload (anonymous to server)
+ */
+export type BlossomSigningMode = "account" | "ephemeral";
+
+export const blossomSigningMode$ = new BehaviorSubject<BlossomSigningMode>(
+  "ephemeral",
+);
+persist("blossom-signing-mode", blossomSigningMode$);

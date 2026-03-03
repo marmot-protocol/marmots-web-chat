@@ -5,7 +5,13 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { KeyIcon, Network, User, Users } from "lucide-react";
+import {
+  HardDriveUploadIcon,
+  KeyIcon,
+  Network,
+  User,
+  Users,
+} from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router";
 
 const settingsNavItems = [
@@ -28,6 +34,11 @@ const settingsNavItems = [
     title: "Relays",
     url: "/settings/relays",
     icon: Network,
+  },
+  {
+    title: "Media",
+    url: "/settings/blossom",
+    icon: HardDriveUploadIcon,
   },
 ];
 

@@ -34,6 +34,7 @@ import SettingsAccountPage from "./pages/settings/account.tsx";
 import SettingsAccountsPage from "./pages/settings/accounts.tsx";
 import MarmotSettingsPage from "./pages/settings/marmot";
 import SettingsRelaysPage from "./pages/settings/relays.tsx";
+import BlossomSettingsPage from "./pages/settings/blossom.tsx";
 import SignInPage from "./pages/signin.tsx";
 import SignInBunkerPage from "./pages/signin/bunker.tsx";
 import SignInQRPage from "./pages/signin/connect-qr.tsx";
@@ -110,6 +111,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="relays" element={<SettingsRelaysPage />} />
               <Route path="account" element={<SettingsAccountPage />} />
               <Route path="accounts" element={<SettingsAccountsPage />} />
+              <Route path="blossom" element={<BlossomSettingsPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
