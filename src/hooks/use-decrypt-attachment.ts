@@ -1,13 +1,6 @@
-import {
-  decryptMediaFile,
-  deriveMip04FileKey,
-  type GroupRumorHistory,
-  type Mip04MediaAttachment,
-  MarmotGroup,
-} from "@internet-privacy/marmots";
+import type { MediaAttachment } from "@internet-privacy/marmots";
 import { useEffect, useState } from "react";
-
-import { keyFingerprint } from "@/lib/utils";
+import type { AppGroup } from "@/lib/marmot-client";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -24,15 +17,18 @@ export type DecryptAttachmentState =
  * server, returning an object URL suitable for use in `<img>`, `<video>`, or
  * `<audio>` elements.
  *
+ * Uses `group.decryptMedia()` which handles key derivation and caches the
+ * decrypted result so subsequent renders don't re-derive keys.
+ *
  * The object URL is revoked automatically when the component unmounts or when
  * the attachment changes.
  *
  * @param attachment - The MIP-04 attachment from the message's `imeta` tag
- * @param group - The active MarmotGroup (provides MLS state for key derivation)
+ * @param group - The active MarmotGroup (provides MLS state and media cache)
  */
 export function useDecryptAttachment(
-  attachment: Mip04MediaAttachment,
-  group: MarmotGroup<GroupRumorHistory>,
+  attachment: MediaAttachment,
+  group: AppGroup,
 ) {
   const [state, setState] = useState<DecryptAttachmentState>({
     status: "idle",
@@ -48,21 +44,9 @@ export function useDecryptAttachment(
       const label = `[mip04] ${attachment.filename} (${attachment.sha256?.slice(0, 8)}…)`;
 
       try {
-        // 1. Derive the per-file decryption key from the MLS epoch exporter secret
-        console.debug(`${label} deriving file key…`);
-        const t0 = performance.now();
-        const fileKey = await deriveMip04FileKey(
-          group.state,
-          group.ciphersuite,
-          attachment,
-        );
-        console.debug(
-          `${label} key derived in ${(performance.now() - t0).toFixed(1)} ms — key fingerprint: ${keyFingerprint(fileKey)}`,
-        );
-
-        // 2. Fetch the encrypted blob from Blossom
+        // 1. Fetch the encrypted blob from Blossom
         console.debug(`${label} fetching from ${attachment.url}`);
-        const t1 = performance.now();
+        const t0 = performance.now();
         const response = await fetch(attachment.url!);
         if (!response.ok) {
           throw new Error(
@@ -71,22 +55,25 @@ export function useDecryptAttachment(
         }
         const encrypted = new Uint8Array(await response.arrayBuffer());
         console.debug(
-          `${label} fetched ${encrypted.byteLength} bytes in ${(performance.now() - t1).toFixed(1)} ms`,
+          `${label} fetched ${encrypted.byteLength} bytes in ${(performance.now() - t0).toFixed(1)} ms`,
         );
 
         if (cancelled) return;
 
-        // 3. Decrypt — also verifies AEAD tag and SHA-256 integrity
+        // 2. Decrypt via group.decryptMedia() — handles key derivation and caching
         console.debug(`${label} decrypting…`);
-        const t2 = performance.now();
-        const plaintext = decryptMediaFile(encrypted, fileKey, attachment);
+        const t1 = performance.now();
+        const { data: plaintext } = await group.decryptMedia(
+          encrypted,
+          attachment,
+        );
         console.debug(
-          `${label} decrypted ${plaintext.byteLength} bytes in ${(performance.now() - t2).toFixed(1)} ms`,
+          `${label} decrypted ${plaintext.byteLength} bytes in ${(performance.now() - t1).toFixed(1)} ms`,
         );
 
         if (cancelled) return;
 
-        // 4. Create a browser object URL for rendering
+        // 3. Create a browser object URL for rendering
         const blob = new Blob([plaintext.buffer as ArrayBuffer], {
           type: attachment.type ?? "application/octet-stream",
         });

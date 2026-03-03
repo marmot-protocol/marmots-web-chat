@@ -18,6 +18,7 @@ import GroupAdminPage from "./pages/groups/[id]/admin.tsx";
 import GroupChatPage from "./pages/groups/[id]/chat.tsx";
 import GroupTreePage from "./pages/groups/[id]/tree.tsx";
 import GroupEventsPage from "./pages/groups/[id]/events.tsx";
+import GroupMediaPage from "./pages/groups/[id]/media.tsx";
 import GroupMembersPage from "./pages/groups/[id]/members.tsx";
 import CreateGroupPage from "./pages/groups/create.tsx";
 import GroupsIndexPage from "./pages/groups/index.tsx";
@@ -70,6 +71,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="admin" element={<GroupAdminPage />} />
                 <Route path="tree" element={<GroupTreePage />} />
                 <Route path="timeline" element={<GroupEventsPage />} />
+                <Route path="media" element={<GroupMediaPage />} />
               </Route>
             </Route>
             <Route path="/invites" element={<InvitesPage />}>

@@ -1,8 +1,5 @@
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
-import {
-  type GroupRumorHistory,
-  type MarmotGroup,
-} from "@internet-privacy/marmots";
+import type { AppGroup } from "@/lib/marmot-client";
 import { useEffect, useState } from "react";
 
 import {
@@ -74,7 +71,7 @@ function entriesToUpdates(entries: UpdateEntry[]): WebxdcReceivedUpdate[] {
  * ```
  */
 export function useWebxdcUpdates(
-  group: MarmotGroup<GroupRumorHistory> | null,
+  group: AppGroup | null,
   webxdcId: string | null,
 ): WebxdcReceivedUpdate[] {
   const [entries, setEntries] = useState<UpdateEntry[]>([]);

@@ -1,6 +1,7 @@
 import { npubEncode } from "applesauce-core/helpers";
 import { Loader2 } from "lucide-react";
-import { getNostrGroupIdHex, MarmotGroup } from "@internet-privacy/marmots";
+import { getNostrGroupIdHex } from "@internet-privacy/marmots";
+import type { AppGroup } from "@/lib/marmot-client";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
@@ -42,7 +43,7 @@ interface GroupDetailsDrawerProps {
     admins: string[];
   } | null;
   isAdmin: boolean;
-  group: MarmotGroup<GroupRumorHistory> | null;
+  group: AppGroup | null;
   trigger?: React.ReactNode;
 }
 

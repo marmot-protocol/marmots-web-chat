@@ -117,6 +117,7 @@ function GroupDetailPage() {
   const isOnAdminTab = currentPath === `/groups/${id}/admin`;
   const isOnTreeTab = currentPath === `/groups/${id}/tree`;
   const isOnEventsTab = currentPath === `/groups/${id}/timeline`;
+  const isOnMediaTab = currentPath === `/groups/${id}/media`;
 
   if (!id) {
     return (
@@ -224,6 +225,18 @@ function GroupDetailPage() {
           )}
         >
           Members
+        </Link>
+        <Link
+          to={`/groups/${id}/media`}
+          className={cn(
+            "px-4 py-2 text-sm font-medium transition-colors",
+            "hover:text-foreground",
+            isOnMediaTab
+              ? "text-foreground border-b-2 border-primary"
+              : "text-muted-foreground",
+          )}
+        >
+          Media
         </Link>
         {isAdmin && (
           <Link

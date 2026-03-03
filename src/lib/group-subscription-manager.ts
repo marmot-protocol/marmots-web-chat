@@ -64,7 +64,7 @@ export type StoredIngestRecord =
     }
   | {
       kind: "skipped";
-      reason: "past-epoch" | "wrong-wireformat";
+      reason: "past-epoch" | "wrong-wireformat" | "self-echo";
       event: NostrEvent;
       processedAt: number;
     }

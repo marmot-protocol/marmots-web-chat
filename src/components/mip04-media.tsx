@@ -1,8 +1,5 @@
-import type {
-  GroupRumorHistory,
-  Mip04MediaAttachment,
-} from "@internet-privacy/marmots";
-import type { MarmotGroup } from "@internet-privacy/marmots";
+import type { MediaAttachment } from "@internet-privacy/marmots";
+import type { AppGroup } from "@/lib/marmot-client";
 import {
   DownloadIcon,
   FileIcon,
@@ -45,8 +42,8 @@ function triggerDownload(objectUrl: string, filename: string) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface Mip04MediaProps {
-  attachment: Mip04MediaAttachment;
-  group: MarmotGroup<GroupRumorHistory>;
+  attachment: MediaAttachment;
+  group: AppGroup;
 }
 
 /**

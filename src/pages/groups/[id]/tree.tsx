@@ -6,11 +6,11 @@ import { RatchetNodeDetail } from "@/components/group/ratchet-node-detail";
 import { Badge } from "@/components/ui/badge";
 import { IconCopyButton } from "@/components/icon-copy-button";
 
-import type { GroupRumorHistory, MarmotGroup } from "@internet-privacy/marmots";
+import type { AppGroup } from "@/lib/marmot-client";
 import type { RatchetTreeNodeInfo } from "@/components/group/ratchet-tree-graph";
 
 interface GroupOutletContext {
-  group: MarmotGroup<GroupRumorHistory>;
+  group: AppGroup;
   groupDetails: {
     name: string;
     epoch: bigint;

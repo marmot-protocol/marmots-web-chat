@@ -1,8 +1,5 @@
-import {
-  getNostrGroupIdHex,
-  type GroupRumorHistory,
-  type MarmotGroup,
-} from "@internet-privacy/marmots";
+import { getNostrGroupIdHex } from "@internet-privacy/marmots";
+import type { AppGroup } from "@/lib/marmot-client";
 import type { NostrEvent } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { useMemo } from "react";
@@ -15,7 +12,7 @@ import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
 
 interface GroupOutletContext {
-  group: MarmotGroup<GroupRumorHistory>;
+  group: AppGroup;
 }
 
 /** Format a unix timestamp (seconds) as a short local time string. */

@@ -9,12 +9,16 @@ import { IDBPDatabase, openDB } from "idb";
 import localforage from "localforage";
 import {
   GroupHistoryFactory,
+  GroupMediaBackend,
+  GroupMediaFactory,
+  GroupMediaStore,
   GroupRumorHistory,
   GroupRumorHistoryBackend,
   KeyPackageStore,
   GroupStateStoreBackend,
   KeyValueGroupStateBackend,
   InviteStore,
+  type StoredMedia,
 } from "@internet-privacy/marmots";
 import { ingestResultsDatabaseName } from "@/lib/group-subscription-manager";
 
@@ -124,9 +128,48 @@ class IdbRumorHistoryBackend implements GroupRumorHistoryBackend {
   }
 }
 
+/**
+ * Wraps a localforage store as a {@link GroupMediaBackend}.
+ *
+ * localforage natively handles `Uint8Array` / `ArrayBuffer` in IndexedDB, but
+ * when values are round-tripped the binary `data` field may come back as an
+ * `ArrayBuffer`. This wrapper ensures `data` is always returned as a
+ * `Uint8Array` so the rest of the app never has to deal with the discrepancy.
+ */
+function createLocalforageMediaBackend(store: LocalForage): GroupMediaBackend {
+  return {
+    async getItem(key: string): Promise<StoredMedia | null> {
+      const raw = await store.getItem<StoredMedia>(key);
+      if (!raw) return null;
+      // Normalise data to Uint8Array in case IndexedDB returned an ArrayBuffer
+      return {
+        ...raw,
+        data:
+          raw.data instanceof Uint8Array
+            ? raw.data
+            : new Uint8Array(raw.data as unknown as ArrayBuffer),
+      };
+    },
+    async setItem(key: string, value: StoredMedia): Promise<StoredMedia> {
+      await store.setItem(key, value);
+      return value;
+    },
+    async removeItem(key: string): Promise<void> {
+      await store.removeItem(key);
+    },
+    async clear(): Promise<void> {
+      await store.clear();
+    },
+    async keys(): Promise<string[]> {
+      return store.keys();
+    },
+  };
+}
+
 type StorageInterfaces = {
   groupStateBackend: GroupStateStoreBackend;
   historyFactory: GroupHistoryFactory<GroupRumorHistory>;
+  mediaFactory: GroupMediaFactory<GroupMediaStore>;
   keyPackageStore: KeyPackageStore;
   inviteStore: InviteStore;
 };
@@ -195,6 +238,20 @@ export class MultiAccountDatabaseBroker {
     const historyFactory = (groupId: Uint8Array) =>
       new GroupRumorHistory(new IdbRumorHistoryBackend(rumorDatabase, groupId));
 
+    // Create a per-group media factory — each group gets its own localforage
+    // store (named by hex group ID) inside the shared key-value database,
+    // backed by a GroupMediaStore so group.media is always a GroupMediaStore.
+    const mediaFactory: GroupMediaFactory<GroupMediaStore> = (
+      groupId: Uint8Array,
+    ) => {
+      const groupIdHex = bytesToHex(groupId);
+      const mediaStore = localforage.createInstance({
+        name: databaseKey,
+        storeName: `media-${groupIdHex}`,
+      });
+      return new GroupMediaStore(createLocalforageMediaBackend(mediaStore));
+    };
+
     // Create the storage interfaces for the invite store
     const inviteStore: InviteStore = {
       unread: localforage.createInstance({
@@ -214,6 +271,7 @@ export class MultiAccountDatabaseBroker {
     const storageInterfaces: StorageInterfaces = {
       groupStateBackend,
       historyFactory,
+      mediaFactory,
       keyPackageStore,
       inviteStore,
     };
@@ -294,6 +352,17 @@ export class MultiAccountDatabaseBroker {
         localforage.dropInstance({
           name: ingestDbName,
           storeName: groupIdStr,
+        }),
+      ),
+    );
+
+    // Drop all per-group media stores (stored as `media-<groupIdHex>` in the
+    // key-value database).
+    await Promise.all(
+      groupIds.map((groupIdStr) =>
+        localforage.dropInstance({
+          name: databaseKey,
+          storeName: `media-${groupIdStr}`,
         }),
       ),
     );

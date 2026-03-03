@@ -1,10 +1,10 @@
 import {
+  getMediaAttachments,
   getNostrGroupIdHex,
-  type GroupRumorHistory,
-  MarmotGroup,
-  type Mip04MediaAttachment,
+  type MediaAttachment,
   unixNow,
 } from "@internet-privacy/marmots";
+import type { AppGroup } from "@/lib/marmot-client";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { createImetaTagForAttachment } from "applesauce-common/helpers";
 import { kinds, neventEncode } from "applesauce-core/helpers";
@@ -41,7 +41,7 @@ import { WebxdcAppCard } from "@/components/webxdc-app-card";
 import { WebxdcRuntime } from "@/components/webxdc-runtime";
 import { useGroupEventStore } from "@/contexts/group-event-store-context";
 import { isInlineMediaType, useMediaUpload } from "@/hooks/use-media-upload";
-import { getMip04Attachments } from "@/lib/mip04-imeta";
+
 import { useSendReaction } from "@/hooks/use-send-reaction";
 import { accounts } from "@/lib/accounts";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
@@ -67,7 +67,7 @@ const groupChatContentComponents: ComponentMap = {
 // ============================================================================
 
 interface GroupOutletContext {
-  group: MarmotGroup<GroupRumorHistory>;
+  group: AppGroup;
   groupDetails: {
     name: string;
     epoch: number;
@@ -86,7 +86,7 @@ interface GroupOutletContext {
 
 interface MessageItemProps {
   rumor: Rumor;
-  group: MarmotGroup<GroupRumorHistory>;
+  group: AppGroup;
   onLaunch: (webxdcId: string, xdcUrl: string) => void;
   reactions: { emoji: string; by: string }[];
   onAddReaction: (emoji: string) => void;
@@ -120,9 +120,9 @@ const MessageItem = memo(function MessageItem({
   );
 
   // Parse MIP-04 imeta tags from the rumor — validates version, nonce, and
-  // filename fields and returns fully-typed Mip04MediaAttachment objects.
+  // filename fields and returns fully-typed MediaAttachment objects.
   const mip04Attachments = useMemo(
-    () => getMip04Attachments(rumor.tags),
+    () => getMediaAttachments(rumor.tags),
     [rumor.tags],
   );
 
@@ -230,7 +230,7 @@ const MessageItem = memo(function MessageItem({
 
 interface MessageListProps {
   messages: Rumor[];
-  group: MarmotGroup<GroupRumorHistory>;
+  group: AppGroup;
   reactionsMap: Map<string, { emoji: string; by: string }[]>;
   onLaunch: (webxdcId: string, xdcUrl: string) => void;
   onAddReaction: (
@@ -291,9 +291,9 @@ const MessageList = memo(function MessageList({
 // ============================================================================
 
 interface MessageFormProps {
-  group: MarmotGroup<GroupRumorHistory>;
+  group: AppGroup;
   isSending: boolean;
-  onSend: (text: string, attachment?: Mip04MediaAttachment) => Promise<void>;
+  onSend: (text: string, attachment?: MediaAttachment) => Promise<void>;
   replyTo: Rumor | null;
   onCancelReply: () => void;
 }
@@ -506,17 +506,14 @@ function MessageForm({
 // Hook: useMessageSender
 // ============================================================================
 
-function useMessageSender(
-  group: MarmotGroup<GroupRumorHistory> | null,
-  replyTo: Rumor | null,
-) {
+function useMessageSender(group: AppGroup | null, replyTo: Rumor | null) {
   const account = use$(accounts.active$);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const sendMessage = async (
     messageText: string,
-    attachment?: Mip04MediaAttachment,
+    attachment?: MediaAttachment,
   ) => {
     if (!group || !account) return null;
     if (!messageText.trim() && !attachment) return null;
@@ -681,7 +678,7 @@ export default function GroupChatPage() {
   // Handle sending messages (text + optional MIP-04 attachment passed from MessageForm)
   const handleSendMessage = async (
     text: string,
-    attachment?: Mip04MediaAttachment,
+    attachment?: MediaAttachment,
   ) => {
     if (!text.trim() && !attachment) return;
 

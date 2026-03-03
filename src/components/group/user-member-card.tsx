@@ -1,7 +1,7 @@
 import { getPubkeyLeafNodes } from "@internet-privacy/marmots";
 import { npubEncode } from "applesauce-core/helpers";
 import { Loader2, Trash2 } from "lucide-react";
-import type { GroupRumorHistory, MarmotGroup } from "@internet-privacy/marmots";
+import type { AppGroup } from "@/lib/marmot-client";
 import { Proposals } from "@internet-privacy/marmots";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -25,7 +25,7 @@ interface UserMemberCardProps {
   pubkey: string;
   isAdmin: boolean;
   canRemove: boolean;
-  group: MarmotGroup<GroupRumorHistory> | null;
+  group: AppGroup | null;
   onRemoveSuccess?: () => void;
 }
 

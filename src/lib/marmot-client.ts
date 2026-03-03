@@ -2,6 +2,7 @@ import { defined, mapEventsToTimeline, simpleTimeout } from "applesauce-core";
 import { NostrEvent } from "applesauce-core/helpers/event";
 import { onlyEvents } from "applesauce-relay";
 import {
+  GroupMediaStore,
   GroupRumorHistory,
   InviteReader,
   MarmotClient,
@@ -62,25 +63,32 @@ const networkInterface: NostrNetworkInterface = {
   getUserInboxRelays,
 };
 
+/**
+ * The concrete group type used throughout this app.
+ * Every group has a persistent {@link GroupMediaStore} wired up as `group.media`.
+ */
+export type AppGroup = MarmotGroup<GroupRumorHistory, GroupMediaStore>;
+
 // Create an observable that creates a MarmotClient instance based on the current active account and stores.
 export const marmotClient$: Observable<
-  MarmotClient<GroupRumorHistory> | undefined
+  MarmotClient<GroupRumorHistory, GroupMediaStore> | undefined
 > = accounts.active$.pipe(
   switchMap(async (account) => {
     // Ensure all stores are created and setup
     if (!account) return;
 
     // Get storage interfaces for the account
-    const { groupStateBackend, keyPackageStore, historyFactory } =
+    const { groupStateBackend, keyPackageStore, historyFactory, mediaFactory } =
       await databaseBroker.getStorageInterfacesForAccount(account.pubkey);
 
     // Create a new marmot client for the active account
-    return new MarmotClient<GroupRumorHistory>({
+    return new MarmotClient<GroupRumorHistory, GroupMediaStore>({
       signer: account.signer,
       groupStateBackend,
       keyPackageStore,
       network: networkInterface,
       historyFactory,
+      mediaFactory,
     });
   }),
   startWith(undefined),
@@ -163,29 +171,31 @@ export const liveGroups$ = marmotClient$.pipe(
     if (!client) return of([]);
 
     // Use the new watchGroups async generator from MarmotClient
-    return new Observable<MarmotGroup<GroupRumorHistory>[]>((subscriber) => {
-      const abortController = new AbortController();
-      const iterator = client.watchGroups()[Symbol.asyncIterator]();
+    return new Observable<MarmotGroup<GroupRumorHistory, GroupMediaStore>[]>(
+      (subscriber) => {
+        const abortController = new AbortController();
+        const iterator = client.watchGroups()[Symbol.asyncIterator]();
 
-      (async () => {
-        try {
-          while (!abortController.signal.aborted) {
-            const { value, done } = await iterator.next();
-            if (done) break;
-            subscriber.next(value);
+        (async () => {
+          try {
+            while (!abortController.signal.aborted) {
+              const { value, done } = await iterator.next();
+              if (done) break;
+              subscriber.next(value);
+            }
+          } catch (error) {
+            subscriber.error(error);
+          } finally {
+            subscriber.complete();
           }
-        } catch (error) {
-          subscriber.error(error);
-        } finally {
-          subscriber.complete();
-        }
-      })();
+        })();
 
-      return () => {
-        abortController.abort();
-        iterator.return?.(undefined);
-      };
-    });
+        return () => {
+          abortController.abort();
+          iterator.return?.(undefined);
+        };
+      },
+    );
   }),
   shareReplay(1),
 );

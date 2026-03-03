@@ -9,12 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { accounts } from "@/lib/accounts";
 
-import type { GroupRumorHistory, MarmotGroup } from "@internet-privacy/marmots";
+import type { AppGroup } from "@/lib/marmot-client";
 import { eventStore } from "../../../lib/nostr";
 import { getDisplayName } from "applesauce-core/helpers";
 
 interface GroupOutletContext {
-  group: MarmotGroup<GroupRumorHistory>;
+  group: AppGroup;
   groupDetails: {
     name: string;
     epoch: number;
