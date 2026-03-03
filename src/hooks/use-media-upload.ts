@@ -10,6 +10,7 @@ import type { GroupRumorHistory, MarmotGroup } from "@internet-privacy/marmots";
 import { useCallback, useState } from "react";
 
 import { uploadToConfiguredBlossomServers } from "@/lib/blossom";
+import { keyFingerprint } from "@/lib/utils";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -54,11 +55,19 @@ export function useMediaUpload(group: MarmotGroup<GroupRumorHistory>) {
 
       try {
         // 1. Read file into bytes
+        const t0 = performance.now();
+        console.debug(
+          `[mip04] ${file.name} reading file (${file.size} bytes)…`,
+        );
         const arrayBuffer = await file.arrayBuffer();
         const plaintext = new Uint8Array(arrayBuffer);
+        console.debug(
+          `[mip04] ${file.name} read in ${(performance.now() - t0).toFixed(1)} ms`,
+        );
 
         // 2. Compute SHA-256 of the plaintext (becomes the `x` imeta field)
         const sha256Hex = bytesToHex(sha256(plaintext));
+        console.debug(`[mip04] ${file.name} sha256=${sha256Hex.slice(0, 16)}…`);
 
         // 3. Canonicalize MIME type per MIP-04
         const mimeType = canonicalizeMimeType(
@@ -72,22 +81,39 @@ export function useMediaUpload(group: MarmotGroup<GroupRumorHistory>) {
           filename: file.name,
         };
 
+        const label = `[mip04] ${file.name} (${sha256Hex.slice(0, 8)}…)`;
+
         // 5. Derive the per-file encryption key from the MLS epoch exporter secret
+        console.debug(`${label} deriving file key…`);
+        const t1 = performance.now();
         const fileKey = await deriveMip04FileKey(
           group.state,
           group.ciphersuite,
           partialAttachment,
         );
+        console.debug(
+          `${label} key derived in ${(performance.now() - t1).toFixed(1)} ms — key fingerprint: ${keyFingerprint(fileKey)}`,
+        );
 
         // 6. Encrypt the file — also fills in `nonce` and `version` on the attachment
+        console.debug(`${label} encrypting…`);
+        const t2 = performance.now();
         const { encrypted, attachment } = encryptMediaFile(
           plaintext,
           fileKey,
           partialAttachment,
         );
+        console.debug(
+          `${label} encrypted ${plaintext.byteLength}→${encrypted.byteLength} bytes in ${(performance.now() - t2).toFixed(1)} ms`,
+        );
 
         // 7. Upload the encrypted blob to configured Blossom servers
+        console.debug(`${label} uploading ${encrypted.byteLength} bytes…`);
+        const t3 = performance.now();
         const url = await uploadToConfiguredBlossomServers(encrypted);
+        console.debug(
+          `${label} uploaded in ${(performance.now() - t3).toFixed(1)} ms — url: ${url}`,
+        );
 
         // 8. Attach the URL and store the completed attachment
         const completedAttachment: Mip04MediaAttachment = {
@@ -95,9 +121,11 @@ export function useMediaUpload(group: MarmotGroup<GroupRumorHistory>) {
           url,
         };
 
+        console.debug(`${label} ready`);
         setState({ status: "ready", file, attachment: completedAttachment });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Upload failed";
+        console.error(`[mip04] ${file.name} upload failed:`, err);
         setState({ status: "error", file, error: message });
       }
     },

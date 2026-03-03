@@ -113,6 +113,7 @@ export async function uploadToConfiguredBlossomServers(
     servers,
     blobFile,
     {
+      auth: true,
       onAuth: async (_server: string, sha256: string) =>
         createUploadAuth(signer, sha256),
       onError: (server: string, _sha256: string, _blob: Blob, error: Error) => {

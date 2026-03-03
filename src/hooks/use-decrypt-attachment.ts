@@ -7,6 +7,8 @@ import {
 } from "@internet-privacy/marmots";
 import { useEffect, useState } from "react";
 
+import { keyFingerprint } from "@/lib/utils";
+
 // ─── State ────────────────────────────────────────────────────────────────────
 
 export type DecryptAttachmentState =
@@ -55,7 +57,7 @@ export function useDecryptAttachment(
           attachment,
         );
         console.debug(
-          `${label} key derived in ${(performance.now() - t0).toFixed(1)} ms`,
+          `${label} key derived in ${(performance.now() - t0).toFixed(1)} ms — key fingerprint: ${keyFingerprint(fileKey)}`,
         );
 
         // 2. Fetch the encrypted blob from Blossom
