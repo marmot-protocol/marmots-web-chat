@@ -1,19 +1,14 @@
 import { getNostrGroupIdHex } from "@internet-privacy/marmots";
-import type { AppGroup } from "@/lib/marmot-client";
 import type { NostrEvent } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { useMemo } from "react";
-import { useOutletContext } from "react-router";
 
 import { IconCopyButton } from "@/components/icon-copy-button";
 import { Badge } from "@/components/ui/badge";
+import { useGroup } from "@/contexts/group-context";
 import type { IngestEventRecord } from "@/lib/group-subscription-manager";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
-
-interface GroupOutletContext {
-  group: AppGroup;
-}
 
 /** Format a unix timestamp (seconds) as a short local time string. */
 function formatTime(ts: number): string {
@@ -152,13 +147,9 @@ function IngestRecordDetail({ record }: { record: IngestEventRecord }) {
   }
 
   if (record.kind === "skipped") {
-    const label =
-      record.reason === "past-epoch"
-        ? "commit from a past epoch, already applied"
-        : "unexpected MLS wireformat";
     return (
       <div className="text-xs text-muted-foreground">
-        {label} &mdash; observed at{" "}
+        {record.reason} &mdash; observed at{" "}
         {formatDateTime(Math.floor(record.processedAt / 1000))}
       </div>
     );
@@ -242,7 +233,7 @@ function EventRow({
 }
 
 export default function GroupEventsPage() {
-  const { group } = useOutletContext<GroupOutletContext>();
+  const { group } = useGroup();
   const manager = getGroupSubscriptionManager();
 
   const nostrGroupIdHex = useMemo(

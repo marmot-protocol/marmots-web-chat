@@ -1,24 +1,12 @@
 import { useState } from "react";
-import { useOutletContext } from "react-router";
 
-import { RatchetTreeGraph } from "@/components/group/ratchet-tree-graph";
-import { RatchetNodeDetail } from "@/components/group/ratchet-node-detail";
-import { Badge } from "@/components/ui/badge";
 import { IconCopyButton } from "@/components/icon-copy-button";
+import { Badge } from "@/components/ui/badge";
+import { useGroup } from "@/contexts/group-context";
 
-import type { AppGroup } from "@/lib/marmot-client";
-import type { RatchetTreeNodeInfo } from "@/components/group/ratchet-tree-graph";
-
-interface GroupOutletContext {
-  group: AppGroup;
-  groupDetails: {
-    name: string;
-    epoch: bigint;
-    members: string[];
-    admins: string[];
-  } | null;
-  isAdmin: boolean;
-}
+import { RatchetNodeDetail } from "./ratchet-node-detail";
+import type { RatchetTreeNodeInfo } from "./ratchet-tree-graph";
+import { RatchetTreeGraph } from "./ratchet-tree-graph";
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
@@ -27,7 +15,7 @@ function bytesToHex(bytes: Uint8Array): string {
 }
 
 export default function GroupTreePage() {
-  const { group } = useOutletContext<GroupOutletContext>();
+  const { group } = useGroup();
   const [selectedNode, setSelectedNode] = useState<RatchetTreeNodeInfo | null>(
     null,
   );

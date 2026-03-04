@@ -127,6 +127,41 @@ eventStore.verifyEvent = (e) => {
 
 **Use JSDoc** for exported functions and hooks
 
+## Group Mini-App Pattern
+
+Each tab under a group route (`/groups/:id/*`) is a self-contained "mini app" — a folder with its own `index.tsx` — that sources everything it needs from two React contexts provided by the `[id].tsx` layout route:
+
+| Context | Hook | Provides |
+|---|---|---|
+| `GroupContext` (`src/contexts/group-context.ts`) | `useGroup()` | `group` (`AppGroup`), `isAdmin`, `loadingMore`, `loadingDone`, `loadMoreMessages` |
+| `GroupEventStoreContext` (`src/contexts/group-event-store-context.ts`) | `useGroupEventStore()` | Per-group `EventStore` for reactive queries on private MLS events |
+
+**Rules for mini apps:**
+
+- Never accept the group via props or `useOutletContext` — always call `useGroup()`.
+- Derive group metadata (members, admins, name, epoch) directly from `group.state` using the marmots helpers (`extractMarmotGroupData`, `getGroupMembers`) — do not add pre-computed derived fields to `GroupContextValue`.
+- Each mini app lives in `src/pages/groups/[id]/<tab-name>/index.tsx`. Any sub-components or hooks used exclusively by that tab live in the same folder.
+
+**Folder layout:**
+
+```
+src/pages/groups/[id]/
+  [id].tsx          ← layout: resolves group, provides both contexts, renders tabs + <Outlet>
+  chat/             index.tsx, message-form.tsx, message-list.tsx, …
+  members/          index.tsx
+  admin/            index.tsx
+  timeline/         index.tsx
+  media/            index.tsx
+  tree/             index.tsx, ratchet-tree-graph.tsx, …
+```
+
+**Adding a new tab:**
+
+1. Create `src/pages/groups/[id]/<tab-name>/index.tsx`.
+2. Call `useGroup()` (and `useGroupEventStore()` if you need group-private events).
+3. Add a `<Route path="<tab-name>" element={<YourPage />} />` inside the `:id` route in `src/main.tsx`.
+4. Add the tab link in the nav bar inside `[id].tsx`.
+
 ## React Patterns
 
 ### Component Structure

@@ -1,32 +1,22 @@
+import {
+  extractMarmotGroupData,
+  getGroupMembers,
+} from "@internet-privacy/marmots";
+import { getDisplayName } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { Search, UserPlus } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
-import { useOutletContext } from "react-router";
 
 import { InviteMemberDialog } from "@/components/group/invite-member-dialog";
 import { UserMemberCard } from "@/components/group/user-member-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useGroup } from "@/contexts/group-context";
 import { accounts } from "@/lib/accounts";
-
-import type { AppGroup } from "@/lib/marmot-client";
-import { eventStore } from "../../../lib/nostr";
-import { getDisplayName } from "applesauce-core/helpers";
-
-interface GroupOutletContext {
-  group: AppGroup;
-  groupDetails: {
-    name: string;
-    epoch: number;
-    members: string[];
-    admins: string[];
-  } | null;
-  isAdmin: boolean;
-}
+import { eventStore } from "@/lib/nostr";
 
 export default function GroupMembersPage() {
-  const { group, groupDetails, isAdmin } =
-    useOutletContext<GroupOutletContext>();
+  const { group, isAdmin } = useGroup();
   const account = use$(accounts.active$);
   const [searchQuery, setSearchQuery] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -34,18 +24,22 @@ export default function GroupMembersPage() {
   // Defer search query for performance
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  // Combine all members (admins + regular members)
+  // Derive member/admin lists directly from the group's MLS state
   const allMembers = useMemo(() => {
-    if (!groupDetails) return [];
+    const data = extractMarmotGroupData(group.state);
+    const adminPubkeys = data?.adminPubkeys ?? [];
+    const allPubkeys = getGroupMembers(group.state);
     const seen = new Set<string>();
 
     return [
-      ...groupDetails.admins.map((pubkey) => ({ pubkey, isAdmin: true })),
-      ...groupDetails.members.map((pubkey) => ({ pubkey, isAdmin: false })),
+      ...adminPubkeys.map((pubkey) => ({ pubkey, isAdmin: true })),
+      ...allPubkeys
+        .filter((pk) => !adminPubkeys.includes(pk))
+        .map((pubkey) => ({ pubkey, isAdmin: false })),
     ].filter((member) => !seen.has(member.pubkey) && seen.add(member.pubkey));
-  }, [groupDetails]);
+  }, [group.state]);
 
-  // Filter members based on search query (simple pubkey-based for now)
+  // Filter members based on search query
   const filteredMembers = useMemo(() => {
     if (!deferredSearchQuery.trim()) return allMembers;
 
@@ -61,14 +55,6 @@ export default function GroupMembersPage() {
       );
     });
   }, [allMembers, deferredSearchQuery]);
-
-  if (!groupDetails) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-118px)] p-4">
-        <p className="text-muted-foreground">Loading group details...</p>
-      </div>
-    );
-  }
 
   return (
     <>

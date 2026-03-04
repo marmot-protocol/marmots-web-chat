@@ -1,4 +1,7 @@
 import type { MediaAttachment } from "@internet-privacy/marmots";
+import { unixNow } from "@internet-privacy/marmots";
+import type { Rumor } from "applesauce-common/helpers/gift-wrap";
+import { use$ } from "applesauce-react/hooks";
 import {
   DownloadIcon,
   FileAudioIcon,
@@ -7,18 +10,15 @@ import {
   FileVideoIcon,
   ImageOffIcon,
   Loader2Icon,
+  UploadIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useOutletContext } from "react-router";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useGroup } from "@/contexts/group-context";
+import { useMediaUpload } from "@/hooks/use-media-upload";
+import { accounts } from "@/lib/accounts";
 import type { AppGroup } from "@/lib/marmot-client";
-
-// ─── Outlet context ───────────────────────────────────────────────────────────
-
-interface GroupOutletContext {
-  group: AppGroup;
-}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -227,19 +227,101 @@ function MediaItem({ attachment, group }: MediaItemProps) {
  * persists across page reloads thanks to the IndexedDB-backed store.
  */
 export default function GroupMediaPage() {
-  const { group } = useOutletContext<GroupOutletContext>();
+  const { group } = useGroup();
   const attachments = useGroupMedia(group);
+  const account = use$(() => accounts.active$, []);
+  const { state: uploadState, upload, clear } = useMediaUpload(group);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  // Once a file is encrypted + uploaded, immediately send a kind-1063 rumor.
+  useEffect(() => {
+    if (uploadState.status !== "ready" || !account) return;
+
+    const { attachment } = uploadState;
+
+    const fileTags: string[][] = [
+      ["url", attachment.url ?? ""],
+      ["m", attachment.type ?? "application/octet-stream"],
+      ["x", attachment.sha256 ?? ""],
+      ["filename", attachment.filename],
+      ["n", attachment.nonce],
+      ["v", attachment.version],
+    ];
+    if (attachment.size != null)
+      fileTags.push(["size", String(attachment.size)]);
+
+    const fileRumor: Omit<Rumor, "id"> = {
+      kind: 1063,
+      content: "",
+      created_at: unixNow(),
+      pubkey: account.pubkey,
+      tags: fileTags,
+    };
+
+    setSendError(null);
+    group
+      .sendApplicationRumor(fileRumor as Rumor)
+      .then(() => clear())
+      .catch((err: unknown) => {
+        setSendError(err instanceof Error ? err.message : "Failed to send");
+        clear();
+      });
+  }, [uploadState, account, group, clear]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSendError(null);
+      upload(file);
+    }
+    // Reset input so the same file can be re-selected if needed
+    e.target.value = "";
+  };
+
+  const isUploading = uploadState.status === "uploading";
 
   return (
     <div className="flex flex-col h-[calc(100vh-118px)] p-4">
       {/* Header */}
-      <div className="mb-4">
-        <h2 className="text-sm font-semibold">Media</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {attachments.length === 0
-            ? "No media cached yet — files appear here after being decrypted in the Chat tab."
-            : `${attachments.length} ${attachments.length === 1 ? "file" : "files"} cached`}
-        </p>
+      <div className="mb-4 flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold">Media</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {attachments.length === 0
+              ? "No media cached yet — files appear here after being decrypted in the Chat tab."
+              : `${attachments.length} ${attachments.length === 1 ? "file" : "files"} cached`}
+          </p>
+          {(uploadState.status === "error" || sendError) && (
+            <p className="text-xs text-destructive mt-1">
+              {uploadState.status === "error" ? uploadState.error : sendError}
+            </p>
+          )}
+        </div>
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleFileChange}
+          disabled={isUploading}
+        />
+
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isUploading || !account}
+          onClick={() => fileInputRef.current?.click()}
+          className="shrink-0"
+        >
+          {isUploading ? (
+            <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <UploadIcon className="w-3.5 h-3.5" />
+          )}
+          <span className="ml-1">{isUploading ? "Uploading…" : "Upload"}</span>
+        </Button>
       </div>
 
       {/* Empty state */}
