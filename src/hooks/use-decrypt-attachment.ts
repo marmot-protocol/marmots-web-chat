@@ -13,12 +13,16 @@ export type DecryptAttachmentState =
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 /**
- * Downloads and decrypts a MIP-04 encrypted media attachment from a Blossom
- * server, returning an object URL suitable for use in `<img>`, `<video>`, or
- * `<audio>` elements.
+ * Returns an object URL for a MIP-04 encrypted media attachment, suitable for
+ * use in `<img>`, `<video>`, or `<audio>` elements.
  *
- * Uses `group.decryptMedia()` which handles key derivation and caches the
- * decrypted result so subsequent renders don't re-derive keys.
+ * Resolution order:
+ * 1. **Cache hit** — if `group.media` already holds the decrypted plaintext
+ *    for `attachment.sha256`, the object URL is created immediately with no
+ *    network request.
+ * 2. **Cache miss** — the encrypted blob is downloaded from Blossom, then
+ *    decrypted via `group.decryptMedia()` (which derives the MLS epoch key
+ *    and stores the plaintext in `group.media` for future calls).
  *
  * The object URL is revoked automatically when the component unmounts or when
  * the attachment changes.
@@ -44,36 +48,45 @@ export function useDecryptAttachment(
       const label = `[mip04] ${attachment.filename} (${attachment.sha256?.slice(0, 8)}…)`;
 
       try {
-        // 1. Fetch the encrypted blob from Blossom
-        console.debug(`${label} fetching from ${attachment.url}`);
-        const t0 = performance.now();
-        const response = await fetch(attachment.url!);
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch encrypted media (${response.status})`,
+        let plaintext: Uint8Array;
+
+        // 1. Check group.media cache before downloading
+        const cached = await group.media?.getMedia(attachment.sha256);
+        if (cached) {
+          console.debug(`${label} cache hit — skipping download`);
+          plaintext = cached.data as Uint8Array;
+        } else {
+          // 2. Cache miss — fetch the encrypted blob from Blossom
+          console.debug(
+            `${label} cache miss — fetching from ${attachment.url}`,
           );
+          const t0 = performance.now();
+          const response = await fetch(attachment.url!);
+          if (!response.ok) {
+            throw new Error(
+              `Failed to fetch encrypted media (${response.status})`,
+            );
+          }
+          const encrypted = new Uint8Array(await response.arrayBuffer());
+          console.debug(
+            `${label} fetched ${encrypted.byteLength} bytes in ${(performance.now() - t0).toFixed(1)} ms`,
+          );
+
+          if (cancelled) return;
+
+          // 3. Decrypt via group.decryptMedia() — handles key derivation and populates cache
+          console.debug(`${label} decrypting…`);
+          const t1 = performance.now();
+          const result = await group.decryptMedia(encrypted, attachment);
+          console.debug(
+            `${label} decrypted ${result.data.byteLength} bytes in ${(performance.now() - t1).toFixed(1)} ms`,
+          );
+          plaintext = result.data as Uint8Array;
         }
-        const encrypted = new Uint8Array(await response.arrayBuffer());
-        console.debug(
-          `${label} fetched ${encrypted.byteLength} bytes in ${(performance.now() - t0).toFixed(1)} ms`,
-        );
 
         if (cancelled) return;
 
-        // 2. Decrypt via group.decryptMedia() — handles key derivation and caching
-        console.debug(`${label} decrypting…`);
-        const t1 = performance.now();
-        const { data: plaintext } = await group.decryptMedia(
-          encrypted,
-          attachment,
-        );
-        console.debug(
-          `${label} decrypted ${plaintext.byteLength} bytes in ${(performance.now() - t1).toFixed(1)} ms`,
-        );
-
-        if (cancelled) return;
-
-        // 3. Create a browser object URL for rendering
+        // 4. Create a browser object URL for rendering
         const blob = new Blob([plaintext as Uint8Array<ArrayBuffer>], {
           type: attachment.type ?? "application/octet-stream",
         });
