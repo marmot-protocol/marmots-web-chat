@@ -2,6 +2,7 @@ import { eventStore, pool } from "@/lib/nostr";
 import {
   deserializeApplicationData,
   MarmotClient,
+  SkippedIngestResult,
   type GroupRumorHistory,
   type IngestResult,
 } from "@internet-privacy/marmots";
@@ -64,7 +65,7 @@ export type StoredIngestRecord =
     }
   | {
       kind: "skipped";
-      reason: "past-epoch" | "wrong-wireformat" | "self-echo";
+      reason: SkippedIngestResult["reason"];
       event: NostrEvent;
       processedAt: number;
     }
