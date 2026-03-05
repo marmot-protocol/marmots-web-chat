@@ -5,7 +5,7 @@ import {
   getKeyPackageRelayList,
   KEY_PACKAGE_KIND,
   KEY_PACKAGE_RELAY_LIST_KIND,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { castUser } from "applesauce-common/casts/user";
 import { mapEventsToStore } from "applesauce-core";
 import type { NostrEvent } from "applesauce-core/helpers";

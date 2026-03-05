@@ -1,6 +1,6 @@
 import { npubEncode } from "applesauce-core/helpers";
 import { Loader2 } from "lucide-react";
-import { getNostrGroupIdHex } from "@internet-privacy/marmots";
+import { getNostrGroupIdHex } from "@internet-privacy/marmot-ts";
 import type { AppGroup } from "@/lib/marmot-client";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/sheet";
 
 import { use$ } from "applesauce-react/hooks";
-import type { GroupRumorHistory } from "@internet-privacy/marmots";
+import type { GroupRumorHistory } from "@internet-privacy/marmot-ts";
 import { marmotClient$ } from "../../lib/marmot-client";
 
 interface GroupDetailsDrawerProps {

@@ -9,7 +9,7 @@ import {
   getKeyPackageRelays,
   KEY_PACKAGE_KIND,
   KEY_PACKAGE_RELAY_LIST_KIND,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { castUser, User } from "applesauce-common/casts/user";
 import { mapEventsToStore, mapEventsToTimeline } from "applesauce-core";
 import {

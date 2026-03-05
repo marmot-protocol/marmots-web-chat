@@ -2,7 +2,7 @@ import type { AppGroup } from "@/lib/marmot-client";
 import {
   getMediaAttachmentFromFileEvent,
   getMediaAttachments,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { kinds } from "applesauce-core/helpers";
 import type { ComponentMap } from "applesauce-react/helpers";
@@ -45,9 +45,7 @@ const groupChatContentComponents: ComponentMap = {
  * from the per-group event store. Each `MessageItem` calls this independently
  * so the parent no longer needs to build or pass down a reactions map.
  */
-function useMessageReactions(
-  rumorId: string,
-): { emoji: string; by: string }[] {
+function useMessageReactions(rumorId: string): { emoji: string; by: string }[] {
   const groupEventStore = useGroupEventStore();
   const reactionEvents = use$(
     () =>

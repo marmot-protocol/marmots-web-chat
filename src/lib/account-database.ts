@@ -19,7 +19,7 @@ import {
   KeyValueGroupStateBackend,
   InviteStore,
   type StoredMedia,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { ingestResultsDatabaseName } from "@/lib/group-subscription-manager";
 
 const DB_VERSION = 1;

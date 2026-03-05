@@ -17,7 +17,7 @@ importers:
       '@fontsource-variable/jetbrains-mono':
         specifier: ^5.2.8
         version: 5.2.8
-      '@internet-privacy/marmots':
+      '@internet-privacy/marmot-ts':
         specifier: workspace:*
         version: link:marmot-ts
       '@libs/qrcode':
@@ -180,6 +180,9 @@ importers:
       '@noble/hashes':
         specifier: ^2.0.1
         version: 2.0.1
+      '@scure/base':
+        specifier: ^2.0.0
+        version: 2.0.0
       applesauce-common:
         specifier: ^5.1.0
         version: 5.1.0(typescript@5.9.3)

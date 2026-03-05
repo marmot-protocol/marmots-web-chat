@@ -2,7 +2,7 @@ import {
   createKeyPackageEvent,
   getKeyPackageClient,
   StoredKeyPackage,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { watchEventUpdates } from "applesauce-core";
 import { getSeenRelays, NostrEvent, relaySet } from "applesauce-core/helpers";

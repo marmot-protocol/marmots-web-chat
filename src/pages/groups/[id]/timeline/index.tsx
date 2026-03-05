@@ -1,4 +1,4 @@
-import { getNostrGroupIdHex } from "@internet-privacy/marmots";
+import { getNostrGroupIdHex } from "@internet-privacy/marmot-ts";
 import type { NostrEvent } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { useMemo } from "react";

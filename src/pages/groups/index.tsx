@@ -1,6 +1,6 @@
 import { use$ } from "applesauce-react/hooks";
 import { MessageSquare, Users } from "lucide-react";
-import { getGroupMembers } from "@internet-privacy/marmots";
+import { getGroupMembers } from "@internet-privacy/marmot-ts";
 import type { AppGroup } from "@/lib/marmot-client";
 import { Link } from "react-router";
 

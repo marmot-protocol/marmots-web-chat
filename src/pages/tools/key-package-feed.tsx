@@ -6,7 +6,7 @@ import {
   getKeyPackageCipherSuiteId,
   getKeyPackageClient,
   KEY_PACKAGE_KIND,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { useMemo, useState } from "react";
 import { EMPTY, of } from "rxjs";
 import { catchError, map } from "rxjs/operators";

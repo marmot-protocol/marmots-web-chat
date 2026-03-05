@@ -4,7 +4,7 @@ import {
   getKeyPackageClient,
   getKeyPackageRelayList,
   KEY_PACKAGE_RELAY_LIST_KIND,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { IconLock } from "@tabler/icons-react";
 import { castUser, User } from "applesauce-common/casts/user";
 import { mapEventsToTimeline } from "applesauce-core";

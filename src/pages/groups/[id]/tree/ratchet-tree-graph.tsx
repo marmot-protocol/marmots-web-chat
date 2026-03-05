@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import { hierarchy, tree } from "d3-hierarchy";
-import { getCredentialPubkey } from "@internet-privacy/marmots";
+import { getCredentialPubkey } from "@internet-privacy/marmot-ts";
 import { defaultCredentialTypes, nodeTypes } from "ts-mls";
 import {
   left as treeLeft,

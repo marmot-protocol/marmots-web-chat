@@ -1,8 +1,8 @@
-import { getPubkeyLeafNodes } from "@internet-privacy/marmots";
+import { getPubkeyLeafNodes } from "@internet-privacy/marmot-ts";
 import { npubEncode } from "applesauce-core/helpers";
 import { Loader2, Trash2 } from "lucide-react";
 import type { AppGroup } from "@/lib/marmot-client";
-import { Proposals } from "@internet-privacy/marmots";
+import { Proposals } from "@internet-privacy/marmot-ts";
 import { useState } from "react";
 import { Link } from "react-router";
 

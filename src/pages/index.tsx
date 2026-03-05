@@ -61,7 +61,7 @@ function QuickActionCard({
 export default function HomePage() {
   return (
     <>
-      <AppSidebar title="MarmoTS Chat" />
+      <AppSidebar title="marmot-ts Chat" />
       <SidebarInset>
         <PageHeader items={[{ label: "Home" }]} />
 
@@ -70,7 +70,7 @@ export default function HomePage() {
           {/* Intro Section */}
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight">
-              Welcome to MarmoTS
+              Welcome to marmot-ts
             </h1>
             <p className="text-muted-foreground max-w-2xl">
               A secure, end-to-end encrypted group chat built on Nostr. Create
@@ -125,7 +125,7 @@ export default function HomePage() {
             <CardHeader>
               <CardTitle className="text-base">Getting Started</CardTitle>
               <CardDescription>
-                New to MarmoTS? Here's how to begin:
+                New to marmot-ts? Here's how to begin:
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">

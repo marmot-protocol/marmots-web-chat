@@ -9,8 +9,8 @@ import {
   MarmotGroup,
   NostrNetworkInterface,
   PublishResponse,
-} from "@internet-privacy/marmots";
-import type { KeyPackageEntry } from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
+import type { KeyPackageEntry } from "@internet-privacy/marmot-ts";
 import {
   combineLatest,
   firstValueFrom,

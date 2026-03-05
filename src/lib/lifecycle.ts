@@ -3,7 +3,7 @@ import {
   KEY_PACKAGE_KIND,
   KEY_PACKAGE_RELAY_LIST_KIND,
   unixNow,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { mapEventsToStore } from "applesauce-core";
 import { Filter, kinds, relaySet } from "applesauce-core/helpers";
 import { onlyEvents } from "applesauce-relay";

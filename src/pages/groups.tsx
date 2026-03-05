@@ -1,5 +1,5 @@
 import { use$ } from "applesauce-react/hooks";
-import { getGroupMembers } from "@internet-privacy/marmots";
+import { getGroupMembers } from "@internet-privacy/marmot-ts";
 import type { AppGroup } from "@/lib/marmot-client";
 import { Link, Outlet, useLocation } from "react-router";
 

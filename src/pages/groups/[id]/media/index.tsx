@@ -1,5 +1,5 @@
-import type { MediaAttachment } from "@internet-privacy/marmots";
-import { unixNow } from "@internet-privacy/marmots";
+import type { MediaAttachment } from "@internet-privacy/marmot-ts";
+import { unixNow } from "@internet-privacy/marmot-ts";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { use$ } from "applesauce-react/hooks";
 import {

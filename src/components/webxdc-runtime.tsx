@@ -2,7 +2,7 @@ import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { getDisplayName, getEventHash } from "applesauce-core/helpers";
 import { npubEncode } from "applesauce-core/helpers/pointers";
 import { use$ } from "applesauce-react/hooks";
-import { unixNow } from "@internet-privacy/marmots";
+import { unixNow } from "@internet-privacy/marmot-ts";
 import type { AppGroup } from "@/lib/marmot-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 

@@ -1,5 +1,5 @@
 import type { AppGroup } from "@/lib/marmot-client";
-import { type MediaAttachment, unixNow } from "@internet-privacy/marmots";
+import { type MediaAttachment, unixNow } from "@internet-privacy/marmot-ts";
 import { createImetaTagForAttachment } from "applesauce-common/helpers";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { neventEncode } from "applesauce-core/helpers";

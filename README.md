@@ -1,4 +1,4 @@
-# Marmots Web Chat
+# marmot-ts Web Chat
 
 A reference implementation of the [marmot-ts](https://github.com/marmot-protocol/marmot-ts) library - a TypeScript library for building MLS (Messaging Layer Security) group chat applications on Nostr.
 

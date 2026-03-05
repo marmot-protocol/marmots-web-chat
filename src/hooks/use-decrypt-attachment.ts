@@ -1,4 +1,4 @@
-import type { MediaAttachment } from "@internet-privacy/marmots";
+import type { MediaAttachment } from "@internet-privacy/marmot-ts";
 import { useEffect, useState } from "react";
 import type { AppGroup } from "@/lib/marmot-client";
 

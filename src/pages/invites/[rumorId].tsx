@@ -6,7 +6,7 @@ import {
   getWelcomeKeyPackageRefs,
   isMarmotGroupDataExtension,
   UnreadInvite,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { use$ } from "applesauce-react/hooks";

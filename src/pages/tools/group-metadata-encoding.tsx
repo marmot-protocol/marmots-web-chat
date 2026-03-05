@@ -3,7 +3,7 @@ import { AlertCircle, Copy } from "lucide-react";
 import {
   createMarmotGroupData,
   decodeMarmotGroupData,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { useEffect, useRef, useState } from "react";
 
 import { PageBody } from "@/components/page-body";

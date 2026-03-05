@@ -9,7 +9,7 @@ import type { AppGroup } from "@/lib/marmot-client";
  *
  * Derived group data (members, admins, name, epoch) is intentionally
  * omitted — mini apps read it directly from `group.state` using the
- * marmots helper functions (`extractMarmotGroupData`, `getGroupMembers`).
+ * marmot-ts helper functions (`extractMarmotGroupData`, `getGroupMembers`).
  */
 export interface GroupContextValue {
   /** The resolved MarmotGroup instance for this route. */

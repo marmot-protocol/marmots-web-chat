@@ -7,7 +7,7 @@ import { use$ } from "applesauce-react/hooks";
 import {
   createKeyPackageRelayListEvent,
   KEY_PACKAGE_RELAY_LIST_KIND,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { useState } from "react";
 import { combineLatest, of, switchMap } from "rxjs";
 

@@ -1,4 +1,4 @@
-import { getCredentialPubkey } from "@internet-privacy/marmots";
+import { getCredentialPubkey } from "@internet-privacy/marmot-ts";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { AlertCircle } from "lucide-react";
 import { useMemo, useState } from "react";

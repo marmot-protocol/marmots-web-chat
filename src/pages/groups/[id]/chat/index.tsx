@@ -2,7 +2,7 @@ import {
   getNostrGroupIdHex,
   type MediaAttachment,
   unixNow,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { kinds } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";

@@ -1,4 +1,4 @@
-# Agent Guidelines for Marmots Web Chat
+# Agent Guidelines for marmot-ts Web Chat
 
 This document provides guidelines for AI coding agents working in this chat application - a React + TypeScript reference implementation of marmot-ts (MLS group chat on Nostr).
 
@@ -131,15 +131,15 @@ eventStore.verifyEvent = (e) => {
 
 Each tab under a group route (`/groups/:id/*`) is a self-contained "mini app" — a folder with its own `index.tsx` — that sources everything it needs from two React contexts provided by the `[id].tsx` layout route:
 
-| Context | Hook | Provides |
-|---|---|---|
-| `GroupContext` (`src/contexts/group-context.ts`) | `useGroup()` | `group` (`AppGroup`), `isAdmin`, `loadingMore`, `loadingDone`, `loadMoreMessages` |
-| `GroupEventStoreContext` (`src/contexts/group-event-store-context.ts`) | `useGroupEventStore()` | Per-group `EventStore` for reactive queries on private MLS events |
+| Context                                                                | Hook                   | Provides                                                                          |
+| ---------------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------- |
+| `GroupContext` (`src/contexts/group-context.ts`)                       | `useGroup()`           | `group` (`AppGroup`), `isAdmin`, `loadingMore`, `loadingDone`, `loadMoreMessages` |
+| `GroupEventStoreContext` (`src/contexts/group-event-store-context.ts`) | `useGroupEventStore()` | Per-group `EventStore` for reactive queries on private MLS events                 |
 
 **Rules for mini apps:**
 
 - Never accept the group via props or `useOutletContext` — always call `useGroup()`.
-- Derive group metadata (members, admins, name, epoch) directly from `group.state` using the marmots helpers (`extractMarmotGroupData`, `getGroupMembers`) — do not add pre-computed derived fields to `GroupContextValue`.
+- Derive group metadata (members, admins, name, epoch) directly from `group.state` using the marmot-ts helpers (`extractMarmotGroupData`, `getGroupMembers`) — do not add pre-computed derived fields to `GroupContextValue`.
 - Each mini app lives in `src/pages/groups/[id]/<tab-name>/index.tsx`. Any sub-components or hooks used exclusively by that tab live in the same folder.
 
 **Folder layout:**

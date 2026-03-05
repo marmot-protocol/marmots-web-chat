@@ -2,7 +2,7 @@ import {
   getKeyPackageClient,
   isLastResortExtension,
   KeyPackageEntry,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { bytesToHex, relaySet } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { SettingsIcon } from "lucide-react";

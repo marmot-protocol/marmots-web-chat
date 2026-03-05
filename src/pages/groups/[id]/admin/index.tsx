@@ -1,4 +1,4 @@
-import { getMarmotGroupData, Proposals } from "@internet-privacy/marmots";
+import { getMarmotGroupData, Proposals } from "@internet-privacy/marmot-ts";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 

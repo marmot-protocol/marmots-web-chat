@@ -3,7 +3,7 @@ import {
   getGroupMembers,
   getNostrGroupIdHex,
   unixNow,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { use$ } from "applesauce-react/hooks";
 import { Loader2, Menu, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";

@@ -1,5 +1,5 @@
 import type { AppGroup } from "@/lib/marmot-client";
-import { unixNow } from "@internet-privacy/marmots";
+import { unixNow } from "@internet-privacy/marmot-ts";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { getEventHash, kinds } from "applesauce-core/helpers";
 import { useCallback, useState } from "react";

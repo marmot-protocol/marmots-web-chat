@@ -1,7 +1,7 @@
 import {
   extractMarmotGroupData,
   getGroupMembers,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { getDisplayName } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { Search, UserPlus } from "lucide-react";

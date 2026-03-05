@@ -1,5 +1,5 @@
 import type { AppGroup } from "@/lib/marmot-client";
-import type { MediaAttachment } from "@internet-privacy/marmots";
+import type { MediaAttachment } from "@internet-privacy/marmot-ts";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { FileIcon, Loader2, Paperclip, Reply, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
