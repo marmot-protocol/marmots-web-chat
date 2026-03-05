@@ -118,7 +118,7 @@ function MediaItem({ attachment, group }: MediaItemProps) {
         setError("Not in cache");
         return null;
       }
-      const blob = new Blob([stored.data.buffer as ArrayBuffer], {
+      const blob = new Blob([stored.data as Uint8Array<ArrayBuffer>], {
         type: attachment.type ?? "application/octet-stream",
       });
       const url = URL.createObjectURL(blob);

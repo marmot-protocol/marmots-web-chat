@@ -105,7 +105,7 @@ export async function uploadToConfiguredBlossomServers(
   const signer = await resolveBlossomSigner();
 
   // blossom-client-sdk works with Blob/File; wrap the Uint8Array
-  const blobFile = new Blob([blob.buffer as ArrayBuffer], {
+  const blobFile = new Blob([blob as Uint8Array<ArrayBuffer>], {
     type: "application/octet-stream",
   });
 

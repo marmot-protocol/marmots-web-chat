@@ -74,7 +74,7 @@ export function useDecryptAttachment(
         if (cancelled) return;
 
         // 3. Create a browser object URL for rendering
-        const blob = new Blob([plaintext.buffer as ArrayBuffer], {
+        const blob = new Blob([plaintext as Uint8Array<ArrayBuffer>], {
           type: attachment.type ?? "application/octet-stream",
         });
         const objectUrl = URL.createObjectURL(blob);
