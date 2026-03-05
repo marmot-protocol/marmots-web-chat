@@ -77,19 +77,31 @@ export const marmotClient$: Observable<
     // Ensure all stores are created and setup
     if (!account) return;
 
-    // Get storage interfaces for the account
-    const { groupStateBackend, keyPackageStore, historyFactory, mediaFactory } =
-      await databaseBroker.getStorageInterfacesForAccount(account.pubkey);
+    try {
+      // Get storage interfaces for the account
+      const {
+        groupStateBackend,
+        keyPackageStore,
+        historyFactory,
+        mediaFactory,
+      } = await databaseBroker.getStorageInterfacesForAccount(account.pubkey);
 
-    // Create a new marmot client for the active account
-    return new MarmotClient<GroupRumorHistory, GroupMediaStore>({
-      signer: account.signer,
-      groupStateBackend,
-      keyPackageStore,
-      network: networkInterface,
-      historyFactory,
-      mediaFactory,
-    });
+      // Create a new marmot client for the active account
+      return new MarmotClient<GroupRumorHistory, GroupMediaStore>({
+        signer: account.signer,
+        groupStateBackend,
+        keyPackageStore,
+        network: networkInterface,
+        historyFactory,
+        mediaFactory,
+      });
+    } catch (error) {
+      console.error("Failed to initialize MarmotClient for active account", {
+        pubkey: account.pubkey,
+        error,
+      });
+      return undefined;
+    }
   }),
   startWith(undefined),
   shareReplay(1),

@@ -100,13 +100,12 @@ function MediaItem({ attachment, group }: MediaItemProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Revoke the object URL on unmount or when the attachment changes
+  // Revoke the object URL on unmount or when the attachment or objectUrl changes
   useEffect(() => {
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attachment.sha256]);
+  }, [attachment.sha256, objectUrl]);
 
   const getObjectUrl = async (): Promise<string | null> => {
     if (objectUrl) return objectUrl;

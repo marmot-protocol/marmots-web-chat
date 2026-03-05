@@ -294,21 +294,6 @@ export class MultiAccountDatabaseBroker {
   async purgeDatabase(pubkey: string): Promise<void> {
     const databaseKey = `${pubkey}-key-value`;
 
-    // Collect group ids before we drop the groups store, so we can also drop
-    // the corresponding per-group ingest-results stores.
-    const groupIds: string[] = [];
-    try {
-      const groupsStore = localforage.createInstance({
-        name: databaseKey,
-        storeName: "groups",
-      });
-      await groupsStore.iterate<unknown, void>((_value, key) => {
-        groupIds.push(key);
-      });
-    } catch {
-      // Ignore — groups store may already be gone.
-    }
-
     // Close and delete IndexedDB database
     const db = this.customDatabases.get(pubkey);
     if (db) {
@@ -325,47 +310,13 @@ export class MultiAccountDatabaseBroker {
       });
     }
 
-    // Drop all LocalForage stores for this account
-    await localforage.dropInstance({ name: databaseKey, storeName: "groups" });
-    await localforage.dropInstance({
-      name: databaseKey,
-      storeName: "keyPackages",
-    });
-    await localforage.dropInstance({
-      name: databaseKey,
-      storeName: "invites-unread",
-    });
-    await localforage.dropInstance({
-      name: databaseKey,
-      storeName: "invites-received",
-    });
-    await localforage.dropInstance({
-      name: databaseKey,
-      storeName: "invites-seen",
-    });
+    // Drop the entire account-scoped LocalForage DB so dynamic stores
+    // (e.g. media-*) cannot be orphaned regardless of which group IDs are known.
+    await localforage.dropInstance({ name: databaseKey });
 
-    // Drop all per-group ingest-results stores from the dedicated database.
-    // Each group's storeName is its group id string.
+    // Drop the entire ingest-results DB as well.
     const ingestDbName = ingestResultsDatabaseName(pubkey);
-    await Promise.all(
-      groupIds.map((groupIdStr) =>
-        localforage.dropInstance({
-          name: ingestDbName,
-          storeName: groupIdStr,
-        }),
-      ),
-    );
-
-    // Drop all per-group media stores (stored as `media-<groupIdHex>` in the
-    // key-value database).
-    await Promise.all(
-      groupIds.map((groupIdStr) =>
-        localforage.dropInstance({
-          name: databaseKey,
-          storeName: `media-${groupIdStr}`,
-        }),
-      ),
-    );
+    await localforage.dropInstance({ name: ingestDbName });
 
     // Remove from in-memory cache
     this.#storageInterfaces.delete(pubkey);

@@ -144,7 +144,7 @@ Each tab under a group route (`/groups/:id/*`) is a self-contained "mini app" �
 
 **Folder layout:**
 
-```
+```text
 src/pages/groups/[id]/
   [id].tsx          ← layout: resolves group, provides both contexts, renders tabs + <Outlet>
   chat/             index.tsx, message-form.tsx, message-list.tsx, …

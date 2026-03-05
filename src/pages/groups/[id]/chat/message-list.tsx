@@ -17,6 +17,9 @@ export interface MessageListProps {
   onReply: (rumor: Rumor) => void;
 }
 
+/** Threshold in pixels from the bottom considered "near the bottom". */
+const SCROLL_THRESHOLD = 100;
+
 export const MessageList = memo(function MessageList({
   messages,
   group,
@@ -25,9 +28,26 @@ export const MessageList = memo(function MessageList({
   onReply,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isInitialLoad = useRef(true);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = containerRef.current;
+    if (!container) return;
+
+    // On initial render always scroll to the bottom
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+      return;
+    }
+
+    // For subsequent updates only scroll if the user is already near the bottom
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (distanceFromBottom <= SCROLL_THRESHOLD) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   // Render kind-9 chat messages and kind-1063 file events; kind-7 reactions are handled per-message
@@ -44,7 +64,7 @@ export const MessageList = memo(function MessageList({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={containerRef} className="flex flex-col gap-4">
       {chatMessages.map((rumor, index) => (
         <MessageItem
           key={`${rumor.id}-${index}`}

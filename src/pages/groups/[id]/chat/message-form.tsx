@@ -48,6 +48,7 @@ export function MessageForm({
   };
 
   const handleSubmit = async () => {
+    if (isSending || isUploading) return;
     const text = messageText.trim();
     // Allow sending with attachment even if text is empty
     if (!text && !hasAttachment) return;
@@ -198,7 +199,7 @@ export function MessageForm({
           value={messageText}
           onChange={(e) => setMessageText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (e.key === "Enter" && !e.shiftKey && canSend) {
               e.preventDefault();
               handleSubmit();
             }

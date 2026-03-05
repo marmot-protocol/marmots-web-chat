@@ -112,6 +112,7 @@ export function Mip04Media({ attachment, group }: Mip04MediaProps) {
   // Generic file download card
   return (
     <button
+      type="button"
       onClick={() => triggerDownload(objectUrl, filename)}
       className="mt-1 flex items-center gap-2 px-3 py-2 rounded-md border bg-muted hover:bg-muted/80 transition-colors text-sm text-left"
     >

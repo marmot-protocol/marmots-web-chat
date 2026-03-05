@@ -21,7 +21,12 @@ export function useMessageSender(
     messageText: string,
     attachment?: MediaAttachment,
   ) => {
-    if (!group || !account) return null;
+    if (!group) {
+      throw new Error("Cannot send message: no active group context.");
+    }
+    if (!account) {
+      throw new Error("Cannot send message: no active account.");
+    }
     if (!messageText.trim() && !attachment) return null;
 
     try {

@@ -60,8 +60,13 @@ export function useDecryptAttachment(
           console.debug(
             `${label} cache miss — fetching from ${attachment.url}`,
           );
+          if (!attachment.url) {
+            throw new Error(
+              `Missing attachment URL for media decrypt: ${attachment.filename ?? "unknown file"}`,
+            );
+          }
           const t0 = performance.now();
-          const response = await fetch(attachment.url!);
+          const response = await fetch(attachment.url);
           if (!response.ok) {
             throw new Error(
               `Failed to fetch encrypted media (${response.status})`,

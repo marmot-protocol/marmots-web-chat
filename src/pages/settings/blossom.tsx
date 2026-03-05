@@ -61,34 +61,43 @@ function BlossomServerItem({
   onRemove: () => void | Promise<void>;
 }) {
   const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const handleRemove = async () => {
+    setRemoveError(null);
     setRemoving(true);
     try {
       await onRemove();
+    } catch (err) {
+      setRemoveError(
+        err instanceof Error ? err.message : "Failed to remove server",
+      );
     } finally {
       setRemoving(false);
     }
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <BlossomServerFavicon url={url} />
-      <code className="flex-1 text-xs bg-muted p-2 rounded font-mono select-all">
-        {url}
-      </code>
-      <Button
-        variant="destructive"
-        size="sm"
-        onClick={handleRemove}
-        disabled={removing}
-      >
-        {removing ? (
-          <Loader2Icon className="w-4 h-4 animate-spin" />
-        ) : (
-          <XIcon className="w-4 h-4" />
-        )}
-      </Button>
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <BlossomServerFavicon url={url} />
+        <code className="flex-1 text-xs bg-muted p-2 rounded font-mono select-all">
+          {url}
+        </code>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={handleRemove}
+          disabled={removing}
+        >
+          {removing ? (
+            <Loader2Icon className="w-4 h-4 animate-spin" />
+          ) : (
+            <XIcon className="w-4 h-4" />
+          )}
+        </Button>
+      </div>
+      {removeError && <p className="text-xs text-destructive">{removeError}</p>}
     </div>
   );
 }
@@ -116,7 +125,7 @@ function NewBlossomServerForm({
     try {
       const parsed = new URL(trimmed);
       if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-        setError("Must be an https:// URL");
+        setError("Must be an http:// or https:// URL");
         return;
       }
     } catch {
