@@ -41,6 +41,7 @@ export function useDecryptAttachment(
   useEffect(() => {
     let cancelled = false;
     let createdObjectUrl: string | null = null;
+    const abortController = new AbortController();
 
     const run = async () => {
       setState({ status: "decrypting" });
@@ -66,7 +67,9 @@ export function useDecryptAttachment(
             );
           }
           const t0 = performance.now();
-          const response = await fetch(attachment.url);
+          const response = await fetch(attachment.url, {
+            signal: abortController.signal,
+          });
           if (!response.ok) {
             throw new Error(
               `Failed to fetch encrypted media (${response.status})`,
@@ -102,6 +105,7 @@ export function useDecryptAttachment(
         setState({ status: "ready", objectUrl });
       } catch (err) {
         if (cancelled) return;
+        if (err instanceof Error && err.name === "AbortError") return;
         const message =
           err instanceof Error ? err.message : "Decryption failed";
         console.error(`${label} failed:`, err);
@@ -113,6 +117,7 @@ export function useDecryptAttachment(
 
     return () => {
       cancelled = true;
+      abortController.abort();
       if (createdObjectUrl) {
         URL.revokeObjectURL(createdObjectUrl);
       }

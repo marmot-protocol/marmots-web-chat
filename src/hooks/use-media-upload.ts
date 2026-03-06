@@ -30,10 +30,8 @@ export type MediaUploadState =
  *
  * Call `upload(file)` as soon as a file is picked. The hook:
  * 1. Encrypts the file via `group.encryptMedia()` (MIP-04 / MLS epoch key).
- * 2. Immediately stores the plaintext in `group.media` so it is available in
- *    the Media tab without waiting for the Blossom upload to finish.
- * 3. Uploads the ciphertext to the configured Blossom servers.
- * 4. Transitions to `"ready"` with a fully-populated {@link MediaAttachment}
+ * 2. Uploads the ciphertext to the configured Blossom servers.
+ * 3. Transitions to `"ready"` with a fully-populated {@link MediaAttachment}
  *    (including `url`) that can be sent as a kind-1063 rumor or an `imeta` tag.
  *
  * Call `clear()` after the message has been sent (or to cancel a selection).
@@ -53,7 +51,7 @@ export function useMediaUpload(group: AppGroup) {
           `[mip04] ${file.name} encrypting & uploading (${file.size} bytes)…`,
         );
 
-        // 1. Read plaintext bytes (needed both for encryption and for local cache)
+        // 1. Read plaintext bytes for encryption
         const mimeType = file.type || "application/octet-stream";
         const plaintext = new Uint8Array(await file.arrayBuffer());
 
@@ -69,15 +67,7 @@ export function useMediaUpload(group: AppGroup) {
           `[mip04] ${file.name} encrypted in ${(performance.now() - t0).toFixed(1)} ms`,
         );
 
-        // 3. Store plaintext in group.media immediately so the Media tab shows
-        //    the file without waiting for the Blossom upload to finish.
-        await group.media.addMedia(attachment.sha256, {
-          data: plaintext,
-          attachment,
-        });
-        console.debug(`[mip04] ${file.name} cached in group.media`);
-
-        // 4. Upload the encrypted blob to configured Blossom servers
+        // 3. Upload the encrypted blob to configured Blossom servers
         console.debug(
           `[mip04] ${file.name} uploading ${encrypted.byteLength} bytes…`,
         );
@@ -87,7 +77,7 @@ export function useMediaUpload(group: AppGroup) {
           `[mip04] ${file.name} uploaded in ${(performance.now() - t1).toFixed(1)} ms — url: ${url}`,
         );
 
-        // 5. Attach the URL and store the completed attachment
+        // 4. Attach the URL to produce the send-ready attachment
         const completedAttachment: MediaAttachment = {
           ...attachment,
           url,
