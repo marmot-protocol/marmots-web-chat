@@ -67,6 +67,13 @@ export function useMediaUpload(group: AppGroup) {
           `[mip04] ${file.name} encrypted in ${(performance.now() - t0).toFixed(1)} ms`,
         );
 
+        // Proactively add the plaintext to the group.media store so the Media tab shows
+        await group.media.addMedia(attachment.sha256, {
+          data: plaintext,
+          attachment,
+        });
+        console.debug(`[mip04] ${file.name} cached in group.media`);
+
         // 3. Upload the encrypted blob to configured Blossom servers
         console.debug(
           `[mip04] ${file.name} uploading ${encrypted.byteLength} bytes…`,
