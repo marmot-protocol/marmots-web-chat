@@ -1,12 +1,14 @@
 import {
+  createTokenListResponseRumor,
   extractMarmotGroupData,
   getGroupMembers,
   getNostrGroupIdHex,
+  getPubkeyLeafNodeIndexes,
   unixNow,
 } from "@internet-privacy/marmot-ts";
 import { use$ } from "applesauce-react/hooks";
-import { Loader2, Menu, XCircle } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { BellIcon, Loader2, Menu, XCircle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   Outlet,
@@ -28,6 +30,7 @@ import { GroupEventStoreContext } from "@/contexts/group-event-store-context";
 import { useGroupEventStore } from "@/hooks/use-group-event-store";
 import { accounts } from "@/lib/accounts";
 import { marmotClient$ } from "@/lib/marmot-client";
+import { notificationServerPubkey } from "@/lib/notifications";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
 
@@ -81,6 +84,51 @@ function GroupDetailPage() {
     }
   }, [id, group, navigate]);
 
+  // MIP-05: respond to kind:447 token requests from other members with a
+  // kind:448 token list, after a random 0–2s delay (as the spec requires).
+  // This is set up once per group instance and cleaned up on unmount.
+  const tokenRequestHandlerRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const mgr = group?.notifications;
+    if (!mgr || !account) return;
+
+    const handleTokenRequested = (
+      rumor: import("applesauce-common/helpers/gift-wrap").Rumor,
+    ) => {
+      const delay = Math.random() * 2000;
+      setTimeout(async () => {
+        if (!group.notifications) return;
+        try {
+          const tokens = await group.notifications.getTokens();
+          if (tokens.length === 0) return;
+          const leafIndexes = getPubkeyLeafNodeIndexes(
+            group.state,
+            account.pubkey,
+          );
+          const _leafIndex = leafIndexes[0] ?? 0;
+          void _leafIndex; // leaf index is captured in the token entries already
+          const responseRumor = createTokenListResponseRumor(
+            account.pubkey,
+            tokens,
+            rumor.id,
+          );
+          await group.sendApplicationRumor(responseRumor);
+        } catch {
+          // Non-critical — kind:448 response failures must not surface as errors
+        }
+      }, delay);
+    };
+
+    mgr.on("tokenRequested", handleTokenRequested);
+    tokenRequestHandlerRef.current = () =>
+      mgr.off("tokenRequested", handleTokenRequested);
+
+    return () => {
+      tokenRequestHandlerRef.current?.();
+      tokenRequestHandlerRef.current = null;
+    };
+  }, [group, account]);
+
   // Get group name
   const groupName = group
     ? extractMarmotGroupData(group.state)?.name || "Unnamed Group"
@@ -119,6 +167,7 @@ function GroupDetailPage() {
   const isOnTreeTab = currentPath === `/groups/${id}/tree`;
   const isOnEventsTab = currentPath === `/groups/${id}/timeline`;
   const isOnMediaTab = currentPath === `/groups/${id}/media`;
+  const isOnNotificationsTab = currentPath === `/groups/${id}/notifications`;
 
   if (!id) {
     return (
@@ -239,6 +288,22 @@ function GroupDetailPage() {
         >
           Media
         </Link>
+        {notificationServerPubkey && (
+          <Link
+            to={`/groups/${id}/notifications`}
+            className={cn(
+              "px-4 py-2 text-sm font-medium transition-colors",
+              "hover:text-foreground",
+              "flex items-center gap-1",
+              isOnNotificationsTab
+                ? "text-foreground border-b-2 border-primary"
+                : "text-muted-foreground",
+            )}
+          >
+            <BellIcon className="h-3.5 w-3.5" />
+            Notifications
+          </Link>
+        )}
         {isAdmin && (
           <Link
             to={`/groups/${id}/admin`}

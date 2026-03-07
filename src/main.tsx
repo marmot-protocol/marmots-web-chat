@@ -20,6 +20,7 @@ import GroupTreePage from "./pages/groups/[id]/tree/index.tsx";
 import GroupEventsPage from "./pages/groups/[id]/timeline/index.tsx";
 import GroupMediaPage from "./pages/groups/[id]/media/index.tsx";
 import GroupMembersPage from "./pages/groups/[id]/members/index.tsx";
+import GroupNotificationsPage from "./pages/groups/[id]/notifications/index.tsx";
 import CreateGroupPage from "./pages/groups/create.tsx";
 import GroupsIndexPage from "./pages/groups/index.tsx";
 import HomePage from "./pages/index.tsx";
@@ -72,6 +73,10 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="tree" element={<GroupTreePage />} />
                 <Route path="timeline" element={<GroupEventsPage />} />
                 <Route path="media" element={<GroupMediaPage />} />
+                <Route
+                  path="notifications"
+                  element={<GroupNotificationsPage />}
+                />
               </Route>
             </Route>
             <Route path="/invites" element={<InvitesPage />}>

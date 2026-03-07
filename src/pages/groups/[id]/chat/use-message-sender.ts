@@ -1,4 +1,9 @@
 import type { AppGroup } from "@/lib/marmot-client";
+import {
+  fetchNotificationServerConfig,
+  isGroupNotificationEnabled,
+  notificationServerPubkey,
+} from "@/lib/notifications";
 import { type MediaAttachment, unixNow } from "@internet-privacy/marmot-ts";
 import { createImetaTagForAttachment } from "applesauce-common/helpers";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
@@ -85,6 +90,24 @@ export function useMessageSender(
         }
         const content = `${replyPrefix}${messageText.trim()}`;
         await group.sendChatMessage(content, tags);
+      }
+
+      // MIP-05: trigger push notifications for group members that have
+      // registered tokens. Fire-and-forget — must not block the send path.
+      if (
+        notificationServerPubkey &&
+        group.notifications &&
+        isGroupNotificationEnabled(group.idStr)
+      ) {
+        fetchNotificationServerConfig(notificationServerPubkey)
+          .then((config) => {
+            if (config && group.notifications) {
+              return group.notifications.sendNotification(config);
+            }
+          })
+          .catch(() => {
+            // Non-critical — notification failures must not affect message delivery
+          });
       }
     } catch (err) {
       console.error("Failed to send message:", err);

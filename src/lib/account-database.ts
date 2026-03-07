@@ -19,6 +19,8 @@ import {
   KeyValueGroupStateBackend,
   InviteStore,
   type StoredMedia,
+  type NotificationStoreBackend,
+  type NotificationFactory,
 } from "@internet-privacy/marmot-ts";
 import { ingestResultsDatabaseName } from "@/lib/group-subscription-manager";
 
@@ -172,6 +174,7 @@ type StorageInterfaces = {
   mediaFactory: GroupMediaFactory<GroupMediaStore>;
   keyPackageStore: KeyPackageStore;
   inviteStore: InviteStore;
+  notificationFactory: NotificationFactory;
 };
 
 /** A singleton class that manages databases for  */
@@ -252,6 +255,20 @@ export class MultiAccountDatabaseBroker {
       return new GroupMediaStore(createLocalforageMediaBackend(mediaStore));
     };
 
+    // Create a per-group notification token factory — each group gets its own
+    // localforage store (named by hex group ID) inside the shared key-value
+    // database. The store is used as a KeyValueStoreBackend<TokenEntry> by
+    // NotificationManager to persist MIP-05 push tokens.
+    const notificationFactory: NotificationFactory = (
+      groupId: Uint8Array,
+    ): NotificationStoreBackend => {
+      const groupIdHex = bytesToHex(groupId);
+      return localforage.createInstance({
+        name: databaseKey,
+        storeName: `notifications-${groupIdHex}`,
+      }) as unknown as NotificationStoreBackend;
+    };
+
     // Create the storage interfaces for the invite store
     const inviteStore: InviteStore = {
       unread: localforage.createInstance({
@@ -274,6 +291,7 @@ export class MultiAccountDatabaseBroker {
       mediaFactory,
       keyPackageStore,
       inviteStore,
+      notificationFactory,
     };
 
     this.#storageInterfaces.set(pubkey, storageInterfaces);

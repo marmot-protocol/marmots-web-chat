@@ -84,6 +84,7 @@ export const marmotClient$: Observable<
         keyPackageStore,
         historyFactory,
         mediaFactory,
+        notificationFactory,
       } = await databaseBroker.getStorageInterfacesForAccount(account.pubkey);
 
       // Create a new marmot client for the active account
@@ -94,6 +95,7 @@ export const marmotClient$: Observable<
         network: networkInterface,
         historyFactory,
         mediaFactory,
+        notificationFactory,
       });
     } catch (error) {
       console.error("Failed to initialize MarmotClient for active account", {

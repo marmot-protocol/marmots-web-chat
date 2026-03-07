@@ -4,3 +4,5 @@ dist
 
 # Ingore custom nsite deployment config
 .nsite
+
+.env

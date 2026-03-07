@@ -123,7 +123,7 @@ export const MessageItem = memo(function MessageItem({
   return (
     // Avatar floats left, everything else stacks to its right
     <div className="flex items-start gap-2">
-      <UserAvatar pubkey={rumor.pubkey} size="sm" />
+      <UserAvatar pubkey={rumor.pubkey} size="sm" className="shrink-0" />
 
       <div className="flex flex-col gap-0.5 min-w-0">
         {/* Title row: name · timestamp · action buttons (when no reactions yet) */}
