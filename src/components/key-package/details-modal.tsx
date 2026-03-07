@@ -7,7 +7,7 @@ import {
   getKeyPackageExtensions,
   getKeyPackageMLSVersion,
   getKeyPackageRelays,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { useMemo, useState } from "react";
 import { encode, keyPackageEncoder } from "ts-mls";
 import type { CiphersuiteId, KeyPackage } from "ts-mls";

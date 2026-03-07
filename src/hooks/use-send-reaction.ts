@@ -1,5 +1,5 @@
-import type { GroupRumorHistory, MarmotGroup } from "@internet-privacy/marmots";
-import { unixNow } from "@internet-privacy/marmots";
+import type { AppGroup } from "@/lib/marmot-client";
+import { unixNow } from "@internet-privacy/marmot-ts";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { getEventHash, kinds } from "applesauce-core/helpers";
 import { useCallback, useState } from "react";
@@ -19,7 +19,7 @@ import { accounts } from "@/lib/accounts";
  * await sendReaction(targetRumor.id, targetRumor.pubkey, "👍");
  * ```
  */
-export function useSendReaction(group: MarmotGroup<GroupRumorHistory> | null) {
+export function useSendReaction(group: AppGroup | null) {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

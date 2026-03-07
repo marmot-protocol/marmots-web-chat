@@ -1,11 +1,11 @@
-import { use$ } from "applesauce-react/hooks";
-import { Loader2, Menu, XCircle } from "lucide-react";
 import {
   extractMarmotGroupData,
   getGroupMembers,
   getNostrGroupIdHex,
   unixNow,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
+import { use$ } from "applesauce-react/hooks";
+import { Loader2, Menu, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   Link,
@@ -19,16 +19,17 @@ import { catchError } from "rxjs/operators";
 
 import { GroupDetailsDrawer } from "@/components/group/group-details-drawer";
 import { PageHeader } from "@/components/page-header";
+import { SubscriptionStatusButton } from "@/components/subscription-status-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { withActiveAccount } from "@/components/with-active-account";
+import { GroupContext } from "@/contexts/group-context";
 import { GroupEventStoreContext } from "@/contexts/group-event-store-context";
 import { useGroupEventStore } from "@/hooks/use-group-event-store";
 import { accounts } from "@/lib/accounts";
 import { marmotClient$ } from "@/lib/marmot-client";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
-import { withActiveAccount } from "../../components/with-active-account";
-import { SubscriptionStatusButton } from "../../components/subscription-status-button";
 
 function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -117,6 +118,7 @@ function GroupDetailPage() {
   const isOnAdminTab = currentPath === `/groups/${id}/admin`;
   const isOnTreeTab = currentPath === `/groups/${id}/tree`;
   const isOnEventsTab = currentPath === `/groups/${id}/timeline`;
+  const isOnMediaTab = currentPath === `/groups/${id}/media`;
 
   if (!id) {
     return (
@@ -225,6 +227,18 @@ function GroupDetailPage() {
         >
           Members
         </Link>
+        <Link
+          to={`/groups/${id}/media`}
+          className={cn(
+            "px-4 py-2 text-sm font-medium transition-colors",
+            "hover:text-foreground",
+            isOnMediaTab
+              ? "text-foreground border-b-2 border-primary"
+              : "text-muted-foreground",
+          )}
+        >
+          Media
+        </Link>
         {isAdmin && (
           <Link
             to={`/groups/${id}/admin`}
@@ -265,19 +279,21 @@ function GroupDetailPage() {
         </Link>
       </div>
 
-      {/* Tab Content — group EventStore provided so all child routes can
-          query group-private events (messages, reactions, etc.) reactively */}
+      {/* Both contexts provided so all child routes can access the group
+          instance and query group-private events reactively without
+          prop-drilling or outlet context typing. */}
       <GroupEventStoreContext.Provider value={groupEventStore}>
-        <Outlet
-          context={{
+        <GroupContext.Provider
+          value={{
             group,
-            groupDetails,
             isAdmin,
             loadingMore,
             loadingDone,
             loadMoreMessages,
           }}
-        />
+        >
+          <Outlet />
+        </GroupContext.Provider>
       </GroupEventStoreContext.Provider>
     </>
   );

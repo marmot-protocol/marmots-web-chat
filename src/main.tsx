@@ -14,11 +14,12 @@ import ContactDetailPage from "./pages/contacts/[npub].tsx";
 import ContactsIndexPage from "./pages/contacts/index.tsx";
 import GroupsPage from "./pages/groups.tsx";
 import GroupDetailPage from "./pages/groups/[id].tsx";
-import GroupAdminPage from "./pages/groups/[id]/admin.tsx";
-import GroupChatPage from "./pages/groups/[id]/chat.tsx";
-import GroupTreePage from "./pages/groups/[id]/tree.tsx";
-import GroupEventsPage from "./pages/groups/[id]/events.tsx";
-import GroupMembersPage from "./pages/groups/[id]/members.tsx";
+import GroupAdminPage from "./pages/groups/[id]/admin/index.tsx";
+import GroupChatPage from "./pages/groups/[id]/chat/index.tsx";
+import GroupTreePage from "./pages/groups/[id]/tree/index.tsx";
+import GroupEventsPage from "./pages/groups/[id]/timeline/index.tsx";
+import GroupMediaPage from "./pages/groups/[id]/media/index.tsx";
+import GroupMembersPage from "./pages/groups/[id]/members/index.tsx";
 import CreateGroupPage from "./pages/groups/create.tsx";
 import GroupsIndexPage from "./pages/groups/index.tsx";
 import HomePage from "./pages/index.tsx";
@@ -34,6 +35,7 @@ import SettingsAccountPage from "./pages/settings/account.tsx";
 import SettingsAccountsPage from "./pages/settings/accounts.tsx";
 import MarmotSettingsPage from "./pages/settings/marmot";
 import SettingsRelaysPage from "./pages/settings/relays.tsx";
+import BlossomSettingsPage from "./pages/settings/blossom.tsx";
 import SignInPage from "./pages/signin.tsx";
 import SignInBunkerPage from "./pages/signin/bunker.tsx";
 import SignInQRPage from "./pages/signin/connect-qr.tsx";
@@ -69,6 +71,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="admin" element={<GroupAdminPage />} />
                 <Route path="tree" element={<GroupTreePage />} />
                 <Route path="timeline" element={<GroupEventsPage />} />
+                <Route path="media" element={<GroupMediaPage />} />
               </Route>
             </Route>
             <Route path="/invites" element={<InvitesPage />}>
@@ -110,6 +113,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="relays" element={<SettingsRelaysPage />} />
               <Route path="account" element={<SettingsAccountPage />} />
               <Route path="accounts" element={<SettingsAccountsPage />} />
+              <Route path="blossom" element={<BlossomSettingsPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

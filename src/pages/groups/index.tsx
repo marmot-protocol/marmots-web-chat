@@ -1,10 +1,7 @@
 import { use$ } from "applesauce-react/hooks";
 import { MessageSquare, Users } from "lucide-react";
-import {
-  getGroupMembers,
-  type GroupRumorHistory,
-  type MarmotGroup,
-} from "@internet-privacy/marmots";
+import { getGroupMembers } from "@internet-privacy/marmot-ts";
+import type { AppGroup } from "@/lib/marmot-client";
 import { Link } from "react-router";
 
 import { PageBody } from "@/components/page-body";
@@ -21,7 +18,7 @@ import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { liveGroups$ } from "@/lib/marmot-client";
 
 interface GroupCardProps {
-  group: MarmotGroup<GroupRumorHistory>;
+  group: AppGroup;
   hasUnread: boolean;
 }
 

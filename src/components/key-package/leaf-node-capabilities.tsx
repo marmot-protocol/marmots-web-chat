@@ -3,7 +3,10 @@ import CredentialTypeBadge from "@/components/credential-type-badge";
 import { DetailsField } from "@/components/details-field";
 import ExtensionBadge from "@/components/extension-badge";
 import { Badge } from "@/components/ui/badge";
-import { formatMlsTimestamp, isLifetimeValid } from "@internet-privacy/marmots";
+import {
+  formatMlsTimestamp,
+  isLifetimeValid,
+} from "@internet-privacy/marmot-ts";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { CiphersuiteId } from "ts-mls";
 import type { LeafNodeKeyPackage } from "ts-mls/leafNode.js";

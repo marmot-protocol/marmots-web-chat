@@ -5,7 +5,7 @@ import {
   SkippedIngestResult,
   type GroupRumorHistory,
   type IngestResult,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { mapEventsToStore } from "applesauce-core";
 import { unixNow, type NostrEvent } from "applesauce-core/helpers";

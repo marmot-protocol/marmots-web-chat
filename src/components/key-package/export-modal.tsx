@@ -3,7 +3,7 @@ import { AlertCircle, Download, Info } from "lucide-react";
 import type {
   LocalKeyPackage,
   StoredKeyPackage,
-} from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
 import { useMemo, useState } from "react";
 import { encode, keyPackageEncoder } from "ts-mls";
 

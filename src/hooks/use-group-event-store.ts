@@ -1,7 +1,4 @@
-import {
-  type GroupRumorHistory,
-  type MarmotGroup,
-} from "@internet-privacy/marmots";
+import type { AppGroup } from "@/lib/marmot-client";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { EventStore } from "applesauce-core";
 import type { NostrEvent } from "applesauce-core/helpers";
@@ -25,9 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  * const messages = use$(() => groupEventStore.timeline({ kinds: [9] }), [groupEventStore]);
  * ```
  */
-export function useGroupEventStore(
-  group: MarmotGroup<GroupRumorHistory> | null,
-): {
+export function useGroupEventStore(group: AppGroup | null): {
   groupEventStore: EventStore;
   loadingMore: boolean;
   loadingDone: boolean;

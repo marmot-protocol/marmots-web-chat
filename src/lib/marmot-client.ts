@@ -2,14 +2,15 @@ import { defined, mapEventsToTimeline, simpleTimeout } from "applesauce-core";
 import { NostrEvent } from "applesauce-core/helpers/event";
 import { onlyEvents } from "applesauce-relay";
 import {
+  GroupMediaStore,
   GroupRumorHistory,
   InviteReader,
   MarmotClient,
   MarmotGroup,
   NostrNetworkInterface,
   PublishResponse,
-} from "@internet-privacy/marmots";
-import type { KeyPackageEntry } from "@internet-privacy/marmots";
+} from "@internet-privacy/marmot-ts";
+import type { KeyPackageEntry } from "@internet-privacy/marmot-ts";
 import {
   combineLatest,
   firstValueFrom,
@@ -62,26 +63,45 @@ const networkInterface: NostrNetworkInterface = {
   getUserInboxRelays,
 };
 
+/**
+ * The concrete group type used throughout this app.
+ * Every group has a persistent {@link GroupMediaStore} wired up as `group.media`.
+ */
+export type AppGroup = MarmotGroup<GroupRumorHistory, GroupMediaStore>;
+
 // Create an observable that creates a MarmotClient instance based on the current active account and stores.
 export const marmotClient$: Observable<
-  MarmotClient<GroupRumorHistory> | undefined
+  MarmotClient<GroupRumorHistory, GroupMediaStore> | undefined
 > = accounts.active$.pipe(
   switchMap(async (account) => {
     // Ensure all stores are created and setup
     if (!account) return;
 
-    // Get storage interfaces for the account
-    const { groupStateBackend, keyPackageStore, historyFactory } =
-      await databaseBroker.getStorageInterfacesForAccount(account.pubkey);
+    try {
+      // Get storage interfaces for the account
+      const {
+        groupStateBackend,
+        keyPackageStore,
+        historyFactory,
+        mediaFactory,
+      } = await databaseBroker.getStorageInterfacesForAccount(account.pubkey);
 
-    // Create a new marmot client for the active account
-    return new MarmotClient<GroupRumorHistory>({
-      signer: account.signer,
-      groupStateBackend,
-      keyPackageStore,
-      network: networkInterface,
-      historyFactory,
-    });
+      // Create a new marmot client for the active account
+      return new MarmotClient<GroupRumorHistory, GroupMediaStore>({
+        signer: account.signer,
+        groupStateBackend,
+        keyPackageStore,
+        network: networkInterface,
+        historyFactory,
+        mediaFactory,
+      });
+    } catch (error) {
+      console.error("Failed to initialize MarmotClient for active account", {
+        pubkey: account.pubkey,
+        error,
+      });
+      return undefined;
+    }
   }),
   startWith(undefined),
   shareReplay(1),
@@ -163,29 +183,31 @@ export const liveGroups$ = marmotClient$.pipe(
     if (!client) return of([]);
 
     // Use the new watchGroups async generator from MarmotClient
-    return new Observable<MarmotGroup<GroupRumorHistory>[]>((subscriber) => {
-      const abortController = new AbortController();
-      const iterator = client.watchGroups()[Symbol.asyncIterator]();
+    return new Observable<MarmotGroup<GroupRumorHistory, GroupMediaStore>[]>(
+      (subscriber) => {
+        const abortController = new AbortController();
+        const iterator = client.watchGroups()[Symbol.asyncIterator]();
 
-      (async () => {
-        try {
-          while (!abortController.signal.aborted) {
-            const { value, done } = await iterator.next();
-            if (done) break;
-            subscriber.next(value);
+        (async () => {
+          try {
+            while (!abortController.signal.aborted) {
+              const { value, done } = await iterator.next();
+              if (done) break;
+              subscriber.next(value);
+            }
+          } catch (error) {
+            subscriber.error(error);
+          } finally {
+            subscriber.complete();
           }
-        } catch (error) {
-          subscriber.error(error);
-        } finally {
-          subscriber.complete();
-        }
-      })();
+        })();
 
-      return () => {
-        abortController.abort();
-        iterator.return?.(undefined);
-      };
-    });
+        return () => {
+          abortController.abort();
+          iterator.return?.(undefined);
+        };
+      },
+    );
   }),
   shareReplay(1),
 );

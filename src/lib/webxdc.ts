@@ -1,6 +1,6 @@
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import { getEventHash } from "applesauce-core/helpers";
-import { unixNow } from "@internet-privacy/marmots";
+import { unixNow } from "@internet-privacy/marmot-ts";
 
 // ============================================================================
 // Kind constants

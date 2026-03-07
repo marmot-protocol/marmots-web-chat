@@ -1,9 +1,6 @@
 import { use$ } from "applesauce-react/hooks";
-import {
-  getGroupMembers,
-  GroupRumorHistory,
-  MarmotGroup,
-} from "@internet-privacy/marmots";
+import { getGroupMembers } from "@internet-privacy/marmot-ts";
+import type { AppGroup } from "@/lib/marmot-client";
 import { Link, Outlet, useLocation } from "react-router";
 
 import { AppSidebar } from "@/components/app-sidebar";
@@ -16,7 +13,7 @@ import { liveGroups$ } from "../lib/marmot-client";
 
 const MAX_AVATARS = 3;
 
-function GroupItem({ group }: { group: MarmotGroup<GroupRumorHistory> }) {
+function GroupItem({ group }: { group: AppGroup }) {
   const location = useLocation();
   const isActive = location.pathname.startsWith(`/groups/${group.idStr}`);
   const marmotData = group.groupData;
