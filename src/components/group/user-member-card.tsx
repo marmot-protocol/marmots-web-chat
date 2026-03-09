@@ -153,7 +153,9 @@ export function UserMemberCard({
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel disabled={isLeaving}>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel disabled={isLeaving}>
+                    Cancel
+                  </AlertDialogCancel>
                   <AlertDialogAction onClick={handleLeave} disabled={isLeaving}>
                     Leave group
                   </AlertDialogAction>
@@ -189,8 +191,13 @@ export function UserMemberCard({
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel disabled={isRemoving}>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleRemove} disabled={isRemoving}>
+                  <AlertDialogCancel disabled={isRemoving}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleRemove}
+                    disabled={isRemoving}
+                  >
                     Remove member
                   </AlertDialogAction>
                 </AlertDialogFooter>

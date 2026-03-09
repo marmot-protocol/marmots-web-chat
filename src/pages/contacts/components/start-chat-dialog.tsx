@@ -8,11 +8,7 @@
 import { getDisplayName } from "applesauce-core/helpers";
 import type { NostrEvent } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
-import {
-  IconCircleCheck,
-  IconLoader2,
-  IconX,
-} from "@tabler/icons-react";
+import { IconCircleCheck, IconLoader2, IconX } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 

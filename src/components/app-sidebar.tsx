@@ -31,8 +31,8 @@ import {
 import accountManager from "@/lib/accounts";
 import { liveUnreadInvites$ } from "@/lib/marmot-client";
 import { eventStore } from "@/lib/nostr";
-import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { pinnedTabs$ } from "@/lib/settings";
+import { useGroupUnreadGroupIds$ } from "@/hooks/use-group-unread-groups";
 
 export const TOP_TABS = [
   {
@@ -278,9 +278,7 @@ function AppSwitcher() {
   const location = useLocation();
   const navigate = useNavigate();
   const unreadInvites = use$(liveUnreadInvites$);
-  const groupsUnread = use$(
-    getGroupSubscriptionManager()?.unreadGroupIds$ ?? undefined,
-  );
+  const groupsUnread = use$(useGroupUnreadGroupIds$());
 
   return (
     <div className="flex flex-col gap-2">
@@ -332,9 +330,7 @@ export function AppSidebar({
   const navigate = useNavigate();
   const active = use$(accountManager.active$);
   const unreadInvites = use$(liveUnreadInvites$);
-  const groupsUnread = use$(
-    getGroupSubscriptionManager()?.unreadGroupIds$ ?? undefined,
-  );
+  const groupsUnread = use$(useGroupUnreadGroupIds$());
 
   const pinnedTabs = use$(pinnedTabs$)
     .map((tab) => TOP_TABS.find((t) => t.url === tab))

@@ -74,7 +74,7 @@ function QuickActionCard({
 function OnlineContactsSection() {
   const contacts = use$(user$.contacts$);
   const groups = use$(liveGroups$);
-  const account = accounts.active;
+  const account = use$(accounts.active$);
   const chat = useStartChat();
 
   // Build a Set of contact pubkeys that already share a 1:1 group with me
