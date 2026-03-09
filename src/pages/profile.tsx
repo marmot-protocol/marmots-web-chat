@@ -27,6 +27,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { SidebarInset } from "@/components/ui/sidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileShell } from "@/layouts/mobile-shell";
 import accountManager from "@/lib/accounts";
 import databaseBroker from "@/lib/account-database";
 import { eventStore } from "@/lib/nostr";
@@ -41,7 +43,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export default function ProfilePage() {
+function DesktopProfilePage() {
   const navigate = useNavigate();
   const active = use$(accountManager.active$);
   const accounts = use$(accountManager.accounts$) || [];
@@ -346,4 +348,13 @@ export default function ProfilePage() {
       </SidebarInset>
     </>
   );
+}
+
+function MobileProfilePage() {
+  return <MobileShell title="Profile" />;
+}
+
+export default function ProfilePage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <MobileProfilePage /> : <DesktopProfilePage />;
 }

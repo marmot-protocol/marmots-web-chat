@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { withActiveAccount } from "@/components/with-active-account";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { user$ } from "@/lib/accounts";
 import { keyPackageRelays$ } from "@/lib/lifecycle";
 import {
@@ -21,6 +22,7 @@ import {
   liveUnreadInvites$,
 } from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
+import { MobileShell } from "@/layouts/mobile-shell";
 
 /** An observable of all relays to read invites from (user inboxes + extra relays) */
 const readRelays$ = combineLatest([
@@ -32,14 +34,13 @@ const readRelays$ = combineLatest([
   shareReplay(1),
 );
 
-function InvitesPage() {
-  const navigate = useNavigate();
+// ============================================================================
+// Shared invite logic hook
+// ============================================================================
+
+function useInviteActions() {
   const inviteReader = use$(inviteReader$);
-
-  // Watch received (encrypted) gift wraps
   const received = use$(liveReceivedInvites$);
-
-  // Watch unread (decrypted) invites
   const unread = use$(liveUnreadInvites$);
 
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +48,6 @@ function InvitesPage() {
 
   const receivedCount = received?.length ?? 0;
 
-  /** Decrypt pending gift wraps and add them to unread */
   const handleDecryptPending = async () => {
     if (!inviteReader) return;
     try {
@@ -62,6 +62,32 @@ function InvitesPage() {
       setIsDecrypting(false);
     }
   };
+
+  return {
+    inviteReader,
+    received,
+    unread,
+    error,
+    isDecrypting,
+    receivedCount,
+    handleDecryptPending,
+  };
+}
+
+// ============================================================================
+// Layouts
+// ============================================================================
+
+function DesktopInvitesLayout() {
+  const navigate = useNavigate();
+  const {
+    inviteReader,
+    unread,
+    error,
+    isDecrypting,
+    receivedCount,
+    handleDecryptPending,
+  } = useInviteActions();
 
   return (
     <>
@@ -171,6 +197,15 @@ function InvitesPage() {
       </SidebarInset>
     </>
   );
+}
+
+function MobileInvitesLayout() {
+  return <MobileShell title="Invites" />;
+}
+
+function InvitesPage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <MobileInvitesLayout /> : <DesktopInvitesLayout />;
 }
 
 export default withActiveAccount(InvitesPage);

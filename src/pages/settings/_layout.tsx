@@ -5,40 +5,57 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Package, UsersIcon, Rss } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileShell } from "@/layouts/mobile-shell";
+import {
+  HardDriveUploadIcon,
+  KeyIcon,
+  Network,
+  User,
+  Users,
+} from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router";
 
-const toolsNavItems = [
+const settingsNavItems = [
   {
-    title: "Key Package Encoding",
-    url: "/tools/key-package-encoding",
-    icon: Package,
+    title: "Accounts",
+    url: "/settings/accounts",
+    icon: Users,
   },
   {
-    title: "Group Metadata Encoding",
-    url: "/tools/group-metadata-encoding",
-    icon: UsersIcon,
+    title: "Account",
+    url: "/settings/account",
+    icon: User,
   },
   {
-    title: "Key Package Feed",
-    url: "/tools/key-package-feed",
-    icon: Rss,
+    title: "Marmot",
+    url: "/settings/marmot",
+    icon: KeyIcon,
+  },
+  {
+    title: "Relays",
+    url: "/settings/relays",
+    icon: Network,
+  },
+  {
+    title: "Media",
+    url: "/settings/blossom",
+    icon: HardDriveUploadIcon,
   },
 ];
 
-export default function ToolsPage() {
+function DesktopSettingsLayout() {
   const location = useLocation();
 
-  // Determine active nav item based on current pathname
-  const activeSubNavItem = toolsNavItems.find(
+  const activeSubNavItem = settingsNavItems.find(
     (item) => location.pathname === item.url,
   )?.title;
 
   return (
     <>
-      <AppSidebar title="Tools">
+      <AppSidebar title="Settings">
         <SidebarMenu>
-          {toolsNavItems.map((item) => {
+          {settingsNavItems.map((item) => {
             const isActive = activeSubNavItem === item.title;
             return (
               <SidebarMenuItem key={item.title}>
@@ -58,9 +75,17 @@ export default function ToolsPage() {
         </SidebarMenu>
       </AppSidebar>
       <SidebarInset>
-        {/* Tools sub-pages */}
         <Outlet />
       </SidebarInset>
     </>
   );
+}
+
+function MobileSettingsLayout() {
+  return <MobileShell title="Settings" />;
+}
+
+export default function SettingsPage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <MobileSettingsLayout /> : <DesktopSettingsLayout />;
 }

@@ -16,11 +16,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { withActiveAccount } from "@/components/with-active-account";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { user$ } from "@/lib/accounts";
 import { keyPackageRelays$, publishedKeyPackages$ } from "@/lib/lifecycle";
 import { liveKeyPackages$ } from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
 import { formatTimeAgo } from "@/lib/time";
+import { MobileShell } from "@/layouts/mobile-shell";
 
 /** An observable of all relays to read key packages from */
 const readRelays$ = combineLatest([
@@ -81,11 +83,8 @@ function KeyPackageItem({ keyPackage }: { keyPackage: KeyPackageEntry }) {
   );
 }
 
-function KeyPackagesPage() {
+function DesktopKeyPackagesLayout() {
   const keyPackages = use$(liveKeyPackages$);
-  // Subscribe to relay fetching and remote key package tracking as a side effect.
-  // publishedKeyPackages$ opens a relay subscription and calls keyPackages.track()
-  // for each event, keeping the key package manager up to date with remote packages.
   use$(publishedKeyPackages$);
 
   return (
@@ -130,6 +129,15 @@ function KeyPackagesPage() {
       </SidebarInset>
     </>
   );
+}
+
+function MobileKeyPackagesLayout() {
+  return <MobileShell title="Key Packages" />;
+}
+
+function KeyPackagesPage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <MobileKeyPackagesLayout /> : <DesktopKeyPackagesLayout />;
 }
 
 export default withActiveAccount(KeyPackagesPage);

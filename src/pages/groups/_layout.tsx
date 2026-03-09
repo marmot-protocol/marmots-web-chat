@@ -28,10 +28,12 @@ import {
 } from "@/components/ui/context-menu";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MobileShell } from "@/layouts/mobile-shell";
 import accounts from "@/lib/accounts";
 import { liveGroups$, marmotClient$ } from "@/lib/marmot-client";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { eventStore } from "@/lib/nostr";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const MAX_AVATARS = 3;
 
@@ -234,48 +236,59 @@ function MultiGroupsList() {
   return <GroupList groups={multi} />;
 }
 
-export default function GroupsPage() {
+function GroupsSidebarContent() {
+  return (
+    <div className="flex flex-col">
+      <Link
+        to="/groups/create"
+        className="m-2 bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2"
+      >
+        Create Group
+      </Link>
+      <Tabs defaultValue="all" className="w-full">
+        <TabsList variant="line" className="w-full px-2 border-b rounded-none">
+          <TabsTrigger value="all" className="flex-1">
+            All
+          </TabsTrigger>
+          <TabsTrigger value="dm" className="flex-1">
+            1:1
+          </TabsTrigger>
+          <TabsTrigger value="group" className="flex-1">
+            Groups
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="all">
+          <AllGroupsList />
+        </TabsContent>
+        <TabsContent value="dm">
+          <DirectGroupsList />
+        </TabsContent>
+        <TabsContent value="group">
+          <MultiGroupsList />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function DesktopGroupsLayout() {
   return (
     <>
       <AppSidebar title="Groups">
-        <div className="flex flex-col">
-          <Link
-            to="/groups/create"
-            className="m-2 bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2"
-          >
-            Create Group
-          </Link>
-          <Tabs defaultValue="all" className="w-full">
-            <TabsList
-              variant="line"
-              className="w-full px-2 border-b rounded-none"
-            >
-              <TabsTrigger value="all" className="flex-1">
-                All
-              </TabsTrigger>
-              <TabsTrigger value="dm" className="flex-1">
-                1:1
-              </TabsTrigger>
-              <TabsTrigger value="group" className="flex-1">
-                Groups
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="all">
-              <AllGroupsList />
-            </TabsContent>
-            <TabsContent value="dm">
-              <DirectGroupsList />
-            </TabsContent>
-            <TabsContent value="group">
-              <MultiGroupsList />
-            </TabsContent>
-          </Tabs>
-        </div>
+        <GroupsSidebarContent />
       </AppSidebar>
       <SidebarInset>
-        {/* Detail sub-pages */}
         <Outlet />
       </SidebarInset>
     </>
   );
+}
+
+function MobileGroupsLayout() {
+  return <MobileShell title="Groups" />;
+}
+
+export default function GroupsPage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <MobileGroupsLayout /> : <DesktopGroupsLayout />;
 }

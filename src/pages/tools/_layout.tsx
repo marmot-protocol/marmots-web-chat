@@ -5,56 +5,41 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import {
-  HardDriveUploadIcon,
-  KeyIcon,
-  Network,
-  User,
-  Users,
-} from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileShell } from "@/layouts/mobile-shell";
+import { Package, UsersIcon, Rss } from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router";
 
-const settingsNavItems = [
+const toolsNavItems = [
   {
-    title: "Accounts",
-    url: "/settings/accounts",
-    icon: Users,
+    title: "Key Package Encoding",
+    url: "/tools/key-package-encoding",
+    icon: Package,
   },
   {
-    title: "Account",
-    url: "/settings/account",
-    icon: User,
+    title: "Group Metadata Encoding",
+    url: "/tools/group-metadata-encoding",
+    icon: UsersIcon,
   },
   {
-    title: "Marmot",
-    url: "/settings/marmot",
-    icon: KeyIcon,
-  },
-  {
-    title: "Relays",
-    url: "/settings/relays",
-    icon: Network,
-  },
-  {
-    title: "Media",
-    url: "/settings/blossom",
-    icon: HardDriveUploadIcon,
+    title: "Key Package Feed",
+    url: "/tools/key-package-feed",
+    icon: Rss,
   },
 ];
 
-export default function SettingsPage() {
+function DesktopToolsLayout() {
   const location = useLocation();
 
-  // Determine active nav item based on current pathname
-  const activeSubNavItem = settingsNavItems.find(
+  const activeSubNavItem = toolsNavItems.find(
     (item) => location.pathname === item.url,
   )?.title;
 
   return (
     <>
-      <AppSidebar title="Settings">
+      <AppSidebar title="Tools">
         <SidebarMenu>
-          {settingsNavItems.map((item) => {
+          {toolsNavItems.map((item) => {
             const isActive = activeSubNavItem === item.title;
             return (
               <SidebarMenuItem key={item.title}>
@@ -78,4 +63,13 @@ export default function SettingsPage() {
       </SidebarInset>
     </>
   );
+}
+
+function MobileToolsLayout() {
+  return <MobileShell title="Tools" />;
+}
+
+export default function ToolsPage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <MobileToolsLayout /> : <DesktopToolsLayout />;
 }

@@ -19,10 +19,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { user$ } from "@/lib/accounts";
 import { eventLoader, eventStore } from "@/lib/nostr";
 import { profileSearch } from "@/lib/search";
 import { persist } from "@/lib/settings";
+import { MobileShell } from "@/layouts/mobile-shell";
 
 const hasKeyPackageRelays$ = new BehaviorSubject<boolean>(false);
 persist("contacts:has-key-package-relays", hasKeyPackageRelays$);
@@ -74,10 +76,10 @@ function ContactItem({ user }: { user: User }) {
 }
 
 // ============================================================================
-// ContactsPage
+// Shared contacts hook
 // ============================================================================
 
-export default function ContactsPage() {
+function useContactsData() {
   const contacts = use$(user$.contacts$);
   const [query, setQuery] = useState("");
 
@@ -127,6 +129,16 @@ export default function ContactsPage() {
 
   const hasKeyPackageRelays = use$(hasKeyPackageRelays$);
 
+  return { filteredContacts, query, setQuery, hasKeyPackageRelays };
+}
+
+// ============================================================================
+// Layouts
+// ============================================================================
+
+function DesktopContactsLayout() {
+  const { filteredContacts, query, setQuery } = useContactsData();
+
   return (
     <>
       <AppSidebar title="Contacts">
@@ -141,7 +153,7 @@ export default function ContactsPage() {
               <span>MLS</span>
               <Switch
                 className="shadow-none"
-                checked={hasKeyPackageRelays}
+                checked={use$(hasKeyPackageRelays$)}
                 onCheckedChange={(checked) =>
                   hasKeyPackageRelays$.next(checked)
                 }
@@ -166,4 +178,13 @@ export default function ContactsPage() {
       </SidebarInset>
     </>
   );
+}
+
+function MobileContactsLayout() {
+  return <MobileShell title="Contacts" />;
+}
+
+export default function ContactsPage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <MobileContactsLayout /> : <DesktopContactsLayout />;
 }

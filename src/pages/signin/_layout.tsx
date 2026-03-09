@@ -1,9 +1,15 @@
 import { IconArrowLeft } from "@tabler/icons-react";
 import { use$ } from "applesauce-react/hooks";
 import { Outlet, useNavigate } from "react-router";
-import { Button } from "../components/ui/button";
-import accountManager from "../lib/accounts";
+import { Button } from "@/components/ui/button";
+import accountManager from "@/lib/accounts";
 
+/**
+ * Sign-in layout shell.
+ *
+ * Centered single-column layout — no sidebar, no mobile bottom nav.
+ * Works identically on mobile and desktop.
+ */
 export default function SignInPage() {
   const navigate = useNavigate();
   const activeAccount = use$(accountManager.active$);

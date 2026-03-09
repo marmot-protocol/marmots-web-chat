@@ -24,13 +24,15 @@ import { withActiveAccount } from "@/components/with-active-account";
 import { GroupContext } from "@/contexts/group-context";
 import { GroupEventStoreContext } from "@/contexts/group-event-store-context";
 import { useGroupEventStore } from "@/hooks/use-group-event-store";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { accounts } from "@/lib/accounts";
 import { marmotClient$ } from "@/lib/marmot-client";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
-import { GroupDetailsDrawer } from "./[id]/components/group-details-drawer";
+import MobileGroupShell from "@/layouts/mobile-group-shell";
+import { GroupDetailsDrawer } from "./components/group-details-drawer";
 
-function GroupDetailPage() {
+function DesktopGroupDetailLayout() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -50,8 +52,6 @@ function GroupDetailPage() {
   );
 
   // Build and populate the per-group EventStore from the group's rumor history.
-  // This is the single source of truth for all group-private events (messages,
-  // reactions, etc.) and is provided to all child routes via context.
   const {
     groupEventStore,
     loadingMore,
@@ -276,6 +276,11 @@ function GroupDetailPage() {
       </GroupEventStoreContext.Provider>
     </>
   );
+}
+
+function GroupDetailPage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <MobileGroupShell /> : <DesktopGroupDetailLayout />;
 }
 
 export default withActiveAccount(GroupDetailPage);
