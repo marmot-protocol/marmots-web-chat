@@ -5,7 +5,7 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { IconChevronRight } from "@tabler/icons-react";
+import { IconChevronRight, IconKey } from "@tabler/icons-react";
 import { Navigate } from "react-router";
 import { Link } from "react-router";
 
@@ -29,6 +29,12 @@ const settingsNavItems = [
     description: "Key packages and group relays",
     url: "/settings/marmot",
     icon: KeyIcon,
+  },
+  {
+    title: "Key Packages",
+    description: "Manage your MLS key packages",
+    url: "/key-packages",
+    icon: IconKey,
   },
   {
     title: "Relays",

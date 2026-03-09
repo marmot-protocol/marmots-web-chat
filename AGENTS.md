@@ -192,6 +192,466 @@ import { IconSend } from "@tabler/icons-react";
 <Button variant="outline" size="sm"><IconSend size={16} /> Send</Button>
 ```
 
+## Layout & Page Building
+
+### Design Tokens (CSS baseline)
+
+All layout decisions flow from these non-negotiable CSS constraints in `src/index.css`:
+
+```css
+html,
+body,
+#root {
+  @apply h-full overflow-hidden;
+}
+--radius: 0; /* all components are square — no rounded corners */
+--sidebar-width: 400px; /* overridden in main.tsx (shadcn default is 16rem) */
+```
+
+**`html/body/#root` is `overflow-hidden`.** Scroll is never inherited — every scrollable region
+must explicitly declare `overflow-y-auto` or `overflow-x-auto`. Nothing scrolls by default.
+
+**All full-height shells use `h-dvh`** (dynamic viewport height), never `h-screen`, so mobile
+browser chrome is accounted for.
+
+**Font**: `JetBrains Mono Variable` is `font-sans` — a monospace font used everywhere, including
+all body text and UI labels.
+
+---
+
+### The Mobile/Desktop Split
+
+The entire app uses a **single runtime breakpoint** via `useIsMobile` hook
+(`src/hooks/use-mobile.ts`):
+
+```typescript
+const MOBILE_BREAKPOINT = 768; // identical to Tailwind `md`
+// uses window.matchMedia("(max-width: 767px)") — JS, not CSS
+```
+
+Every `_layout.tsx` does this:
+
+```tsx
+const isMobile = useIsMobile();
+return isMobile ? <MobileXxxLayout /> : <DesktopXxxLayout />;
+```
+
+This split is **explicit and total** — there are no hybrid CSS-only responsive layouts. Mobile and
+desktop are separate component trees.
+
+---
+
+### Shell Components
+
+Two shell components live in `src/layouts/`:
+
+#### `DesktopShell` (`src/layouts/desktop/shell.tsx`)
+
+```tsx
+<DesktopShell
+  title="Page Title" // shown in sidebar header
+  sidebar={<SidebarContent />} // content rendered inside the sidebar panel
+  footer={<SidebarFooter />} // optional sidebar footer slot
+  scroll={true} // default: true
+>
+  {/* children override <Outlet />; omit to use <Outlet /> */}
+</DesktopShell>
+```
+
+- `scroll={true}` → `SidebarInset` gets `overflow-y-auto h-dvh` — the full page scrolls.
+  Use for: settings, contacts, key packages, tools.
+- `scroll={false}` → `SidebarInset` gets `overflow-hidden h-dvh` — the child owns its scroll.
+  Use for: groups (chat needs internal scroll control).
+
+#### `MobileShell` (`src/layouts/mobile/shell.tsx`)
+
+```tsx
+<MobileShell title="Page Title" scroll={true}>
+  {/* children override <Outlet /> */}
+</MobileShell>
+```
+
+Structure:
+
+```
+<div class="flex flex-col h-dvh overflow-hidden bg-background">
+  <MobileTopHeader title={title} />     ← h-14 border-b, title left + avatar right
+  <main class="flex-1 overflow-y-auto"> ← (or overflow-hidden when scroll=false)
+    {children ?? <Outlet />}
+  </main>
+  <MobileBottomNav />                   ← h-14 border-t, 3 tabs: Groups / Contacts / Settings
+</div>
+```
+
+**`PageHeader` returns `null` on mobile.** Never rely on it for mobile layouts — mobile pages
+build their own headers inline or via `MobileTopHeader`.
+
+---
+
+### App Sidebar (`src/components/app-sidebar.tsx`)
+
+```
+<Sidebar collapsible="icon">
+  <SidebarHeader>     ← avatar + page title + hamburger toggle
+  <SidebarContent>
+    <SidebarGroup>    ← pinned tabs (shown when AppSwitcher is closed)
+    <SidebarGroup>    ← either AppSwitcher grid OR section-specific sidebar content
+  <SidebarFooter>     ← optional slot passed via DesktopShell `footer` prop
+```
+
+- Desktop: fixed `inset-y-0` panel, `400px` wide, collapses to `3rem` icon mode via CSS transition.
+- Mobile: renders as a `Sheet` (slide-in drawer from `@radix-ui/react-dialog`), `18rem` wide.
+- Sidebar open/closed state persisted in cookie `sidebar_state` (7-day TTL).
+- Keyboard shortcut: `Cmd/Ctrl+B` toggles the sidebar.
+- **AppSwitcher**: 3-column grid of `h-20 flex-col` buttons for all top-level sections; toggled by
+  the hamburger button in the header. When open it replaces section-specific sidebar content.
+- **Unread dots**: `h-2 w-2 rounded-full bg-destructive` appear on Groups and Invites in both the
+  AppSwitcher grid and pinned tabs list.
+
+---
+
+### Page Header (`src/components/page-header.tsx`)
+
+```tsx
+<PageHeader
+  items={[
+    { label: "Home", to: "/" },
+    { label: "Settings", to: "/settings" },
+    { label: "Accounts" }, // last item has no `to` — current page
+  ]}
+  actions={<Button>...</Button>} // optional, right-aligned via ml-auto
+/>
+```
+
+- Returns `null` on mobile — desktop-only.
+- `sticky top-0 bg-background border-b p-4`
+- Contains: `SidebarTrigger` | vertical `Separator` | `Breadcrumb` | `actions`
+- First breadcrumb item and all `BreadcrumbSeparator`s are `hidden md:block`.
+
+---
+
+### Page Body (`src/components/page-body.tsx`)
+
+```tsx
+<PageBody center>
+  {" "}
+  {/* center adds mx-auto */}
+  {/* content */}
+</PageBody>
+```
+
+CSS: `w-full max-w-4xl space-y-6 p-4 sm:space-y-8 sm:p-6`
+
+Use for all standard scrollable-page content (settings, contacts, profile). Not used inside group
+tabs, which manage their own layout.
+
+---
+
+### Canonical Page Layouts
+
+#### Standard desktop page (scrollable — e.g. Settings sub-page)
+
+```tsx
+// _layout.tsx
+const isMobile = useIsMobile();
+if (isMobile)
+  return (
+    <MobileShell title="Settings">
+      <Outlet />
+    </MobileShell>
+  );
+return (
+  <DesktopShell title="Settings" sidebar={<SettingsSidebarNav />} scroll={true}>
+    <Outlet />
+  </DesktopShell>
+);
+
+// sub-page component
+export default function SettingsAccountsPage() {
+  return (
+    <>
+      <PageHeader
+        items={[
+          { label: "Home", to: "/" },
+          { label: "Settings", to: "/settings" },
+          { label: "Accounts" },
+        ]}
+      />
+      <PageBody>{/* Card / Separator sections */}</PageBody>
+    </>
+  );
+}
+```
+
+#### Standard settings content layout
+
+```tsx
+<Card>
+  <CardHeader>
+    <CardTitle>Section Title</CardTitle>
+    <CardDescription>Subtitle</CardDescription>
+  </CardHeader>
+  <CardContent className="space-y-4">
+    <div className="space-y-2">
+      <Label htmlFor="field">Label</Label>
+      <Input id="field" ... />
+    </div>
+  </CardContent>
+</Card>
+<Separator />
+```
+
+#### Mobile settings index row (iOS-style)
+
+```tsx
+<Link className="flex items-center gap-4 px-4 py-3.5 hover:bg-muted/50 transition-colors">
+  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+    <ItemIcon size={18} />
+  </span>
+  <span className="flex flex-col flex-1 min-w-0">
+    <span className="text-sm font-medium leading-tight">{title}</span>
+    <span className="text-xs text-muted-foreground mt-0.5">{description}</span>
+  </span>
+  <IconChevronRight size={16} className="shrink-0 text-muted-foreground" />
+</Link>
+```
+
+---
+
+### Group Pages Layout
+
+Group pages deviate from the standard shell — they manage their own layout entirely.
+
+#### Desktop group layout structure
+
+```
+DesktopShell scroll={false}
+  AppSidebar → GroupsListSidebar (group list + Create button)
+  SidebarInset (overflow-hidden)
+    PageHeader (breadcrumb + actions)
+    <div class="flex gap-1 px-4 border-b shrink-0">
+      <GroupTabLinks />   ← horizontal tab strip
+    </div>
+    GroupContextProviders
+      <div class="flex flex-col flex-1 overflow-hidden">
+        <Outlet />        ← each tab page
+```
+
+#### Mobile group layout structure
+
+```
+<div class="flex flex-col h-dvh overflow-hidden bg-background">
+  <header class="h-14 border-b bg-background flex items-center px-2 gap-2">
+    ← back button | group name (flex-1 truncate) | kebab menu →
+  </header>
+  <div class="border-b overflow-x-auto flex no-scrollbar">
+    <GroupTabLinks />     ← horizontally scrollable tab strip
+  </div>
+  <main class="flex flex-col flex-1 overflow-hidden">
+    <GroupContextProviders>
+      <Outlet />
+    </GroupContextProviders>
+  </main>
+  <GroupDetailsDrawer />  ← Sheet opened by kebab menu
+```
+
+Key mobile differences from desktop:
+
+- No `MobileShell` — entirely custom layout.
+- Tab strip is horizontally scrollable (`overflow-x-auto no-scrollbar flex`); tab items get
+  `whitespace-nowrap shrink-0` to prevent wrapping.
+- Details accessible via kebab → `Sheet` (`GroupDetailsDrawer`), not a sidebar.
+- No `PageHeader`, no `SidebarTrigger`, no breadcrumbs.
+
+#### Tab link active state
+
+```typescript
+// tabClassName is a (active: boolean) => string function
+const tabClass = (active: boolean) =>
+  cn(
+    "px-4 py-2 text-sm font-medium transition-colors hover:text-foreground",
+    active
+      ? "text-foreground border-b-2 border-primary"
+      : "text-muted-foreground",
+  );
+```
+
+Active detection: `useLocation().pathname === href`. The Chat tab also matches the index route
+(`/groups/:id`).
+
+#### Group tab page scroll pattern
+
+Every group tab that needs scrollable content follows this structure:
+
+```tsx
+// Outer: fills available height, clips overflow
+<div className="flex flex-col flex-1 overflow-hidden p-4">
+  {/* fixed controls (search, toolbar) */}
+  <div className="flex gap-3 mb-4">...</div>
+
+  {/* scrollable list — always flex-1 + overflow-y-auto */}
+  <div className="flex-1 overflow-y-auto">
+    <div className="flex flex-col gap-2 pb-4">
+      {items.map(...)}
+    </div>
+  </div>
+</div>
+```
+
+#### Chat scroll architecture (`flex-col-reverse` trick)
+
+```tsx
+// Pins messages to bottom; new messages appear at the visual bottom
+<div className="flex flex-col-reverse flex-1 h-0 overflow-y-auto overflow-x-hidden px-2 pt-10">
+  <MessageList />
+  {!loadingDone && <Button>Load older messages</Button>}
+</div>
+// Fixed input bar, never scrolls away
+<div className="border-t p-2 bg-background shrink-0">
+  <MessageForm />
+</div>
+```
+
+`flex-col-reverse` makes the bottom of the list the flex "start", so the container starts
+scrolled to the bottom. `h-0 flex-1` creates the scroll box without fighting the parent flex.
+
+---
+
+### Adding a New Section (non-group page)
+
+1. Create `src/pages/<section>/_layout.tsx`:
+
+```tsx
+export default function SectionLayout() {
+  const isMobile = useIsMobile();
+  if (isMobile)
+    return (
+      <MobileShell title="Section Title">
+        <Outlet />
+      </MobileShell>
+    );
+  return (
+    <DesktopShell
+      title="Section Title"
+      sidebar={<SectionSidebarContent />}
+      scroll={true}
+    >
+      <Outlet />
+    </DesktopShell>
+  );
+}
+```
+
+2. Create `src/pages/<section>/index.tsx` (and sub-pages as needed):
+
+```tsx
+export default function SectionPage() {
+  return (
+    <>
+      <PageHeader items={[{ label: "Home", to: "/" }, { label: "Section" }]} />
+      <PageBody>{/* content */}</PageBody>
+    </>
+  );
+}
+```
+
+3. Add routes in `src/main.tsx`:
+
+```tsx
+<Route path="section" element={<SectionLayout />}>
+  <Route index element={<SectionIndex />} />
+  <Route path="sub-page" element={<SubPage />} />
+</Route>
+```
+
+4. Add to the AppSwitcher tabs in `src/components/app-sidebar.tsx` if it should appear in the
+   top-level navigation grid.
+
+5. Add to the mobile bottom nav in `src/layouts/mobile/bottom-nav.tsx` if it's a primary
+   section (bottom nav is limited to ~3 items; secondary sections go in Settings).
+
+---
+
+### Sheet (Slide-in Drawer) Pattern
+
+```tsx
+<Sheet open={open} onOpenChange={setOpen}>
+  <SheetContent
+    side="right"
+    className="w-full sm:max-w-2xl overflow-y-auto flex flex-col"
+  >
+    <SheetHeader>
+      <SheetTitle>Title</SheetTitle>
+      <SheetDescription>...</SheetDescription>
+    </SheetHeader>
+    <div className="p-4 space-y-4 overflow-auto flex-1">
+      {/* scrollable body */}
+    </div>
+    <SheetFooter className="flex-col gap-2 sm:flex-col border-t pt-4">
+      {/* action buttons */}
+    </SheetFooter>
+  </SheetContent>
+</Sheet>
+```
+
+- `w-full sm:max-w-2xl` → full-width on mobile, constrained on desktop.
+- `overflow-y-auto flex flex-col` on `SheetContent` + `flex-1` on body → body scrolls, footer
+  stays pinned.
+
+---
+
+### Dialog Scroll Pattern
+
+```tsx
+<DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+  <DialogHeader>
+    <DialogTitle>Title</DialogTitle>
+  </DialogHeader>
+  <div className="overflow-auto flex-1">{/* scrollable content */}</div>
+</DialogContent>
+```
+
+`max-h-[80vh] flex flex-col` + `flex-1 overflow-auto` on the body is the canonical pattern.
+
+---
+
+### Responsive Grid Pattern
+
+```tsx
+// Adapts from 2 columns on mobile up to 5 on large screens
+<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+```
+
+Used in the Media tab. `lg:grid-cols-3` is common for content cards (home page, contacts).
+
+---
+
+### Tailwind Breakpoints Reference
+
+| Prefix | Viewport  | Common usage in this codebase                           |
+| ------ | --------- | ------------------------------------------------------- |
+| `sm:`  | ≥ 640 px  | `sm:p-6`, `sm:space-y-8`, `sm:flex-row`, `sm:max-w-2xl` |
+| `md:`  | ≥ 768 px  | `hidden md:block` (sidebar), `md:h-8`, breadcrumb items |
+| `lg:`  | ≥ 1024 px | `lg:grid-cols-3`, `lg:grid-cols-5` (content grids)      |
+
+The `md` breakpoint matches `MOBILE_BREAKPOINT = 768` from `useIsMobile` — this is intentional.
+
+---
+
+### Layout Gotchas
+
+| Gotcha                         | Detail                                                                                                                                                                 |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `h-dvh` not `h-screen`         | All full-height shells use `h-dvh`. Mobile browser chrome shrinks `100vh`; `dvh` accounts for it.                                                                      |
+| Root is `overflow-hidden`      | `html/body/#root` has `overflow-hidden`. Every scrollable region must declare `overflow-y-auto` explicitly.                                                            |
+| `PageHeader` is desktop-only   | Returns `null` on mobile (`src/components/page-header.tsx:33`). Mobile pages must provide their own header.                                                            |
+| Zero border radius             | `--radius: 0` in `index.css`. All shadcn components are square — never add `rounded-*` to match system style.                                                          |
+| JetBrains Mono everywhere      | `--font-sans` is a monospace font. This is intentional — all UI text uses it.                                                                                          |
+| Groups don't use `MobileShell` | The group detail layout is fully custom on mobile. It omits `MobileTopHeader` and `MobileBottomNav`.                                                                   |
+| `scroll=false` propagates      | When `DesktopShell scroll={false}`, the `SidebarInset` is `overflow-hidden`. Every group tab page must establish its own scroll box or content will be clipped.        |
+| Avoid `calc(100vh - Npx)`      | The media and timeline tabs use `calc(100vh - 118px)` — this is a code smell. Prefer `flex-1 overflow-y-auto` inside a `flex flex-col overflow-hidden` parent instead. |
+| Sidebar width is 400px         | The CSS variable `--sidebar-width` is overridden globally in `main.tsx`. Do not hardcode sidebar widths; use the variable.                                             |
+
 ## Key Domain Concepts
 
 - **AppGroup** (`MarmotGroup<GroupRumorHistory, GroupMediaStore>`) — the concrete group type; always has `.media` wired.

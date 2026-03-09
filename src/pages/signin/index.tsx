@@ -76,8 +76,7 @@ export default function SignInIndexPage() {
 
   const handleSwitchAccount = (accountId: string) => {
     accountManager.setActive(accountId);
-    const from = (location.state as { from?: string })?.from ?? "/";
-    navigate(from);
+    navigate("/");
   };
 
   const navigateTo = (method: SignInMethod) => {

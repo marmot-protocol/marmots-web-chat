@@ -2,7 +2,7 @@ import { hexToBytes } from "@noble/hashes/utils.js";
 import { npubEncode, nsecEncode } from "applesauce-core/helpers/pointers";
 import { use$ } from "applesauce-react/hooks";
 import { useState } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { PageBody } from "@/components/page-body";
@@ -121,12 +121,14 @@ function AccountItem({
 
 export default function SettingsAccountsPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const accounts = use$(accountManager.accounts$) || [];
   const activeAccount = use$(accountManager.active$);
   const [removeAccountId, setRemoveAccountId] = useState<string | null>(null);
 
   const handleSwitchAccount = (accountId: string) => {
     accountManager.setActive(accountId);
+    navigate("/");
   };
 
   const handleRemoveAccount = (accountId: string) => {

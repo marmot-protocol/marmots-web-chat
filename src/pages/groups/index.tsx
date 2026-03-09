@@ -6,6 +6,7 @@ import { Link } from "react-router";
 
 import { PageBody } from "@/components/page-body";
 import { PageHeader } from "@/components/page-header";
+import { PublishKeyPackageCta } from "@/components/publish-key-package-cta";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -98,6 +99,9 @@ function GroupsIndexDesktop() {
             </Button>
           </div>
 
+          {/* Onboarding CTA — hidden once key package + relays are set up */}
+          <PublishKeyPackageCta />
+
           {groups && groups.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {groups.map((group) => {
@@ -144,10 +148,12 @@ function GroupsIndexDesktop() {
 function GroupsIndexMobile() {
   return (
     <MobileShell title="Groups">
-      <div className="p-2">
-        <Button asChild className="w-full" variant="outline">
+      <div className="p-2 space-y-2">
+        <Button asChild className="w-full" variant="outline" size="lg">
           <Link to="/groups/create">Create Group</Link>
         </Button>
+        {/* Onboarding CTA — hidden once key package + relays are set up */}
+        <PublishKeyPackageCta />
       </div>
 
       <GroupsListContent />

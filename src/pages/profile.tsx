@@ -1,6 +1,3 @@
-import { getDisplayName, getProfilePicture } from "applesauce-core/helpers";
-import { npubEncode } from "applesauce-core/helpers/pointers";
-import { use$ } from "applesauce-react/hooks";
 import {
   IconChevronRight,
   IconLogout,
@@ -9,6 +6,9 @@ import {
   IconTrash,
   IconUser,
 } from "@tabler/icons-react";
+import { getDisplayName, getProfilePicture } from "applesauce-core/helpers";
+import { npubEncode } from "applesauce-core/helpers/pointers";
+import { use$ } from "applesauce-react/hooks";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
@@ -125,6 +125,7 @@ function useProfilePageState() {
 
   const handleSwitchAccount = (accountId: string) => {
     accountManager.setActive(accountId);
+    navigate("/");
   };
 
   const handleClearData = async () => {
@@ -176,46 +177,151 @@ function useProfilePageState() {
 }
 
 // ============================================================================
-// ProfileContent — inner content shared between mobile and desktop
+// OtherAccountItemFlush — flush row variant for mobile
+// ============================================================================
+
+/**
+ * A single non-active account row styled as a flush list item (no border/card).
+ */
+function OtherAccountItemFlush({
+  account,
+  onSwitch,
+}: {
+  account: { id: string; pubkey: string };
+  onSwitch: () => void;
+}) {
+  const profile = use$(
+    () => eventStore.profile(account.pubkey),
+    [account.pubkey],
+  );
+  const avatar = getProfilePicture(
+    profile,
+    `https://api.dicebear.com/7.x/identicon/svg?seed=${account.pubkey}`,
+  );
+  const name = getDisplayName(profile, account.pubkey.slice(0, 16));
+
+  return (
+    <button
+      onClick={onSwitch}
+      className="flex w-full items-center gap-4 px-4 py-3.5 hover:bg-muted/50 transition-colors"
+    >
+      <Avatar className="h-9 w-9 shrink-0">
+        <AvatarImage src={avatar} alt={name} />
+        <AvatarFallback>{name.slice(0, 2).toUpperCase()}</AvatarFallback>
+      </Avatar>
+      <div className="flex flex-col flex-1 min-w-0 text-left">
+        <span className="text-sm font-medium leading-tight truncate">
+          {name}
+        </span>
+        <span className="text-xs text-muted-foreground mt-0.5 font-mono">
+          {account.pubkey.slice(0, 8)}…{account.pubkey.slice(-8)}
+        </span>
+      </div>
+      <IconChevronRight size={16} className="shrink-0 text-muted-foreground" />
+    </button>
+  );
+}
+
+// ============================================================================
+// ProfileContent — desktop variant (cards + borders)
 // ============================================================================
 
 interface ProfileContentProps {
   state: ReturnType<typeof useProfilePageState>;
-  /**
-   * Controls spacing/padding:
-   * - `"desktop"` — relies on PageBody for outer spacing; no extra padding.
-   * - `"mobile"` — adds `p-4` since there is no PageBody wrapper on mobile.
-   */
-  variant: "mobile" | "desktop";
+}
+
+/** Dialogs shared by both variants — no layout, pure logic. */
+function ProfileDialogs({
+  state,
+}: {
+  state: ReturnType<typeof useProfilePageState>;
+}) {
+  const {
+    showClearDataDialog,
+    setShowClearDataDialog,
+    showSignOutDialog,
+    setShowSignOutDialog,
+    isClearing,
+    handleClearData,
+    handleSignOut,
+  } = state;
+
+  return (
+    <>
+      {/* Clear Data Dialog */}
+      <AlertDialog
+        open={showClearDataDialog}
+        onOpenChange={setShowClearDataDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear All Local Data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all messages, key packages, and group
+              data stored on this device. This action cannot be undone. The page
+              will reload after clearing.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isClearing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearData}
+              disabled={isClearing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isClearing ? "Clearing..." : "Clear Data"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Sign Out Dialog */}
+      <AlertDialog open={showSignOutDialog} onOpenChange={setShowSignOutDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign Out &amp; Clear Data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will sign you out and permanently delete all local data
+              associated with this account, including messages, key packages,
+              and group information. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleSignOut}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Sign Out &amp; Clear Data
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
 }
 
 /**
- * The profile page body — avatar, public keys, account switcher, and danger
- * zone. Rendered inside both `MobileShell` and `DesktopShell`.
+ * Desktop profile page body — avatar, public keys, account switcher, danger
+ * zone. Uses Cards and borders, wrapped by PageBody.
  */
-function ProfileContent({ state, variant }: ProfileContentProps) {
+function ProfileContentDesktop({ state }: ProfileContentProps) {
   const {
     active,
     activeProfile,
     activeAvatar,
     activeName,
     otherAccounts,
-    showClearDataDialog,
     setShowClearDataDialog,
-    showSignOutDialog,
     setShowSignOutDialog,
     isClearing,
     handleSwitchAccount,
-    handleClearData,
-    handleSignOut,
     handleSignIn,
   } = state;
 
-  const wrapperClass = variant === "mobile" ? "p-4 space-y-4" : "space-y-6";
-
   if (!active) {
     return (
-      <div className={wrapperClass}>
+      <div className="space-y-6">
         <Card className="max-w-2xl mx-auto">
           <CardHeader className="text-center">
             <CardTitle>No Account Active</CardTitle>
@@ -237,7 +343,7 @@ function ProfileContent({ state, variant }: ProfileContentProps) {
   const npub = npubEncode(active.pubkey);
 
   return (
-    <div className={wrapperClass}>
+    <div className="space-y-6">
       {/* Profile Card */}
       <Card>
         <CardHeader className="text-center space-y-4">
@@ -257,7 +363,6 @@ function ProfileContent({ state, variant }: ProfileContentProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Public Key (npub) */}
           <div className="space-y-2">
             <div className="text-sm font-medium text-muted-foreground">
               Public Key (npub)
@@ -271,7 +376,6 @@ function ProfileContent({ state, variant }: ProfileContentProps) {
             </div>
           </div>
 
-          {/* Public Key (hex) */}
           <div className="space-y-2">
             <div className="text-sm font-medium text-muted-foreground">
               Public Key (hex)
@@ -345,55 +449,206 @@ function ProfileContent({ state, variant }: ProfileContentProps) {
         </CardContent>
       </Card>
 
-      {/* Clear Data Dialog */}
-      <AlertDialog
-        open={showClearDataDialog}
-        onOpenChange={setShowClearDataDialog}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear All Local Data?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete all messages, key packages, and group
-              data stored on this device. This action cannot be undone. The page
-              will reload after clearing.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isClearing}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleClearData}
-              disabled={isClearing}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isClearing ? "Clearing..." : "Clear Data"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ProfileDialogs state={state} />
+    </div>
+  );
+}
 
-      {/* Sign Out Dialog */}
-      <AlertDialog open={showSignOutDialog} onOpenChange={setShowSignOutDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Sign Out &amp; Clear Data?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will sign you out and permanently delete all local data
-              associated with this account, including messages, key packages,
-              and group information. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleSignOut}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+// ============================================================================
+// ProfileContentMobile — flush, borderless list layout
+// ============================================================================
+
+/**
+ * Mobile profile page body — flush sections separated by dividers, no cards.
+ * Follows the same iOS-style list pattern used in settings/index.tsx.
+ */
+function ProfileContentMobile({ state }: ProfileContentProps) {
+  const {
+    active,
+    activeProfile,
+    activeAvatar,
+    activeName,
+    otherAccounts,
+    setShowClearDataDialog,
+    setShowSignOutDialog,
+    isClearing,
+    handleSwitchAccount,
+    handleSignIn,
+  } = state;
+
+  if (!active) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
+        <IconUser size={40} className="text-muted-foreground" />
+        <div>
+          <p className="font-medium">No Account Active</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Sign in or create an account to get started
+          </p>
+        </div>
+        <Button onClick={handleSignIn} className="w-full max-w-xs">
+          Sign In
+        </Button>
+      </div>
+    );
+  }
+
+  const npub = npubEncode(active.pubkey);
+
+  return (
+    <div className="flex flex-col">
+      {/* Avatar + name hero */}
+      <div className="flex flex-col items-center gap-3 py-8 px-4 border-b">
+        <Avatar className="h-20 w-20">
+          <AvatarImage src={activeAvatar} alt={activeName} />
+          <AvatarFallback className="text-xl">
+            {activeName.slice(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div className="text-center">
+          <p className="text-lg font-semibold">{activeName}</p>
+          {activeProfile?.about && (
+            <p className="text-sm text-muted-foreground mt-0.5 max-w-xs">
+              {activeProfile.about}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Public keys — flush rows */}
+      <div className="border-b">
+        <div className="px-4 pt-4 pb-1">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Public Keys
+          </p>
+        </div>
+        <ul className="divide-y">
+          <li className="flex items-center gap-3 px-4 py-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">npub</p>
+              <code className="text-xs font-mono truncate block">{npub}</code>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <IconCopyButton text={npub} variant="ghost" size="icon" />
+              <QRIconButton data={npub} variant="ghost" />
+            </div>
+          </li>
+          <li className="flex items-center gap-3 px-4 py-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">hex</p>
+              <code className="text-xs font-mono truncate block">
+                {active.pubkey}
+              </code>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <IconCopyButton
+                text={active.pubkey}
+                variant="ghost"
+                size="icon"
+              />
+              <QRIconButton data={active.pubkey} variant="ghost" />
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      {/* Other accounts */}
+      {otherAccounts.length > 0 && (
+        <div className="border-b">
+          <div className="px-4 pt-4 pb-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Other Accounts
+            </p>
+          </div>
+          <ul className="divide-y">
+            {otherAccounts.map((account) => (
+              <li key={account.id}>
+                <OtherAccountItemFlush
+                  account={account}
+                  onSwitch={() => handleSwitchAccount(account.id)}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Account actions — flush list */}
+      <ul className="divide-y border-b">
+        <li>
+          <Link
+            to="/settings/accounts"
+            className="flex items-center gap-4 px-4 py-3.5 hover:bg-muted/50 transition-colors"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+              <IconSettings size={18} />
+            </span>
+            <span className="flex flex-col flex-1 min-w-0">
+              <span className="text-sm font-medium leading-tight">
+                Manage Accounts
+              </span>
+              <span className="text-xs text-muted-foreground mt-0.5">
+                Switch, add, or remove accounts
+              </span>
+            </span>
+            <IconChevronRight
+              size={16}
+              className="shrink-0 text-muted-foreground"
+            />
+          </Link>
+        </li>
+        <li>
+          <button
+            onClick={handleSignIn}
+            className="flex w-full items-center gap-4 px-4 py-3.5 hover:bg-muted/50 transition-colors"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+              <IconPlus size={18} />
+            </span>
+            <span className="text-sm font-medium">Add Another Account</span>
+          </button>
+        </li>
+      </ul>
+
+      {/* Danger zone — flush destructive rows */}
+      <div className="mt-6 border-t border-b">
+        <div className="px-4 pt-4 pb-1">
+          <p className="text-xs font-medium text-destructive uppercase tracking-wide">
+            Danger Zone
+          </p>
+        </div>
+        <ul className="divide-y">
+          <li>
+            <button
+              onClick={() => setShowClearDataDialog(true)}
+              disabled={isClearing}
+              className="flex w-full items-center gap-4 px-4 py-3.5 hover:bg-destructive/5 transition-colors disabled:opacity-50"
             >
-              Sign Out &amp; Clear Data
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                <IconTrash size={18} />
+              </span>
+              <span className="text-sm font-medium text-destructive">
+                {isClearing ? "Clearing..." : "Clear All Local Data"}
+              </span>
+            </button>
+          </li>
+          <li>
+            <button
+              onClick={() => setShowSignOutDialog(true)}
+              className="flex w-full items-center gap-4 px-4 py-3.5 hover:bg-destructive/5 transition-colors"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                <IconLogout size={18} />
+              </span>
+              <span className="text-sm font-medium text-destructive">
+                Sign Out &amp; Clear Data
+              </span>
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <ProfileDialogs state={state} />
     </div>
   );
 }
@@ -410,7 +665,7 @@ function DesktopProfilePage() {
       <PageHeader items={[{ label: "Home", to: "/" }, { label: "Profile" }]} />
       <PageBody>
         <div className="max-w-2xl mx-auto">
-          <ProfileContent state={state} variant="desktop" />
+          <ProfileContentDesktop state={state} />
         </div>
       </PageBody>
     </DesktopShell>
@@ -426,7 +681,7 @@ function MobileProfilePage() {
 
   return (
     <MobileShell title="Profile">
-      <ProfileContent state={state} variant="mobile" />
+      <ProfileContentMobile state={state} />
     </MobileShell>
   );
 }

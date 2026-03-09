@@ -30,6 +30,7 @@ import InvitesIndexPage from "./pages/invites/index.tsx";
 import KeyPackagePage from "./pages/key-packages/_layout.tsx";
 import KeyPackageDetailPage from "./pages/key-packages/[id].tsx";
 import CreateKeyPackagePage from "./pages/key-packages/create.tsx";
+import KeyPackagesIndexPage from "./pages/key-packages/index.tsx";
 import ProfilePage from "./pages/profile.tsx";
 import SettingsPage from "./pages/settings/_layout.tsx";
 import SettingsAccountPage from "./pages/settings/account.tsx";
@@ -82,6 +83,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path=":rumorId" element={<InviteDetailPage />} />
             </Route>
             <Route path="/key-packages" element={<KeyPackagePage />}>
+              <Route index element={<KeyPackagesIndexPage />} />
               <Route path="create" element={<CreateKeyPackagePage />} />
               <Route path=":id" element={<KeyPackageDetailPage />} />
             </Route>

@@ -90,6 +90,7 @@ export default function NavUser() {
 
   const handleSwitchAccount = (accountId: string) => {
     accountManager.setActive(accountId);
+    navigate("/");
   };
 
   const handleSignOut = () => {

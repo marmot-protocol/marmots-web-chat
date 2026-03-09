@@ -15,6 +15,7 @@ import { Link, Navigate } from "react-router";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { PageHeader } from "@/components/page-header";
+import { PublishKeyPackageCta } from "@/components/publish-key-package-cta";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -186,6 +187,9 @@ export default function HomePage() {
               protocol.
             </p>
           </div>
+
+          {/* Onboarding CTA — hidden once key package + relays are set up */}
+          <PublishKeyPackageCta />
 
           {/* Who's Online */}
           <OnlineContactsSection />

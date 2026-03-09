@@ -123,11 +123,11 @@ export function ContactListInvitesButton() {
 function ContactListContentMobile() {
   return (
     <div className="flex flex-col h-full">
-      <div className="flex gap-2 p-2 border-b">
-        <ContactListInvitesButton />
-        <ContactListExploreButton />
-      </div>
       <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="flex gap-2 p-2 border-b">
+          <ContactListInvitesButton />
+          <ContactListExploreButton />
+        </div>
         <ContactList />
       </div>
       <ContactListSearchForm />

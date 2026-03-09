@@ -20,14 +20,8 @@ import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { keyPackageRelays$, publishedKeyPackages$ } from "@/lib/lifecycle";
 import { liveKeyPackages$, marmotClient$ } from "@/lib/marmot-client";
 import { eventStore, pool } from "@/lib/nostr";
@@ -175,7 +169,11 @@ function PublishKeyPackageButton({
   if (event) return null;
 
   return (
-    <Button onClick={handlePublishKeyPackage} disabled={isPublishing}>
+    <Button
+      onClick={handlePublishKeyPackage}
+      disabled={isPublishing}
+      className="w-full sm:w-auto"
+    >
       {isPublishing ? "Publishing..." : "Publish key package"}
     </Button>
   );
@@ -218,8 +216,13 @@ function RotateKeyPackageButton({
   };
 
   return (
-    <div className="flex flex-col gap-1">
-      <Button onClick={handleRotate} disabled={rotating} variant="outline">
+    <div className="flex flex-col gap-1 w-full sm:w-auto">
+      <Button
+        onClick={handleRotate}
+        disabled={rotating}
+        variant="outline"
+        className="w-full sm:w-auto"
+      >
         {rotating ? "Rotating..." : "Rotate key package"}
       </Button>
       {error && <span className="text-xs text-red-600">{error}</span>}
@@ -258,6 +261,7 @@ function DeleteKeyPackageButton({
       onClick={handleDeleteKeyPackage}
       disabled={deleting}
       variant="destructive"
+      className="w-full sm:w-auto"
     >
       {deleting ? "Deleting..." : "Delete key package"}
     </Button>
@@ -297,6 +301,7 @@ function BroadcastKeyPackageButton({
       onClick={handleBroadcast}
       disabled={isBroadcasting}
       variant="outline"
+      className="w-full sm:w-auto"
     >
       {isBroadcasting ? "Broadcasting..." : "Broadcast"}
     </Button>
@@ -309,6 +314,7 @@ function KeyPackageDetailBody({
   keyPackage: StoredKeyPackage;
 }) {
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const refString = useMemo(
     () => bytesToHex(keyPackage.keyPackageRef),
     [keyPackage.keyPackageRef],
@@ -342,112 +348,121 @@ function KeyPackageDetailBody({
             </AlertDescription>
           </Alert>
         )}
-        <Card>
-          <CardHeader>
-            <CardTitle>Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+
+        {/* Info fields */}
+        <div className="space-y-3">
+          <div>
+            <Label className="text-muted-foreground/60 mb-0.5 text-xs">
+              Cipher Suite
+            </Label>
             <div>
-              <Label className="text-muted-foreground/60 mb-1 text-xs">
-                Key Package Ref
-              </Label>
-              <div className="font-mono text-xs text-muted-foreground break-all">
-                {refString}
-              </div>
+              {cipherSuiteId !== undefined ? (
+                <CipherSuiteBadge cipherSuite={cipherSuiteId} />
+              ) : (
+                <Badge variant="destructive">Unknown</Badge>
+              )}
             </div>
+          </div>
 
-            {event && (
-              <div>
-                <Label className="text-muted-foreground/60 mb-1 text-xs">
-                  Event ID
-                </Label>
-                <div className="font-mono text-xs text-muted-foreground break-all">
-                  {event.id}
-                </div>
-              </div>
-            )}
+          <div>
+            <Label className="text-muted-foreground/60 mb-0.5 text-xs">
+              Created
+            </Label>
+            <div className="text-sm">{timeAgo}</div>
+          </div>
 
-            <KeyPackageRelayStatus event={event} />
-
+          {clientInfo && (
             <div>
-              <Label className="text-muted-foreground/60 mb-1 text-xs">
-                Created
+              <Label className="text-muted-foreground/60 mb-0.5 text-xs">
+                Client
               </Label>
-              <div className="text-sm">{timeAgo}</div>
-            </div>
-
-            {clientInfo && (
-              <div>
-                <Label className="text-muted-foreground/60 mb-1 text-xs">
-                  Client
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">
-                    {clientInfo.name || "Unknown"}
-                  </Badge>
-                  {!isLocal && (
-                    <Badge variant="outline" className="text-xs">
-                      Not stored locally
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <Label className="text-muted-foreground/60 mb-1 text-xs">
-                Cipher Suite
-              </Label>
-              <div>
-                {cipherSuiteId !== undefined ? (
-                  <CipherSuiteBadge cipherSuite={cipherSuiteId} />
-                ) : (
-                  <Badge variant="destructive" className="outline">
-                    Unknown
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">{clientInfo.name || "Unknown"}</Badge>
+                {!isLocal && (
+                  <Badge variant="outline" className="text-xs">
+                    Remote only
                   </Badge>
                 )}
               </div>
             </div>
-          </CardContent>
-          <CardFooter className="flex gap-2 flex-wrap">
-            {isLocal && (
-              <>
-                <PublishKeyPackageButton
-                  event={event}
-                  keyPackage={keyPackage.publicPackage}
-                />
-                <BroadcastKeyPackageButton
-                  event={event}
-                  keyPackage={keyPackage.publicPackage}
-                />
-              </>
-            )}
-            <RotateKeyPackageButton keyPackageRef={keyPackage.keyPackageRef} />
-            <Button variant="outline" onClick={() => setExportModalOpen(true)}>
-              Export Key Package
-            </Button>
-            <DeleteKeyPackageButton keyPackageRef={keyPackage.keyPackageRef} />
-            {!isLocal && (
-              <>
-                <div className="text-sm text-muted-foreground w-full">
-                  This key package is published on relays but not stored
-                  locally. Private key material is not available.
-                </div>
-              </>
-            )}
-          </CardFooter>
-        </Card>
+          )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Key Package Data</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-muted p-4 rounded-lg overflow-auto">
+          <KeyPackageRelayStatus event={event} />
+
+          {event && (
+            <div>
+              <Label className="text-muted-foreground/60 mb-0.5 text-xs">
+                Event ID
+              </Label>
+              <div className="font-mono text-xs text-muted-foreground break-all">
+                {event.id}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <Label className="text-muted-foreground/60 mb-0.5 text-xs">
+              Key Package Ref
+            </Label>
+            <div className="font-mono text-xs text-muted-foreground break-all">
+              {refString}
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Actions */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          {isLocal && (
+            <>
+              <PublishKeyPackageButton
+                event={event}
+                keyPackage={keyPackage.publicPackage}
+              />
+              <BroadcastKeyPackageButton
+                event={event}
+                keyPackage={keyPackage.publicPackage}
+              />
+            </>
+          )}
+          <RotateKeyPackageButton keyPackageRef={keyPackage.keyPackageRef} />
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={() => setExportModalOpen(true)}
+          >
+            Export Key Package
+          </Button>
+          <DeleteKeyPackageButton keyPackageRef={keyPackage.keyPackageRef} />
+        </div>
+
+        {!isLocal && (
+          <p className="text-sm text-muted-foreground">
+            This key package is published on relays but not stored locally.
+            Private key material is not available.
+          </p>
+        )}
+
+        {/* Advanced / raw data */}
+        <div>
+          <button
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setAdvancedOpen((o) => !o)}
+          >
+            <span
+              className={`transition-transform duration-150 ${advancedOpen ? "rotate-90" : ""}`}
+            >
+              ▶
+            </span>
+            Advanced
+          </button>
+          {advancedOpen && (
+            <div className="mt-3 bg-muted rounded-lg overflow-auto p-4">
               <KeyPackageDataView keyPackage={keyPackage.publicPackage} />
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
 
         {/* Export Modal */}
         <ExportKeyPackageModal
@@ -481,31 +496,31 @@ export default function KeyPackageDetailPage() {
 
   if (!ref) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center text-muted-foreground">
+      <PageBody>
+        <div className="flex items-center justify-center min-h-[200px] text-center text-muted-foreground">
           <p>Invalid key package identifier</p>
         </div>
-      </div>
+      </PageBody>
     );
   }
 
   if (keyPackage === undefined) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center text-muted-foreground">
+      <PageBody>
+        <div className="flex items-center justify-center min-h-[200px] text-center text-muted-foreground">
           <p>Loading key package...</p>
         </div>
-      </div>
+      </PageBody>
     );
   }
 
   if (!keyPackage) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center text-muted-foreground">
+      <PageBody>
+        <div className="flex items-center justify-center min-h-[200px] text-center text-muted-foreground">
           <p>Key package not found</p>
         </div>
-      </div>
+      </PageBody>
     );
   }
 
