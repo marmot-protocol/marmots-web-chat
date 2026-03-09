@@ -1,5 +1,5 @@
+import { IconCircleX, IconLoader2 } from "@tabler/icons-react";
 import { use$ } from "applesauce-react/hooks";
-import { Loader2, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import type { CiphersuiteName } from "ts-mls/crypto/ciphersuite.js";
@@ -7,6 +7,8 @@ import type { CiphersuiteName } from "ts-mls/crypto/ciphersuite.js";
 import { CipherSuitePicker } from "@/components/form/cipher-suite-picker";
 import { PubkeyListCreator } from "@/components/form/pubkey-list-creator";
 import { RelayListCreator } from "@/components/form/relay-list-creator";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileShell } from "@/layouts/mobile/shell";
 import { PageBody } from "@/components/page-body";
 import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -19,10 +21,6 @@ import accountManager from "@/lib/accounts";
 import { marmotClient$ } from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
 
-// ============================================================================
-// Types
-// ============================================================================
-
 interface ConfigurationFormData {
   groupName: string;
   groupDescription: string;
@@ -30,10 +28,6 @@ interface ConfigurationFormData {
   relays: string[];
   ciphersuite: CiphersuiteName;
 }
-
-// ============================================================================
-// Component: ConfigurationForm
-// ============================================================================
 
 interface ConfigurationFormProps {
   isCreating: boolean;
@@ -80,13 +74,6 @@ function ConfigurationForm({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h2 className="text-2xl font-semibold">Configuration</h2>
-        <p className="text-sm text-muted-foreground">
-          Configure your new MLS group with Marmot Group Data Extension
-        </p>
-      </div>
-
       <div className="space-y-6">
         {/* Cipher Suite */}
         <div className="space-y-2">
@@ -160,7 +147,7 @@ function ConfigurationForm({
         >
           {isCreating ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
               Creating...
             </>
           ) : (
@@ -169,6 +156,101 @@ function ConfigurationForm({
         </Button>
       </div>
     </div>
+  );
+}
+
+// ============================================================================
+// Layout: Desktop
+// ============================================================================
+
+interface CreateGroupDesktopProps {
+  isCreating: boolean;
+  error: string | null;
+  defaultRelays: string[];
+  onSubmit: (data: ConfigurationFormData) => void;
+}
+
+function CreateGroupDesktop({
+  isCreating,
+  error,
+  defaultRelays,
+  onSubmit,
+}: CreateGroupDesktopProps) {
+  return (
+    <>
+      <PageHeader
+        items={[
+          { label: "Home", to: "/" },
+          { label: "Groups", to: "/groups" },
+          { label: "Create Group" },
+        ]}
+      />
+      <PageBody>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Create Group
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Configure your new MLS group with Marmot Group Data Extension
+            </p>
+          </div>
+          <ConfigurationForm
+            isCreating={isCreating}
+            defaultRelays={defaultRelays}
+            onSubmit={onSubmit}
+          />
+          {error && (
+            <Alert variant="destructive" className="mt-4">
+              <IconCircleX className="h-4 w-4" />
+              <AlertDescription>Error: {error}</AlertDescription>
+            </Alert>
+          )}
+        </div>
+      </PageBody>
+    </>
+  );
+}
+
+// ============================================================================
+// Layout: Mobile
+// ============================================================================
+
+interface CreateGroupMobileProps {
+  isCreating: boolean;
+  error: string | null;
+  defaultRelays: string[];
+  onSubmit: (data: ConfigurationFormData) => void;
+}
+
+function CreateGroupMobile({
+  isCreating,
+  error,
+  defaultRelays,
+  onSubmit,
+}: CreateGroupMobileProps) {
+  return (
+    <MobileShell title="Create Group">
+      <div className="p-4 space-y-6">
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold">Configuration</h2>
+          <p className="text-sm text-muted-foreground">
+            Configure your new MLS group with Marmot Group Data Extension
+          </p>
+        </div>
+        <ConfigurationForm
+          isCreating={isCreating}
+          defaultRelays={defaultRelays}
+          onSubmit={onSubmit}
+        />
+        {error && (
+          <Alert variant="destructive" className="mt-4">
+            <IconCircleX className="h-4 w-4" />
+            <AlertDescription>Error: {error}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+    </MobileShell>
   );
 }
 
@@ -195,14 +277,12 @@ function CreateGroupPage() {
       setIsCreating(true);
       setError(null);
 
-      // Get current user's pubkey as admin
       const account = accountManager.active;
       if (!account) {
         setError("No active account");
         return;
       }
 
-      // Include current user as the first admin, then add any additional admins from the picker
       const currentUserPubkey = account.pubkey;
       const adminPubkeysList = [
         currentUserPubkey,
@@ -210,7 +290,6 @@ function CreateGroupPage() {
       ];
       const allRelays = [...data.relays];
 
-      // createGroup handles key package generation internally
       const group = await client.createGroup(data.groupName, {
         description: data.groupDescription,
         adminPubkeys: adminPubkeysList,
@@ -218,7 +297,6 @@ function CreateGroupPage() {
         ciphersuite: data.ciphersuite,
       });
 
-      // Navigate directly to the group detail page
       navigate(`/groups/${group.idStr}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -226,38 +304,28 @@ function CreateGroupPage() {
     }
   };
 
-  return (
-    <>
-      <PageHeader
-        items={[
-          { label: "Home", to: "/" },
-          { label: "Groups", to: "/groups" },
-          { label: "Create Group" },
-        ]}
-      />
-      <PageBody>
-        {/* Configuration Form */}
-        <ConfigurationForm
-          isCreating={isCreating}
-          defaultRelays={extraRelays ?? []}
-          onSubmit={(data) => {
-            // Populate group relays from the user's relay config if none provided.
-            // This keeps UX simple: in most cases the defaults are acceptable.
-            const relays =
-              data.relays.length > 0 ? data.relays : (extraRelays ?? []);
-            return handleFormSubmit({ ...data, relays });
-          }}
-        />
+  const defaultRelays = extraRelays ?? [];
+  const onSubmit = (data: ConfigurationFormData) => {
+    const relays =
+      data.relays.length > 0 ? data.relays : defaultRelays;
+    return handleFormSubmit({ ...data, relays });
+  };
 
-        {/* Error Display */}
-        {error && (
-          <Alert variant="destructive" className="mt-4">
-            <XCircle className="h-4 w-4" />
-            <AlertDescription>Error: {error}</AlertDescription>
-          </Alert>
-        )}
-      </PageBody>
-    </>
+  const isMobile = useIsMobile();
+  return isMobile ? (
+    <CreateGroupMobile
+      isCreating={isCreating}
+      error={error}
+      defaultRelays={defaultRelays}
+      onSubmit={onSubmit}
+    />
+  ) : (
+    <CreateGroupDesktop
+      isCreating={isCreating}
+      error={error}
+      defaultRelays={defaultRelays}
+      onSubmit={onSubmit}
+    />
   );
 }
 

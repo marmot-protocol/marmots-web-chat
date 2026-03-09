@@ -8,7 +8,7 @@ import accountManager from "../../lib/accounts";
 
 // Simple QR code component using an API
 const QRCode = ({ data }: { data: string }) => (
-  <div className="flex items-center justify-center p-4 bg-white rounded-lg">
+  <div className="flex items-center justify-center p-4 bg-white dark:bg-white rounded-lg">
     <img
       src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data)}`}
       alt="QR Code"

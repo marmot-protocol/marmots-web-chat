@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import accountManager from "@/lib/accounts";
 import { PrivateKeyAccount } from "applesauce-accounts/accounts";
@@ -49,68 +50,72 @@ function AccountItem({
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-3">
-        <UserAvatar pubkey={account.pubkey} />
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold truncate">
-            <UserName pubkey={account.pubkey} />
+    <Card size="sm">
+      <CardContent className="flex flex-col gap-3 pt-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <UserAvatar pubkey={account.pubkey} className="shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold truncate">
+                <UserName pubkey={account.pubkey} />
+              </div>
+              <code className="block truncate select-all font-mono text-xs text-muted-foreground">
+                {account.pubkey}
+              </code>
+            </div>
           </div>
-          <code className="text-xs text-muted-foreground truncate select-all font-mono block">
-            {account.pubkey}
-          </code>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <QRButton
-              data={npubEncode(account.pubkey)}
-              label="npub"
-              variant="ghost"
-              size="sm"
-            />
-            <QRButton
-              data={account.pubkey}
-              label="hex"
-              variant="ghost"
-              size="sm"
-            />
-          </div>
-          {isPrivateKeyAccount && (
+          <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+            <div className="flex items-center gap-1">
+              <QRButton
+                data={npubEncode(account.pubkey)}
+                label="npub"
+                variant="ghost"
+                size="sm"
+              />
+              <QRButton
+                data={account.pubkey}
+                label="hex"
+                variant="ghost"
+                size="sm"
+              />
+            </div>
+            {isPrivateKeyAccount && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPrivateKey(!showPrivateKey)}
+              >
+                {showPrivateKey ? "Hide Key" : "Export Key"}
+              </Button>
+            )}
             <Button
-              variant="outline"
+              variant={isActive ? "default" : "outline"}
               size="sm"
-              onClick={() => setShowPrivateKey(!showPrivateKey)}
+              onClick={onSwitch}
+              disabled={isActive}
             >
-              {showPrivateKey ? "Hide Key" : "Export Key"}
+              Switch
             </Button>
-          )}
-          <Button
-            variant={isActive ? "default" : "outline"}
-            size="sm"
-            onClick={onSwitch}
-            disabled={isActive}
-          >
-            Switch
-          </Button>
-          <Button variant="destructive" size="sm" onClick={onRemove}>
-            Remove
-          </Button>
-        </div>
-      </div>
-      {showPrivateKey && isPrivateKeyAccount && (
-        <div className="ml-13 space-y-2">
-          <div className="text-sm text-muted-foreground">
-            Private Key (nsec format)
+            <Button variant="destructive" size="sm" onClick={onRemove}>
+              Remove
+            </Button>
           </div>
-          <Input
-            readOnly
-            value={getPrivateKey() || "Error retrieving key"}
-            className="font-mono text-xs"
-            onClick={(e) => e.currentTarget.select()}
-          />
         </div>
-      )}
-    </div>
+        {showPrivateKey && isPrivateKeyAccount && (
+          <div className="space-y-2 sm:ml-13">
+            <div className="text-sm text-muted-foreground">
+              Private Key (nsec format)
+            </div>
+            <Input
+              readOnly
+              value={getPrivateKey() || "Error retrieving key"}
+              className="font-mono text-xs"
+              onClick={(e) => e.currentTarget.select()}
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -145,9 +150,9 @@ export default function SettingsAccountsPage() {
         ]}
       />
       <PageBody>
-        <div className="space-y-2">
+        <div className="flex flex-col gap-3 sm:gap-4">
           {accounts.length === 0 ? (
-            <div className="text-muted-foreground text-sm text-center py-8">
+            <div className="py-8 text-center text-sm text-muted-foreground">
               No accounts configured. Add an account to get started.
             </div>
           ) : (
@@ -166,8 +171,8 @@ export default function SettingsAccountsPage() {
           )}
         </div>
 
-        <div className="flex gap-2 w-full">
-          <Button asChild className="flex-1">
+        <div className="mt-4 flex w-full gap-2">
+          <Button asChild className="min-w-0 flex-1 sm:flex-initial">
             <Link
               to={{ pathname: "/signin", search: `?to=${location.pathname}` }}
             >

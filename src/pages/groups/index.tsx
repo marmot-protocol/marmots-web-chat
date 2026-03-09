@@ -144,6 +144,12 @@ function GroupsIndexDesktop() {
 function GroupsIndexMobile() {
   return (
     <MobileShell title="Groups">
+      <div className="p-2">
+        <Button asChild className="w-full" variant="outline">
+          <Link to="/groups/create">Create Group</Link>
+        </Button>
+      </div>
+
       <GroupsListContent />
     </MobileShell>
   );

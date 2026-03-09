@@ -33,6 +33,7 @@ import { liveGroups$, marmotClient$ } from "@/lib/marmot-client";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { eventStore } from "@/lib/nostr";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Button } from "../../components/ui/button";
 
 const MAX_AVATARS = 3;
 
@@ -239,7 +240,16 @@ function DesktopGroupsLayout() {
   return (
     <DesktopShell
       title="Groups"
-      sidebar={<GroupsListContent />}
+      sidebar={
+        <>
+          <div className="px-2 pb-2">
+            <Button asChild className="w-full" variant="outline" size="lg">
+              <Link to="/groups/create">Create Group</Link>
+            </Button>
+          </div>
+          <GroupsListContent />
+        </>
+      }
       scroll={false}
     />
   );
@@ -253,12 +263,6 @@ function MobileGroupsLayout() {
 export function GroupsListContent() {
   return (
     <>
-      <Link
-        to="/groups/create"
-        className="m-2 bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2"
-      >
-        Create Group
-      </Link>
       <Tabs defaultValue="all" className="w-full">
         <TabsList variant="line" className="w-full px-2 border-b rounded-none">
           <TabsTrigger value="all" className="flex-1">
