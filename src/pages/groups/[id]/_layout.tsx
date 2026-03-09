@@ -1,20 +1,6 @@
-import {
-  getMarmotGroupData,
-  getNostrGroupIdHex,
-  unixNow,
-} from "@internet-privacy/marmot-ts";
-import { use$ } from "applesauce-react/hooks";
-import { Loader2, Menu, XCircle } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import {
-  Link,
-  Outlet,
-  useLocation,
-  useNavigate,
-  useParams,
-} from "react-router";
-import { from, of, switchMap } from "rxjs";
-import { catchError } from "rxjs/operators";
+import { ArrowLeftIcon, Loader2, Menu, XCircle } from "lucide-react";
+import { useState } from "react";
+import { Outlet } from "react-router";
 
 import { PageHeader } from "@/components/page-header";
 import { SubscriptionStatusButton } from "@/components/subscription-status-button";
@@ -23,83 +9,52 @@ import { Button } from "@/components/ui/button";
 import { withActiveAccount } from "@/components/with-active-account";
 import { GroupContext } from "@/contexts/group-context";
 import { GroupEventStoreContext } from "@/contexts/group-event-store-context";
-import { useGroupEventStore } from "@/hooks/use-group-event-store";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { accounts } from "@/lib/accounts";
-import { marmotClient$ } from "@/lib/marmot-client";
-import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
-import MobileGroupShell from "@/layouts/mobile/group-shell";
+
 import { GroupDetailsDrawer } from "./components/group-details-drawer";
+import { GroupTabLinks } from "./components/group-tab-links";
+import { useGroupDetail } from "./components/use-group-detail";
 
-function DesktopGroupDetailLayout() {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const account = use$(accounts.active$);
+// ─── Shared context wrapper ────────────────────────────────────────────────────
 
-  // Get the selected group from marmotClient$
-  const group = use$(
-    () =>
-      marmotClient$.pipe(
-        switchMap((client) => {
-          if (!client || !id) return of(null);
-          return from(client.getGroup(id)).pipe(catchError(() => of(null)));
-        }),
-      ),
-    [id],
-  );
-
-  // Build and populate the per-group EventStore from the group's rumor history.
+/**
+ * Wraps both desktop and mobile layouts' `<Outlet />` with the two group
+ * contexts so all child routes can access group state without prop-drilling.
+ */
+function GroupContextProviders({
+  data,
+  children,
+}: {
+  data: ReturnType<typeof useGroupDetail>;
+  children: React.ReactNode;
+}) {
   const {
     groupEventStore,
+    group,
+    isAdmin,
     loadingMore,
     loadingDone,
-    loadMore: loadMoreMessages,
-  } = useGroupEventStore(group ?? null);
+    loadMoreMessages,
+  } = data;
+  if (!group) return null;
+  return (
+    <GroupEventStoreContext.Provider value={groupEventStore}>
+      <GroupContext.Provider
+        value={{ group, isAdmin, loadingMore, loadingDone, loadMoreMessages }}
+      >
+        {children}
+      </GroupContext.Provider>
+    </GroupEventStoreContext.Provider>
+  );
+}
 
-  const groupIdHex = useMemo(() => {
-    if (!group) return null;
-    return getNostrGroupIdHex(group.state);
-  }, [group]);
+// ─── Desktop layout ────────────────────────────────────────────────────────────
 
-  // Mark group as seen when viewing it
-  useEffect(() => {
-    if (!groupIdHex) return;
-    const subscriptionManager = getGroupSubscriptionManager();
-    if (!subscriptionManager) return;
-    subscriptionManager.markGroupSeen(groupIdHex, unixNow());
-  }, [groupIdHex]);
-
-  // If the group doesn't exist locally, go back to the groups list.
-  useEffect(() => {
-    if (!id) return;
-    if (group === null) {
-      navigate("/groups");
-    }
-  }, [id, group, navigate]);
-
-  // Get group name
-  const groupName = group
-    ? getMarmotGroupData(group.state)?.name || "Unnamed Group"
-    : "Loading...";
-
-  const isAdmin = useMemo(() => {
-    if (!group || !account?.pubkey) return false;
-    const data = getMarmotGroupData(group.state);
-    return data?.adminPubkeys?.includes(account?.pubkey) ?? false;
-  }, [group, account?.pubkey]);
-
-  // Determine active tab from current path
-  const currentPath = location.pathname;
-  const isOnChatTab =
-    currentPath === `/groups/${id}` || currentPath === `/groups/${id}/chat`;
-  const isOnMembersTab = currentPath === `/groups/${id}/members`;
-  const isOnAdminTab = currentPath === `/groups/${id}/admin`;
-  const isOnTreeTab = currentPath === `/groups/${id}/tree`;
-  const isOnEventsTab = currentPath === `/groups/${id}/timeline`;
-  const isOnMediaTab = currentPath === `/groups/${id}/media`;
+function DesktopGroupDetailLayout() {
+  const data = useGroupDetail();
+  const { id, group, groupName, isAdmin, navigate } = data;
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   if (!id) {
     return (
@@ -137,7 +92,6 @@ function DesktopGroupDetailLayout() {
               <Loader2 className="h-4 w-4 animate-spin" />
               <span>Loading group...</span>
             </div>
-
             <Button
               variant="outline"
               size="sm"
@@ -151,9 +105,15 @@ function DesktopGroupDetailLayout() {
     );
   }
 
-  if (group === null) {
-    return null;
-  }
+  if (group === null) return null;
+
+  const tabClass = (active: boolean) =>
+    cn(
+      "px-4 py-2 text-sm font-medium transition-colors hover:text-foreground",
+      active
+        ? "text-foreground border-b-2 border-primary"
+        : "text-muted-foreground",
+    );
 
   return (
     <>
@@ -180,107 +140,147 @@ function DesktopGroupDetailLayout() {
         }
       />
 
-      {/* Tabs Navigation */}
       <div className="flex gap-1 px-4 border-b">
-        <Link
-          to={`/groups/${id}/chat`}
-          className={cn(
-            "px-4 py-2 text-sm font-medium transition-colors",
-            "hover:text-foreground",
-            isOnChatTab
-              ? "text-foreground border-b-2 border-primary"
-              : "text-muted-foreground",
-          )}
-        >
-          Chat
-        </Link>
-        <Link
-          to={`/groups/${id}/members`}
-          className={cn(
-            "px-4 py-2 text-sm font-medium transition-colors",
-            "hover:text-foreground",
-            isOnMembersTab
-              ? "text-foreground border-b-2 border-primary"
-              : "text-muted-foreground",
-          )}
-        >
-          Members
-        </Link>
-        <Link
-          to={`/groups/${id}/media`}
-          className={cn(
-            "px-4 py-2 text-sm font-medium transition-colors",
-            "hover:text-foreground",
-            isOnMediaTab
-              ? "text-foreground border-b-2 border-primary"
-              : "text-muted-foreground",
-          )}
-        >
-          Media
-        </Link>
-        {isAdmin && (
-          <Link
-            to={`/groups/${id}/admin`}
-            className={cn(
-              "px-4 py-2 text-sm font-medium transition-colors",
-              "hover:text-foreground",
-              isOnAdminTab
-                ? "text-foreground border-b-2 border-primary"
-                : "text-muted-foreground",
-            )}
-          >
-            Admin
-          </Link>
-        )}
-        <Link
-          to={`/groups/${id}/tree`}
-          className={cn(
-            "px-4 py-2 text-sm font-medium transition-colors",
-            "hover:text-foreground",
-            isOnTreeTab
-              ? "text-foreground border-b-2 border-primary"
-              : "text-muted-foreground",
-          )}
-        >
-          Ratchet Tree
-        </Link>
-        <Link
-          to={`/groups/${id}/timeline`}
-          className={cn(
-            "px-4 py-2 text-sm font-medium transition-colors",
-            "hover:text-foreground",
-            isOnEventsTab
-              ? "text-foreground border-b-2 border-primary"
-              : "text-muted-foreground",
-          )}
-        >
-          MLS Timeline
-        </Link>
+        <GroupTabLinks isAdmin={isAdmin} tabClassName={tabClass} />
       </div>
 
-      {/* Both contexts provided so all child routes can access the group
-          instance and query group-private events reactively without
-          prop-drilling or outlet context typing. */}
-      <GroupEventStoreContext.Provider value={groupEventStore}>
-        <GroupContext.Provider
-          value={{
-            group,
-            isAdmin,
-            loadingMore,
-            loadingDone,
-            loadMoreMessages,
-          }}
-        >
-          <Outlet />
-        </GroupContext.Provider>
-      </GroupEventStoreContext.Provider>
+      <GroupContextProviders data={data}>
+        <Outlet />
+      </GroupContextProviders>
     </>
   );
 }
 
+// ─── Mobile layout ─────────────────────────────────────────────────────────────
+
+function MobileGroupDetailLayout() {
+  const data = useGroupDetail();
+  const { id, group, groupName, isAdmin, navigate } = data;
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  const backHeader = (title: string) => (
+    <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b bg-background flex items-center px-4 gap-3">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="shrink-0"
+        onClick={() => navigate("/groups")}
+      >
+        <ArrowLeftIcon size={20} />
+      </Button>
+      <span className="flex-1 text-base font-medium truncate">{title}</span>
+    </header>
+  );
+
+  if (!id) {
+    return (
+      <div className="flex flex-col h-dvh overflow-hidden bg-background">
+        {backHeader("Invalid Group")}
+        <div className="flex items-center justify-center flex-1 p-4 mt-14">
+          <Alert variant="destructive">
+            <XCircle className="h-4 w-4" />
+            <AlertDescription>Invalid group ID</AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
+  }
+
+  if (group === undefined) {
+    return (
+      <div className="flex flex-col h-dvh overflow-hidden bg-background">
+        {backHeader("Loading...")}
+        <div className="flex items-center justify-center flex-1 p-4 mt-14">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading group...</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/groups")}
+            >
+              Back to Groups
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (group === null) return null;
+
+  const tabClass = (active: boolean) =>
+    cn(
+      "px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors shrink-0 hover:text-foreground",
+      active
+        ? "text-foreground border-b-2 border-primary"
+        : "text-muted-foreground",
+    );
+
+  return (
+    <div className="flex flex-col h-dvh overflow-hidden bg-background">
+      {/* Fixed header: back button + group name + kebab */}
+      <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b bg-background flex items-center px-2 gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="shrink-0"
+          onClick={() => navigate("/groups")}
+        >
+          <ArrowLeftIcon size={20} />
+        </Button>
+        <span className="flex-1 text-base font-medium truncate">
+          {groupName}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="shrink-0"
+          onClick={() => setDetailsOpen(true)}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <circle cx="5" cy="12" r="2" />
+            <circle cx="12" cy="12" r="2" />
+            <circle cx="19" cy="12" r="2" />
+          </svg>
+        </Button>
+      </header>
+
+      {/* Horizontally scrollable tab strip */}
+      <div className="fixed top-14 left-0 right-0 z-40 border-b bg-background overflow-x-auto flex no-scrollbar">
+        <GroupTabLinks isAdmin={isAdmin} tabClassName={tabClass} />
+      </div>
+
+      {/* Content: offset past fixed header (56px) + tab strip (41px) */}
+      <main className="flex flex-col flex-1 overflow-hidden pt-[calc(56px+41px)]">
+        <GroupContextProviders data={data}>
+          <Outlet />
+        </GroupContextProviders>
+      </main>
+
+      {/* Details drawer — mobile only, triggered by kebab */}
+      <GroupDetailsDrawer
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        group={group}
+      />
+    </div>
+  );
+}
+
+// ─── Switch ────────────────────────────────────────────────────────────────────
+
 function GroupDetailPage() {
   const isMobile = useIsMobile();
-  return isMobile ? <MobileGroupShell /> : <DesktopGroupDetailLayout />;
+  return isMobile ? <MobileGroupDetailLayout /> : <DesktopGroupDetailLayout />;
 }
 
 export default withActiveAccount(GroupDetailPage);
