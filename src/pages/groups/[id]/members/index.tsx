@@ -65,7 +65,7 @@ export default function GroupMembersPage() {
         isAdmin={isAdmin}
       />
 
-      <div className="flex flex-col h-[calc(100vh-118px)] p-4">
+      <div className="flex flex-col flex-1 overflow-hidden p-4">
         {/* Header with search and invite button */}
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">

@@ -120,10 +120,16 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply font-sans bg-background text-foreground;
+  html,
+  body,
+  #root {
+    @apply h-full overflow-hidden font-sans bg-background text-foreground;
   }
-  html {
-    @apply font-sans;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
 }

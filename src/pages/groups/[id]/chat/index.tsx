@@ -99,22 +99,8 @@ export default function GroupChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-118px)]">
-      {/* Error Display */}
-      {sendError && (
-        <div className="p-4">
-          <Alert variant="destructive">
-            <XCircle className="h-4 w-4" />
-            <AlertDescription>Error: {sendError}</AlertDescription>
-          </Alert>
-        </div>
-      )}
-
-      {/* Messages - flex-col-reverse for scroll-to-bottom behavior.
-          The GroupEventStoreContext (provided by the layout) is used by the
-          group-aware mention renderer to resolve nevent references to private
-          kind-9 rumours as inline quote blocks. */}
-      <div className="flex flex-col-reverse h-full overflow-y-auto overflow-x-hidden px-2 pt-10">
+    <>
+      <div className="flex flex-col-reverse flex-1 h-0 overflow-y-auto overflow-x-hidden px-2 pt-10">
         <MessageList
           messages={messages as Rumor[]}
           group={group}
@@ -139,7 +125,7 @@ export default function GroupChatPage() {
       </div>
 
       {/* Message Input - sticky at bottom; state lives in MessageForm to avoid full-page re-renders on typing */}
-      <div className="border-t p-4 bg-background">
+      <div className="border-t p-2 bg-background shrink-0">
         <MessageForm
           group={group}
           isSending={isSending}
@@ -158,6 +144,6 @@ export default function GroupChatPage() {
           onClose={() => setActiveWebxdc(null)}
         />
       )}
-    </div>
+    </>
   );
 }

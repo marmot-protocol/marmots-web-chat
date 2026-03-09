@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router";
+import { BrowserRouter, Route, Routes } from "react-router";
 
 import "./index.css";
 
@@ -9,11 +9,12 @@ import "@/lib/runtime";
 import { ThemeProvider } from "./components/theme-providers";
 import { SidebarProvider } from "./components/ui/sidebar";
 
-import ContactsPage from "./pages/contacts.tsx";
+import ContactsPage from "./pages/contacts/_layout.tsx";
 import ContactDetailPage from "./pages/contacts/[npub].tsx";
 import ContactsIndexPage from "./pages/contacts/index.tsx";
-import GroupsPage from "./pages/groups.tsx";
-import GroupDetailPage from "./pages/groups/[id].tsx";
+import ContactsExplorePage from "./pages/contacts/explore.tsx";
+import GroupsLayout from "./pages/groups/_layout.tsx";
+import GroupPage from "./pages/groups/[id]/_layout.tsx";
 import GroupAdminPage from "./pages/groups/[id]/admin/index.tsx";
 import GroupChatPage from "./pages/groups/[id]/chat/index.tsx";
 import GroupTreePage from "./pages/groups/[id]/tree/index.tsx";
@@ -23,26 +24,27 @@ import GroupMembersPage from "./pages/groups/[id]/members/index.tsx";
 import CreateGroupPage from "./pages/groups/create.tsx";
 import GroupsIndexPage from "./pages/groups/index.tsx";
 import HomePage from "./pages/index.tsx";
-import InvitesPage from "./pages/invites.tsx";
+import InvitesPage from "./pages/invites/_layout.tsx";
 import InviteDetailPage from "./pages/invites/[rumorId].tsx";
 import InvitesIndexPage from "./pages/invites/index.tsx";
-import KeyPackagePage from "./pages/key-packages.tsx";
+import KeyPackagePage from "./pages/key-packages/_layout.tsx";
 import KeyPackageDetailPage from "./pages/key-packages/[id].tsx";
 import CreateKeyPackagePage from "./pages/key-packages/create.tsx";
 import ProfilePage from "./pages/profile.tsx";
-import SettingsPage from "./pages/settings.tsx";
+import SettingsPage from "./pages/settings/_layout.tsx";
 import SettingsAccountPage from "./pages/settings/account.tsx";
 import SettingsAccountsPage from "./pages/settings/accounts.tsx";
+import SettingsIndexPage from "./pages/settings/index.tsx";
 import MarmotSettingsPage from "./pages/settings/marmot";
 import SettingsRelaysPage from "./pages/settings/relays.tsx";
 import BlossomSettingsPage from "./pages/settings/blossom.tsx";
-import SignInPage from "./pages/signin.tsx";
+import SignInPage from "./pages/signin/_layout.tsx";
 import SignInBunkerPage from "./pages/signin/bunker.tsx";
 import SignInQRPage from "./pages/signin/connect-qr.tsx";
 import SignInNewUserPage from "./pages/signin/create.tsx";
 import SignInExtensionPage from "./pages/signin/extension.tsx";
 import SignInIndexPage from "./pages/signin/index.tsx";
-import ToolsPage from "./pages/tools";
+import ToolsPage from "./pages/tools/_layout.tsx";
 import GroupMetadataEncodingPage from "./pages/tools/group-metadata-encoding.tsx";
 import KeyPackageDecoderPage from "./pages/tools/key-package-encoding.tsx";
 import KeyPackageFeedPage from "./pages/tools/key-package-feed.tsx";
@@ -61,10 +63,10 @@ createRoot(document.getElementById("root")!).render(
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/groups" element={<GroupsPage />}>
+            <Route path="/groups" element={<GroupsLayout />}>
               <Route index element={<GroupsIndexPage />} />
               <Route path="create" element={<CreateGroupPage />} />
-              <Route path=":id" element={<GroupDetailPage />}>
+              <Route path=":id" element={<GroupPage />}>
                 <Route index element={<GroupChatPage />} />
                 <Route path="chat" element={<GroupChatPage />} />
                 <Route path="members" element={<GroupMembersPage />} />
@@ -90,6 +92,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="qr" element={<SignInQRPage />} />
             </Route>
             <Route path="/contacts" element={<ContactsPage />}>
+              <Route path="explore" element={<ContactsExplorePage />} />
               <Route path=":npub" element={<ContactDetailPage />} />
               <Route index element={<ContactsIndexPage />} />
             </Route>
@@ -105,10 +108,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="key-package-feed" element={<KeyPackageFeedPage />} />
             </Route>
             <Route path="/settings" element={<SettingsPage />}>
-              <Route
-                index
-                element={<Navigate to="/settings/accounts" replace />}
-              />
+              <Route index element={<SettingsIndexPage />} />
               <Route path="marmot" element={<MarmotSettingsPage />} />
               <Route path="relays" element={<SettingsRelaysPage />} />
               <Route path="account" element={<SettingsAccountPage />} />

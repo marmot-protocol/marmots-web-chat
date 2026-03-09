@@ -7,20 +7,21 @@ import { bytesToHex, relaySet } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { SettingsIcon } from "lucide-react";
 import { useMemo } from "react";
-import { Link, Outlet, useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 import { combineLatest, map, shareReplay } from "rxjs";
 
-import { AppSidebar } from "@/components/app-sidebar";
 import { SubscriptionStatusButton } from "@/components/subscription-status-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SidebarInset } from "@/components/ui/sidebar";
 import { withActiveAccount } from "@/components/with-active-account";
+import { DesktopShell } from "@/layouts/desktop/shell";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { user$ } from "@/lib/accounts";
 import { keyPackageRelays$, publishedKeyPackages$ } from "@/lib/lifecycle";
 import { liveKeyPackages$ } from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
 import { formatTimeAgo } from "@/lib/time";
+import { MobileShell } from "@/layouts/mobile/shell";
 
 /** An observable of all relays to read key packages from */
 const readRelays$ = combineLatest([
@@ -81,55 +82,58 @@ function KeyPackageItem({ keyPackage }: { keyPackage: KeyPackageEntry }) {
   );
 }
 
-function KeyPackagesPage() {
+function DesktopKeyPackagesLayout() {
   const keyPackages = use$(liveKeyPackages$);
-  // Subscribe to relay fetching and remote key package tracking as a side effect.
-  // publishedKeyPackages$ opens a relay subscription and calls keyPackages.track()
-  // for each event, keeping the key package manager up to date with remote packages.
   use$(publishedKeyPackages$);
 
-  return (
-    <>
-      <AppSidebar
-        title="Key Packages"
-        footer={
-          <div className="flex">
-            <Button asChild variant="ghost" size="icon">
-              <Link to="/settings/marmot">
-                <SettingsIcon />
-              </Link>
-            </Button>
-            <SubscriptionStatusButton relays={readRelays$} />
-          </div>
-        }
-      >
-        <div className="flex flex-col">
-          <Button asChild variant="default" className="m-2">
-            <Link to="/key-packages/create">Create Key Package</Link>
-          </Button>
-          {keyPackages && keyPackages.length > 0 ? (
-            keyPackages.map((pkg) => (
-              <KeyPackageItem
-                key={bytesToHex(pkg.keyPackageRef)}
-                keyPackage={pkg}
-              />
-            ))
-          ) : (
-            <div className="p-4 text-sm text-muted-foreground text-center">
-              {keyPackages === undefined ? "Loading..." : "No key packages yet"}
-            </div>
-          )}
-        </div>
+  const footer = (
+    <div className="flex">
+      <Button asChild variant="ghost" size="icon">
+        <Link to="/settings/marmot">
+          <SettingsIcon />
+        </Link>
+      </Button>
+      <SubscriptionStatusButton relays={readRelays$} />
+    </div>
+  );
 
-        <div className="p-4 text-sm text-muted-foreground text-center">
-          Found {keyPackages?.length ?? 0} key packages
-        </div>
-      </AppSidebar>
-      <SidebarInset>
-        <Outlet />
-      </SidebarInset>
+  const sidebar = (
+    <>
+      <div className="flex flex-col">
+        <Button asChild variant="default" className="m-2">
+          <Link to="/key-packages/create">Create Key Package</Link>
+        </Button>
+        {keyPackages && keyPackages.length > 0 ? (
+          keyPackages.map((pkg) => (
+            <KeyPackageItem
+              key={bytesToHex(pkg.keyPackageRef)}
+              keyPackage={pkg}
+            />
+          ))
+        ) : (
+          <div className="p-4 text-sm text-muted-foreground text-center">
+            {keyPackages === undefined ? "Loading..." : "No key packages yet"}
+          </div>
+        )}
+      </div>
+      <div className="p-4 text-sm text-muted-foreground text-center">
+        Found {keyPackages?.length ?? 0} key packages
+      </div>
     </>
   );
+
+  return (
+    <DesktopShell title="Key Packages" sidebar={sidebar} footer={footer} />
+  );
+}
+
+function MobileKeyPackagesLayout() {
+  return <MobileShell title="Key Packages" />;
+}
+
+function KeyPackagesPage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <MobileKeyPackagesLayout /> : <DesktopKeyPackagesLayout />;
 }
 
 export default withActiveAccount(KeyPackagesPage);

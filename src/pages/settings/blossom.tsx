@@ -41,6 +41,13 @@ function BlossomServerFavicon({ url }: { url: string }) {
 import { PageBody } from "@/components/page-body";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { actions, user$ } from "@/lib/accounts";
@@ -79,9 +86,9 @@ function BlossomServerItem({
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         <BlossomServerFavicon url={url} />
-        <code className="flex-1 text-xs bg-muted p-2 rounded font-mono select-all">
+        <code className="min-w-0 flex-1 truncate text-xs bg-muted p-2 rounded font-mono select-all">
           {url}
         </code>
         <Button
@@ -89,6 +96,7 @@ function BlossomServerItem({
           size="icon"
           onClick={handleRemove}
           disabled={removing}
+          className="shrink-0"
         >
           {removing ? (
             <Loader2Icon className="w-4 h-4 animate-spin" />
@@ -146,7 +154,7 @@ function NewBlossomServerForm({
 
   return (
     <form className="flex flex-col gap-1" onSubmit={handleAdd}>
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Input
           type="url"
           placeholder={placeholder}
@@ -155,10 +163,14 @@ function NewBlossomServerForm({
             setValue(e.target.value);
             setError(null);
           }}
-          className="flex-1"
+          className="min-w-0 flex-1"
           disabled={adding}
         />
-        <Button type="submit" disabled={!value.trim() || adding}>
+        <Button
+          type="submit"
+          disabled={!value.trim() || adding}
+          className="w-full shrink-0 sm:w-auto"
+        >
           {adding ? <Loader2Icon className="w-4 h-4 animate-spin" /> : "Add"}
         </Button>
       </div>
@@ -293,7 +305,7 @@ function SigningModeSection() {
       {options.map((opt) => (
         <label
           key={opt.value}
-          className="flex items-start gap-3 cursor-pointer rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+          className="flex items-start gap-3 cursor-pointer rounded-lg border p-3 sm:p-4 hover:bg-muted/50 transition-colors min-w-0"
         >
           <input
             type="radio"
@@ -301,11 +313,11 @@ function SigningModeSection() {
             value={opt.value}
             checked={mode === opt.value}
             onChange={() => blossomSigningMode$.next(opt.value)}
-            className="mt-0.5"
+            className="mt-0.5 shrink-0"
           />
-          <div>
+          <div className="min-w-0 flex-1">
             <Label className="font-medium cursor-pointer">{opt.label}</Label>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className="text-sm text-muted-foreground mt-0.5 wrap-break-word">
               {opt.description}
             </p>
           </div>
@@ -331,34 +343,41 @@ export default function BlossomSettingsPage() {
       />
       <PageBody>
         {/* Signing mode — shown first so the server list below reflects the selection */}
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-2xl font-semibold">Upload Signing Mode</h2>
-            <p className="text-sm text-muted-foreground mt-1">
+        <Card>
+          <CardHeader className="px-4 pb-2 sm:px-6 sm:pb-3">
+            <CardTitle className="text-xl sm:text-2xl">
+              Upload Signing Mode
+            </CardTitle>
+            <CardDescription className="text-sm mt-1">
               Controls which key signs the Blossom authentication event (kind
               24242) and which server list is used for uploads.
-            </p>
-          </div>
-          <SigningModeSection />
-        </div>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-4 sm:px-6">
+            <SigningModeSection />
+          </CardContent>
+        </Card>
 
         {/* Server list — changes based on mode */}
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-2xl font-semibold">Blossom Servers</h2>
-            <p className="text-sm text-muted-foreground mt-1">
+        <Card>
+          <CardHeader className="px-4 pb-2 sm:px-6 sm:pb-3">
+            <CardTitle className="text-xl sm:text-2xl">
+              Blossom Servers
+            </CardTitle>
+            <CardDescription className="text-sm mt-1">
               Encrypted media (MIP-04) is uploaded to these servers. Files are
               always encrypted before upload — the server never sees your
               plaintext content.
-            </p>
-          </div>
-
-          {mode === "ephemeral" ? (
-            <EphemeralServersSection />
-          ) : (
-            <AccountServersSection />
-          )}
-        </div>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-4 sm:px-6">
+            {mode === "ephemeral" ? (
+              <EphemeralServersSection />
+            ) : (
+              <AccountServersSection />
+            )}
+          </CardContent>
+        </Card>
       </PageBody>
     </>
   );

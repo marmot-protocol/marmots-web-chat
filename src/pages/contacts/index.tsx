@@ -4,8 +4,10 @@ import { use$ } from "applesauce-react/hooks";
 import { PageBody } from "@/components/page-body";
 import { PageHeader } from "@/components/page-header";
 import { withActiveAccount } from "@/components/with-active-account";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { user$ } from "@/lib/accounts";
 import { liveGroups$ } from "@/lib/marmot-client";
+import { ContactListContentMobile } from "@/pages/contacts/_layout";
 import {
   StartChatDialog,
   useOnlineContactsKeyPackages,
@@ -16,7 +18,7 @@ import {
   RecentKeyPackagesFeed,
 } from "@/pages/contacts/components/recent-key-packages";
 
-function ContactsIndexPage() {
+function ContactsIndexDesktop() {
   const contacts = use$(user$.contacts$);
   const groups = use$(liveGroups$);
   const chat = useStartChat();
@@ -81,6 +83,11 @@ function ContactsIndexPage() {
       </PageBody>
     </>
   );
+}
+
+function ContactsIndexPage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <ContactListContentMobile /> : <ContactsIndexDesktop />;
 }
 
 export default withActiveAccount(ContactsIndexPage);

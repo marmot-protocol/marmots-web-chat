@@ -11,10 +11,11 @@ import {
   UsersIcon,
 } from "lucide-react";
 import { useMemo } from "react";
-import { Link } from "react-router";
+import { Link, Navigate } from "react-router";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { PageHeader } from "@/components/page-header";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -165,6 +166,9 @@ function OnlineContactsSection() {
 // ============================================================================
 
 export default function HomePage() {
+  const isMobile = useIsMobile();
+  if (isMobile) return <Navigate to="/groups" replace />;
+
   return (
     <>
       <AppSidebar title="marmot-ts Chat" />

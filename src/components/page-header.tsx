@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Link } from "react-router";
 
 export type BreadcrumbItemType = {
@@ -21,7 +22,16 @@ interface PageHeaderProps {
   actions?: ReactNode;
 }
 
+/**
+ * Desktop-only sticky page header with sidebar trigger and breadcrumb trail.
+ *
+ * Returns null on mobile — mobile views use their own headers provided by
+ * MobileShell and MobileGroupShell.
+ */
 export function PageHeader({ items, actions }: PageHeaderProps) {
+  const isMobile = useIsMobile();
+  if (isMobile) return null;
+
   return (
     <header className="bg-background sticky top-0 flex shrink-0 items-center gap-2 border-b p-4">
       <SidebarTrigger className="-ml-1" />

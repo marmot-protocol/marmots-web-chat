@@ -1,7 +1,7 @@
+import type { AppGroup } from "@/lib/marmot-client";
+import { getGroupMembers } from "@internet-privacy/marmot-ts";
 import { use$ } from "applesauce-react/hooks";
 import { MessageSquare, Users } from "lucide-react";
-import { getGroupMembers } from "@internet-privacy/marmot-ts";
-import type { AppGroup } from "@/lib/marmot-client";
 import { Link } from "react-router";
 
 import { PageBody } from "@/components/page-body";
@@ -14,8 +14,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getGroupSubscriptionManager } from "@/lib/runtime";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { liveGroups$ } from "@/lib/marmot-client";
+import { getGroupSubscriptionManager } from "@/lib/runtime";
+import { GroupsListContent } from "@/pages/groups/_layout";
+import { MobileShell } from "@/layouts/mobile/shell";
 
 interface GroupCardProps {
   group: AppGroup;
@@ -68,7 +71,7 @@ function GroupCard({ group, hasUnread }: GroupCardProps) {
   );
 }
 
-export default function GroupsIndexPage() {
+function GroupsIndexDesktop() {
   const groups = use$(liveGroups$);
   const groupMgr = getGroupSubscriptionManager();
   const unreadGroups = use$(groupMgr?.unreadGroupIds$ ?? undefined);
@@ -136,4 +139,23 @@ export default function GroupsIndexPage() {
       </PageBody>
     </>
   );
+}
+
+function GroupsIndexMobile() {
+  return (
+    <MobileShell title="Groups">
+      <div className="p-2">
+        <Button asChild className="w-full" variant="outline">
+          <Link to="/groups/create">Create Group</Link>
+        </Button>
+      </div>
+
+      <GroupsListContent />
+    </MobileShell>
+  );
+}
+
+export default function GroupsIndexPage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <GroupsIndexMobile /> : <GroupsIndexDesktop />;
 }

@@ -12,7 +12,6 @@ import {
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
-import { AppSidebar } from "@/components/app-sidebar";
 import { IconCopyButton } from "@/components/icon-copy-button";
 import { PageBody } from "@/components/page-body";
 import { PageHeader } from "@/components/page-header";
@@ -26,7 +25,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { SidebarInset } from "@/components/ui/sidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { DesktopShell } from "@/layouts/desktop/shell";
+import { MobileShell } from "@/layouts/mobile/shell";
 import accountManager from "@/lib/accounts";
 import databaseBroker from "@/lib/account-database";
 import { eventStore } from "@/lib/nostr";
@@ -41,7 +42,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export default function ProfilePage() {
+function DesktopProfilePage() {
   const navigate = useNavigate();
   const active = use$(accountManager.active$);
   const accounts = use$(accountManager.accounts$) || [];
@@ -104,30 +105,27 @@ export default function ProfilePage() {
   // If no account is active
   if (!active) {
     return (
-      <>
-        <AppSidebar title="Profile" />
-        <SidebarInset>
-          <PageHeader
-            items={[{ label: "Home", to: "/" }, { label: "Profile" }]}
-          />
-          <PageBody>
-            <Card className="max-w-2xl mx-auto">
-              <CardHeader className="text-center">
-                <CardTitle>No Account Active</CardTitle>
-                <CardDescription>
-                  Sign in or create an account to get started
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button onClick={handleSignIn} className="w-full">
-                  <UserIcon />
-                  Sign In
-                </Button>
-              </CardContent>
-            </Card>
-          </PageBody>
-        </SidebarInset>
-      </>
+      <DesktopShell title="Profile">
+        <PageHeader
+          items={[{ label: "Home", to: "/" }, { label: "Profile" }]}
+        />
+        <PageBody>
+          <Card className="max-w-2xl mx-auto">
+            <CardHeader className="text-center">
+              <CardTitle>No Account Active</CardTitle>
+              <CardDescription>
+                Sign in or create an account to get started
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={handleSignIn} className="w-full">
+                <UserIcon />
+                Sign In
+              </Button>
+            </CardContent>
+          </Card>
+        </PageBody>
+      </DesktopShell>
     );
   }
 
@@ -135,215 +133,215 @@ export default function ProfilePage() {
   const otherAccounts = accounts.filter((acc) => acc.id !== active.id);
 
   return (
-    <>
-      <AppSidebar title="Profile" />
-      <SidebarInset>
-        <PageHeader
-          items={[{ label: "Home", to: "/" }, { label: "Profile" }]}
-        />
-        <PageBody>
-          <div className="max-w-2xl mx-auto space-y-6">
-            {/* Profile Card */}
-            <Card>
-              <CardHeader className="text-center space-y-4">
-                <div className="flex justify-center">
-                  <Avatar className="h-24 w-24 rounded-2xl">
-                    <AvatarImage src={activeAvatar} alt={activeName} />
-                    <AvatarFallback className="rounded-2xl text-2xl">
-                      {activeName.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-                <div>
-                  <CardTitle className="text-2xl">{activeName}</CardTitle>
-                  <CardDescription className="mt-2">
-                    {activeProfile?.about || "No bio available"}
-                  </CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Public Key Section */}
-                <div className="space-y-2">
-                  <div className="text-sm font-medium text-muted-foreground">
-                    Public Key (npub)
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-xs font-mono bg-muted p-2 rounded truncate">
-                      {npub}
-                    </code>
-                    <IconCopyButton text={npub} variant="outline" size="icon" />
-                    <QRIconButton data={npub} variant="outline" />
-                  </div>
-                </div>
-
-                {/* Hex Key Section */}
-                <div className="space-y-2">
-                  <div className="text-sm font-medium text-muted-foreground">
-                    Public Key (hex)
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-xs font-mono bg-muted p-2 rounded truncate">
-                      {active.pubkey}
-                    </code>
-                    <IconCopyButton
-                      text={active.pubkey}
-                      variant="outline"
-                      size="icon"
-                    />
-                    <QRIconButton data={active.pubkey} variant="outline" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Account Switcher Card */}
-            <div className="flex flex-col gap-2">
-              {otherAccounts.length > 0 && (
-                <div className="space-y-2">
-                  {otherAccounts.map((account) => {
-                    const profile = use$(
-                      () => eventStore.profile(account.pubkey),
-                      [account.pubkey],
-                    );
-                    const avatar = getProfilePicture(
-                      profile,
-                      `https://api.dicebear.com/7.x/identicon/svg?seed=${account.pubkey}`,
-                    );
-                    const name = getDisplayName(
-                      profile,
-                      account.pubkey.slice(0, 16),
-                    );
-
-                    return (
-                      <Button
-                        key={account.id}
-                        variant="outline"
-                        className="w-full justify-start h-auto py-3"
-                        onClick={() => handleSwitchAccount(account.id)}
-                      >
-                        <Avatar className="h-8 w-8 rounded-lg mr-3">
-                          <AvatarImage src={avatar} alt={name} />
-                          <AvatarFallback className="rounded-lg">
-                            {name.slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0 text-left">
-                          <div className="font-semibold truncate text-sm">
-                            {name}
-                          </div>
-                          <div className="text-xs text-muted-foreground truncate font-mono">
-                            {account.pubkey.slice(0, 8)}...
-                            {account.pubkey.slice(-8)}
-                          </div>
-                        </div>
-                        <ChevronRightIcon className="h-4 w-4 ml-2 shrink-0" />
-                      </Button>
-                    );
-                  })}
-                </div>
-              )}
-              <Button asChild variant="outline" className="w-full">
-                <Link to="/settings/accounts">
-                  <SettingsIcon className="h-4 w-4" />
-                  Manage Accounts
-                </Link>
-              </Button>
-              <Button
-                onClick={handleSignIn}
-                variant="outline"
-                className="w-full"
-              >
-                <PlusIcon className="h-4 w-4" />
-                Add Another Account
-              </Button>
-            </div>
-
-            {/* Danger Zone */}
-            <Card className="border-destructive/50">
-              <CardHeader>
-                <CardTitle className="text-destructive">Danger Zone</CardTitle>
-                <CardDescription>
-                  Irreversible actions that will delete your local data
+    <DesktopShell title="Profile">
+      <PageHeader items={[{ label: "Home", to: "/" }, { label: "Profile" }]} />
+      <PageBody>
+        <div className="max-w-2xl mx-auto space-y-6">
+          {/* Profile Card */}
+          <Card>
+            <CardHeader className="text-center space-y-4">
+              <div className="flex justify-center">
+                <Avatar className="h-24 w-24 rounded-2xl">
+                  <AvatarImage src={activeAvatar} alt={activeName} />
+                  <AvatarFallback className="rounded-2xl text-2xl">
+                    {activeName.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+              <div>
+                <CardTitle className="text-2xl">{activeName}</CardTitle>
+                <CardDescription className="mt-2">
+                  {activeProfile?.about || "No bio available"}
                 </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start text-destructive hover:text-destructive"
-                  onClick={() => setShowClearDataDialog(true)}
-                  disabled={isClearing}
-                >
-                  <TrashIcon className="h-4 w-4" />
-                  {isClearing ? "Clearing..." : "Clear All Local Data"}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start text-destructive hover:text-destructive"
-                  onClick={() => setShowSignOutDialog(true)}
-                >
-                  <LogOutIcon className="h-4 w-4" />
-                  Sign Out & Clear Data
-                </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Public Key Section */}
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">
+                  Public Key (npub)
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs font-mono bg-muted p-2 rounded truncate">
+                    {npub}
+                  </code>
+                  <IconCopyButton text={npub} variant="outline" size="icon" />
+                  <QRIconButton data={npub} variant="outline" />
+                </div>
+              </div>
+
+              {/* Hex Key Section */}
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">
+                  Public Key (hex)
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs font-mono bg-muted p-2 rounded truncate">
+                    {active.pubkey}
+                  </code>
+                  <IconCopyButton
+                    text={active.pubkey}
+                    variant="outline"
+                    size="icon"
+                  />
+                  <QRIconButton data={active.pubkey} variant="outline" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Account Switcher Card */}
+          <div className="flex flex-col gap-2">
+            {otherAccounts.length > 0 && (
+              <div className="space-y-2">
+                {otherAccounts.map((account) => {
+                  const profile = use$(
+                    () => eventStore.profile(account.pubkey),
+                    [account.pubkey],
+                  );
+                  const avatar = getProfilePicture(
+                    profile,
+                    `https://api.dicebear.com/7.x/identicon/svg?seed=${account.pubkey}`,
+                  );
+                  const name = getDisplayName(
+                    profile,
+                    account.pubkey.slice(0, 16),
+                  );
+
+                  return (
+                    <Button
+                      key={account.id}
+                      variant="outline"
+                      className="w-full justify-start h-auto py-3"
+                      onClick={() => handleSwitchAccount(account.id)}
+                    >
+                      <Avatar className="h-8 w-8 rounded-lg mr-3">
+                        <AvatarImage src={avatar} alt={name} />
+                        <AvatarFallback className="rounded-lg">
+                          {name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className="font-semibold truncate text-sm">
+                          {name}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate font-mono">
+                          {account.pubkey.slice(0, 8)}...
+                          {account.pubkey.slice(-8)}
+                        </div>
+                      </div>
+                      <ChevronRightIcon className="h-4 w-4 ml-2 shrink-0" />
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
+            <Button asChild variant="outline" className="w-full">
+              <Link to="/settings/accounts">
+                <SettingsIcon className="h-4 w-4" />
+                Manage Accounts
+              </Link>
+            </Button>
+            <Button onClick={handleSignIn} variant="outline" className="w-full">
+              <PlusIcon className="h-4 w-4" />
+              Add Another Account
+            </Button>
           </div>
 
-          {/* Clear Data Confirmation Dialog */}
-          <AlertDialog
-            open={showClearDataDialog}
-            onOpenChange={setShowClearDataDialog}
-          >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Clear All Local Data?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete all messages, key packages, and
-                  group data stored on this device. This action cannot be
-                  undone. The page will reload after clearing.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={isClearing}>
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleClearData}
-                  disabled={isClearing}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  {isClearing ? "Clearing..." : "Clear Data"}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          {/* Danger Zone */}
+          <Card className="border-destructive/50">
+            <CardHeader>
+              <CardTitle className="text-destructive">Danger Zone</CardTitle>
+              <CardDescription>
+                Irreversible actions that will delete your local data
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button
+                variant="outline"
+                className="w-full justify-start text-destructive hover:text-destructive"
+                onClick={() => setShowClearDataDialog(true)}
+                disabled={isClearing}
+              >
+                <TrashIcon className="h-4 w-4" />
+                {isClearing ? "Clearing..." : "Clear All Local Data"}
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start text-destructive hover:text-destructive"
+                onClick={() => setShowSignOutDialog(true)}
+              >
+                <LogOutIcon className="h-4 w-4" />
+                Sign Out & Clear Data
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
 
-          {/* Sign Out Confirmation Dialog */}
-          <AlertDialog
-            open={showSignOutDialog}
-            onOpenChange={setShowSignOutDialog}
-          >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Sign Out & Clear Data?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will sign you out and permanently delete all local data
-                  associated with this account, including messages, key
-                  packages, and group information. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleSignOut}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  Sign Out & Clear Data
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </PageBody>
-      </SidebarInset>
-    </>
+        {/* Clear Data Confirmation Dialog */}
+        <AlertDialog
+          open={showClearDataDialog}
+          onOpenChange={setShowClearDataDialog}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Clear All Local Data?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete all messages, key packages, and
+                group data stored on this device. This action cannot be undone.
+                The page will reload after clearing.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isClearing}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleClearData}
+                disabled={isClearing}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isClearing ? "Clearing..." : "Clear Data"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Sign Out Confirmation Dialog */}
+        <AlertDialog
+          open={showSignOutDialog}
+          onOpenChange={setShowSignOutDialog}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Sign Out & Clear Data?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will sign you out and permanently delete all local data
+                associated with this account, including messages, key packages,
+                and group information. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleSignOut}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Sign Out & Clear Data
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </PageBody>
+    </DesktopShell>
   );
+}
+
+function MobileProfilePage() {
+  return <MobileShell title="Profile" />;
+}
+
+export default function ProfilePage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <MobileProfilePage /> : <DesktopProfilePage />;
 }
