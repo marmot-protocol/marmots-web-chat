@@ -1,6 +1,5 @@
 import {
-  extractMarmotGroupData,
-  getGroupMembers,
+  getMarmotGroupData,
   getNostrGroupIdHex,
   unixNow,
 } from "@internet-privacy/marmot-ts";
@@ -17,7 +16,6 @@ import {
 import { from, of, switchMap } from "rxjs";
 import { catchError } from "rxjs/operators";
 
-import { GroupDetailsDrawer } from "@/components/group/group-details-drawer";
 import { PageHeader } from "@/components/page-header";
 import { SubscriptionStatusButton } from "@/components/subscription-status-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -30,6 +28,7 @@ import { accounts } from "@/lib/accounts";
 import { marmotClient$ } from "@/lib/marmot-client";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
+import { GroupDetailsDrawer } from "./[id]/components/group-details-drawer";
 
 function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -83,30 +82,12 @@ function GroupDetailPage() {
 
   // Get group name
   const groupName = group
-    ? extractMarmotGroupData(group.state)?.name || "Unnamed Group"
+    ? getMarmotGroupData(group.state)?.name || "Unnamed Group"
     : "Loading...";
-
-  const groupDetails = useMemo(() => {
-    if (!group) return null;
-
-    const data = extractMarmotGroupData(group.state);
-    const allMembers = getGroupMembers(group.state);
-    const adminPubkeys = data?.adminPubkeys || [];
-
-    // Filter out admins from members list to avoid duplication
-    const members = allMembers.filter((pk) => !adminPubkeys.includes(pk));
-
-    return {
-      name: data?.name || "Unnamed Group",
-      epoch: group.state.groupContext.epoch,
-      members,
-      admins: adminPubkeys,
-    };
-  }, [group]);
 
   const isAdmin = useMemo(() => {
     if (!group || !account?.pubkey) return false;
-    const data = extractMarmotGroupData(group.state);
+    const data = getMarmotGroupData(group.state);
     return data?.adminPubkeys?.includes(account?.pubkey) ?? false;
   }, [group, account?.pubkey]);
 
@@ -188,8 +169,6 @@ function GroupDetailPage() {
             <GroupDetailsDrawer
               open={detailsOpen}
               onOpenChange={setDetailsOpen}
-              groupDetails={groupDetails}
-              isAdmin={isAdmin}
               group={group}
               trigger={
                 <Button variant="ghost" size="icon">

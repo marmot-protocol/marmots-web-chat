@@ -1,9 +1,9 @@
+import { KEY_PACKAGE_RELAY_LIST_KIND } from "@internet-privacy/marmot-ts";
 import { IconLock } from "@tabler/icons-react";
 import { castUser, User } from "applesauce-common/casts/user";
 import { normalizeToProfilePointer } from "applesauce-core/helpers";
 import { npubEncode } from "applesauce-core/helpers/pointers";
 import { use$ } from "applesauce-react/hooks";
-import { KEY_PACKAGE_RELAY_LIST_KIND } from "@internet-privacy/marmot-ts";
 import { useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { BehaviorSubject } from "rxjs";
@@ -26,6 +26,10 @@ import { persist } from "@/lib/settings";
 
 const hasKeyPackageRelays$ = new BehaviorSubject<boolean>(false);
 persist("contacts:has-key-package-relays", hasKeyPackageRelays$);
+
+// ============================================================================
+// ContactItem — sidebar link row to /contacts/:npub
+// ============================================================================
 
 function ContactItem({ user }: { user: User }) {
   const location = useLocation();
@@ -69,11 +73,15 @@ function ContactItem({ user }: { user: User }) {
   );
 }
 
+// ============================================================================
+// ContactsPage
+// ============================================================================
+
 export default function ContactsPage() {
   const contacts = use$(user$.contacts$);
   const [query, setQuery] = useState("");
 
-  // always load the latest contacts
+  // Always load the latest contacts
   const user = use$(user$);
   const outboxes = use$(user$.outboxes$);
   use$(
@@ -98,8 +106,6 @@ export default function ContactsPage() {
     const trimmed = debouncedQuery.trim();
 
     // Allow direct navigation by pasting a pubkey (hex) or npub.
-    // This makes it possible to open a contact detail page and discover
-    // KeyPackages even if the user isn't already in the local contacts list.
     let directPubkey: string | null = null;
     try {
       const pointer = normalizeToProfilePointer(trimmed);

@@ -1,12 +1,13 @@
-import { getPubkeyLeafNodes } from "@internet-privacy/marmot-ts";
+import { getPubkeyLeafNodes, Proposals } from "@internet-privacy/marmot-ts";
 import { npubEncode } from "applesauce-core/helpers";
-import { Loader2, Trash2 } from "lucide-react";
-import type { AppGroup } from "@/lib/marmot-client";
-import { Proposals } from "@internet-privacy/marmot-ts";
+import { use$ } from "applesauce-react/hooks";
+import { Loader2, LogOut, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { UserAvatar, UserName } from "@/components/nostr-user";
+import { marmotClient$ } from "@/lib/marmot-client";
+import type { AppGroup } from "@/lib/marmot-client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +26,7 @@ interface UserMemberCardProps {
   pubkey: string;
   isAdmin: boolean;
   canRemove: boolean;
+  canLeave?: boolean;
   group: AppGroup | null;
   onRemoveSuccess?: () => void;
 }
@@ -33,13 +35,32 @@ export function UserMemberCard({
   pubkey,
   isAdmin,
   canRemove,
+  canLeave = false,
   group,
   onRemoveSuccess,
 }: UserMemberCardProps) {
+  const navigate = useNavigate();
+  const client = use$(marmotClient$);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const leafCount = group ? getPubkeyLeafNodes(group.state, pubkey).length : 0;
+
+  const handleLeave = async () => {
+    if (!group || !client) return;
+    try {
+      setIsLeaving(true);
+      setError(null);
+      await client.leaveGroup(group.id);
+      navigate("/groups", { replace: true });
+    } catch (err) {
+      console.error("Failed to leave group:", err);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsLeaving(false);
+    }
+  };
 
   const handleRemove = async () => {
     if (!group || !canRemove) return;
@@ -102,9 +123,46 @@ export function UserMemberCard({
       </div>
 
       {/* Footer — only rendered when there's an action or error */}
-      {(canRemove || error) && (
+      {(canRemove || canLeave || error) && (
         <div className="px-4 pb-3 flex flex-col items-end gap-2">
           {error && <p className="text-xs text-destructive w-full">{error}</p>}
+          {canLeave && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" disabled={isLeaving}>
+                  {isLeaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Leaving...
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Leave group
+                    </>
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Leave group?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will publish a leave proposal to the group relays and
+                    remove the group from your local storage. This action cannot
+                    be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isLeaving}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction onClick={handleLeave} disabled={isLeaving}>
+                    Leave group
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           {canRemove && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -133,8 +191,13 @@ export function UserMemberCard({
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleRemove}>
+                  <AlertDialogCancel disabled={isRemoving}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleRemove}
+                    disabled={isRemoving}
+                  >
                     Remove member
                   </AlertDialogAction>
                 </AlertDialogFooter>
