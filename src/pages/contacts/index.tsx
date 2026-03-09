@@ -1,97 +1,83 @@
-import { mapEventsToStore, mapEventsToTimeline } from "applesauce-core";
-import { kinds, relaySet } from "applesauce-core/helpers";
-import { npubEncode } from "applesauce-core/helpers/pointers";
+import { IconLoader2, IconUserOff } from "@tabler/icons-react";
 import { use$ } from "applesauce-react/hooks";
-import { onlyEvents } from "applesauce-relay";
-import { useMemo } from "react";
-import { Link } from "react-router";
 
-import { UserAvatar, UserName } from "@/components/nostr-user";
 import { PageBody } from "@/components/page-body";
 import { PageHeader } from "@/components/page-header";
 import { withActiveAccount } from "@/components/with-active-account";
-import accounts, { user$ } from "@/lib/accounts";
-import { eventStore, pool } from "@/lib/nostr";
-import { extraRelays$ } from "@/lib/settings";
-import { formatTimeAgo } from "@/lib/time";
-import { SubscriptionStatusButton } from "../../components/subscription-status-button";
-
-function FollowerItem({
-  pubkey,
-  created_at,
-}: {
-  pubkey: string;
-  created_at: number;
-}) {
-  const npub = npubEncode(pubkey);
-
-  return (
-    <Link
-      to={`/contacts/${npub}`}
-      className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors"
-    >
-      <UserAvatar pubkey={pubkey} size="sm" />
-      <div className="font-medium truncate">
-        <UserName pubkey={pubkey} />
-      </div>
-
-      <time className="text-xs text-muted-foreground ms-auto">
-        {formatTimeAgo(created_at)}
-      </time>
-    </Link>
-  );
-}
+import { user$ } from "@/lib/accounts";
+import { liveGroups$ } from "@/lib/marmot-client";
+import {
+  StartChatDialog,
+  useOnlineContactsKeyPackages,
+  useStartChat,
+} from "@/pages/contacts/components/online-contacts";
+import {
+  RecentKeyPackageCard,
+  RecentKeyPackagesFeed,
+} from "@/pages/contacts/components/recent-key-packages";
 
 function ContactsIndexPage() {
-  const extraRelays = use$(extraRelays$);
-  const inboxes = use$(user$.inboxes$);
-  const relays = useMemo(
-    () => relaySet(inboxes, extraRelays),
-    [inboxes, extraRelays],
-  );
+  const contacts = use$(user$.contacts$);
+  const groups = use$(liveGroups$);
+  const chat = useStartChat();
 
-  const account = use$(accounts.active$);
-  const recent = use$(
-    () =>
-      pool
-        .subscription(relays, {
-          kinds: [kinds.Contacts],
-          "#p": [account!.pubkey],
-          limit: 5,
-        })
-        .pipe(
-          onlyEvents(),
-          mapEventsToStore(eventStore),
-          mapEventsToTimeline(),
-        ),
-    [relays, account!.pubkey],
-  );
+  const isLoading = contacts === undefined || groups === undefined;
+
+  const onlineContacts = useOnlineContactsKeyPackages();
 
   return (
     <>
       <PageHeader items={[{ label: "Home", to: "/" }, { label: "Contacts" }]} />
-      <PageBody center>
-        <section>
-          <div className="flex gap-2 items-start justify-between">
-            <h2 className="text-xl font-semibold mb-4">Recent Followers</h2>
-            <SubscriptionStatusButton relays={relays} events={recent} />
+      <PageBody>
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-xl font-semibold">Who's Online</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Contacts with a key package published in the last 24 hours — click
+              to start a secure chat
+            </p>
           </div>
-          {recent && recent.length > 0 ? (
-            <div className="space-y-2">
-              {recent.map((event) => (
-                <FollowerItem
-                  key={event.pubkey}
-                  pubkey={event.pubkey}
-                  created_at={event.created_at}
+
+          {/* Loading */}
+          {isLoading && (
+            <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+              <IconLoader2 className="h-4 w-4 animate-spin" />
+              Loading contacts…
+            </div>
+          )}
+
+          {/* No Nostr contacts at all */}
+          {!isLoading && contacts?.length === 0 && (
+            <div className="flex items-center gap-3 py-8 text-sm text-muted-foreground">
+              <IconUserOff className="h-5 w-5 shrink-0" />
+              <span>
+                Follow people on Nostr and they'll appear here when they're
+                ready to chat.
+              </span>
+            </div>
+          )}
+
+          {/* Online contacts grid — cards self-hide when not online */}
+          {onlineContacts && onlineContacts.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {onlineContacts.map((kp) => (
+                <RecentKeyPackageCard
+                  key={kp.pubkey}
+                  event={kp}
+                  onStartChat={chat.startChat}
+                  isCreating={chat.isCreating}
                 />
               ))}
             </div>
-          ) : (
-            <div className="text-center text-muted-foreground py-4">
-              {recent === undefined ? "Loading..." : "No recent followers"}
-            </div>
           )}
-        </section>
+        </div>
+
+        <RecentKeyPackagesFeed
+          onStartChat={chat.startChat}
+          isCreating={chat.isCreating}
+        />
+
+        <StartChatDialog {...chat} />
       </PageBody>
     </>
   );

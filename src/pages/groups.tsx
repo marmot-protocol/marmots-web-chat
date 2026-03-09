@@ -1,11 +1,14 @@
-import { use$ } from "applesauce-react/hooks";
-import { getGroupMembers } from "@internet-privacy/marmot-ts";
-import { useState } from "react";
 import type { AppGroup } from "@/lib/marmot-client";
+import { getGroupMembers } from "@internet-privacy/marmot-ts";
+import { castUser } from "applesauce-common/casts/user";
+import { kinds } from "applesauce-core/helpers";
+import { use$ } from "applesauce-react/hooks";
+import { useMemo, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
+import { from, map } from "rxjs";
 
 import { AppSidebar } from "@/components/app-sidebar";
-import { UserAvatar } from "@/components/nostr-user";
+import { UserAvatar, UserName } from "@/components/nostr-user";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +24,6 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { SidebarInset } from "@/components/ui/sidebar";
@@ -29,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import accounts from "@/lib/accounts";
 import { liveGroups$, marmotClient$ } from "@/lib/marmot-client";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
+import { eventStore } from "@/lib/nostr";
 
 const MAX_AVATARS = 3;
 
@@ -65,9 +68,30 @@ function GroupItem({ group }: { group: AppGroup }) {
   const visibleAvatars = otherMembers.slice(0, MAX_AVATARS);
   const overflowCount = otherMembers.length - visibleAvatars.length;
 
-  const subtitle =
-    description ||
-    `${allMembers.length} ${allMembers.length === 1 ? "member" : "members"}`;
+  const isDM = isDirect(group, selfPubkey);
+  const otherPubkey =
+    isDM && otherMembers.length > 0 ? otherMembers[0] : undefined;
+
+  // Subscribe to the last chat message
+  const last = use$(
+    () =>
+      from(
+        group.history.subscribe({ kinds: [kinds.ChatMessage], limit: 1 }),
+      ).pipe(map((rumors) => rumors[0])),
+    [group],
+  );
+  const lastMessageSender = useMemo(
+    () => last && castUser(last.pubkey, eventStore),
+    [last],
+  );
+  const lastSenderName = use$(lastMessageSender?.profile$.displayName);
+
+  const subtitle = last
+    ? lastSenderName
+      ? `${lastSenderName}: ${last.content}`
+      : last.content
+    : description ||
+      `${allMembers.length} ${allMembers.length === 1 ? "member" : "members"}`;
 
   const [showLeave, setShowLeave] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -114,7 +138,9 @@ function GroupItem({ group }: { group: AppGroup }) {
             {/* Text */}
             <div className="flex-1 min-w-0">
               <div className="font-medium truncate flex items-center gap-2">
-                <span className="truncate">{name}</span>
+                <span className="truncate">
+                  {otherPubkey ? <UserName pubkey={otherPubkey} /> : name}
+                </span>
                 {hasUnread && (
                   <span
                     className="h-2 w-2 rounded-full bg-destructive shrink-0"
@@ -143,7 +169,10 @@ function GroupItem({ group }: { group: AppGroup }) {
       <AlertDialog open={showLeave} onOpenChange={setShowLeave}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Leave &ldquo;{name}&rdquo;?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Leave &ldquo;
+              {otherPubkey ? <UserName pubkey={otherPubkey} /> : name}&rdquo;?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               This will publish a self-remove proposal to the group relays.
               Other members will see that you left. Your local data for this

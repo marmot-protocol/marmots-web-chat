@@ -7,6 +7,7 @@ import {
   getKeyPackageMLSVersion,
   getKeyPackageRelayList,
   getKeyPackageRelays,
+  getGroupMembers,
   KEY_PACKAGE_KIND,
   KEY_PACKAGE_RELAY_LIST_KIND,
 } from "@internet-privacy/marmot-ts";
@@ -33,7 +34,11 @@ import QRButton from "@/components/qr-button";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { eventStore, pool } from "@/lib/nostr";
+import accountManager from "@/lib/accounts";
+import { liveGroups$ } from "@/lib/marmot-client";
 import { extraRelays$, lookupRelays$ } from "@/lib/settings";
+import { IconChevronRight, IconUsers, IconMessage } from "@tabler/icons-react";
+import { Link } from "react-router";
 
 function KeyPackageCard({ event }: { event: NostrEvent }) {
   const [expanded, setExpanded] = useState(false);
@@ -345,6 +350,18 @@ function ContactDetailContent({ user }: { user: User }) {
   const outboxes = use$(user.outboxes$);
   const extraRelays = use$(extraRelays$);
   const lookupRelays = use$(lookupRelays$);
+  const activeAccount = use$(accountManager.active$);
+  const allGroups = use$(liveGroups$);
+
+  const sharedGroups = useMemo(() => {
+    if (!allGroups || !activeAccount) return [];
+    return allGroups.filter((group) => {
+      const members = getGroupMembers(group.state);
+      return (
+        members.includes(user.pubkey) && members.includes(activeAccount.pubkey)
+      );
+    });
+  }, [allGroups, user.pubkey, activeAccount]);
 
   const [inviteOpen, setInviteOpen] = useState(false);
 
@@ -437,6 +454,91 @@ function ContactDetailContent({ user }: { user: User }) {
           {/* Profile Tab */}
           <TabsContent value="profile" className="space-y-4">
             <ContactProfileTab user={user} />
+
+            {/* Shared Groups */}
+            <div className="border rounded-lg">
+              <div className="flex items-center justify-between px-5 py-3 border-b">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <IconUsers size={16} className="text-muted-foreground" />
+                  Shared Groups
+                </div>
+                {sharedGroups.length > 0 && (
+                  <Button
+                    asChild
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground h-auto py-1"
+                  >
+                    <Link to="/groups">View all</Link>
+                  </Button>
+                )}
+              </div>
+
+              {allGroups === undefined ? (
+                <div className="px-5 py-6 text-sm text-muted-foreground">
+                  Loading...
+                </div>
+              ) : sharedGroups.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 px-5 py-8 text-center">
+                  <IconMessage size={32} className="text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">
+                    You are not in any groups together yet.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setInviteOpen(true)}
+                  >
+                    Invite to a Group
+                  </Button>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {sharedGroups.map((group) => {
+                    const name = group.groupData?.name || "Unnamed Group";
+                    const description = group.groupData?.description || "";
+                    const memberCount = getGroupMembers(group.state).length;
+
+                    return (
+                      <Link
+                        key={group.idStr}
+                        to={`/groups/${group.idStr}`}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors"
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                          <IconMessage
+                            size={16}
+                            className="text-muted-foreground"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {name}
+                          </div>
+                          {description ? (
+                            <div className="text-xs text-muted-foreground truncate">
+                              {description}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <IconUsers size={11} />
+                              <span>
+                                {memberCount}{" "}
+                                {memberCount === 1 ? "member" : "members"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <IconChevronRight
+                          size={16}
+                          className="shrink-0 text-muted-foreground"
+                        />
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           {/* Key Packages Tab */}
