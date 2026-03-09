@@ -43,7 +43,7 @@ function GroupContextProviders({
       <GroupContext.Provider
         value={{ group, isAdmin, loadingMore, loadingDone, loadMoreMessages }}
       >
-        {children}
+        <div className="flex flex-col flex-1 overflow-hidden">{children}</div>
       </GroupContext.Provider>
     </GroupEventStoreContext.Provider>
   );
@@ -140,7 +140,7 @@ function DesktopGroupDetailLayout() {
         }
       />
 
-      <div className="flex gap-1 px-4 border-b">
+      <div className="flex gap-1 px-4 border-b shrink-0">
         <GroupTabLinks isAdmin={isAdmin} tabClassName={tabClass} />
       </div>
 
@@ -260,7 +260,7 @@ function MobileGroupDetailLayout() {
       </div>
 
       {/* Content: offset past fixed header (56px) + tab strip (41px) */}
-      <main className="flex flex-col flex-1 overflow-hidden pt-[calc(56px+41px)]">
+      <main className="flex flex-col flex-1 overflow-hidden">
         <GroupContextProviders data={data}>
           <Outlet />
         </GroupContextProviders>

@@ -1,14 +1,13 @@
-import { AppSidebar } from "@/components/app-sidebar";
 import {
-  SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { DesktopShell } from "@/layouts/desktop/shell";
 import { MobileShell } from "@/layouts/mobile/shell";
 import { Package, UsersIcon, Rss } from "lucide-react";
-import { Link, Outlet, useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 
 const toolsNavItems = [
   {
@@ -35,34 +34,29 @@ function DesktopToolsLayout() {
     (item) => location.pathname === item.url,
   )?.title;
 
-  return (
-    <>
-      <AppSidebar title="Tools">
-        <SidebarMenu>
-          {toolsNavItems.map((item) => {
-            const isActive = activeSubNavItem === item.title;
-            return (
-              <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={isActive}
-                  className="px-2.5 md:px-2"
-                >
-                  <Link to={item.url}>
-                    <item.icon />
-                    <span>{item.title}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            );
-          })}
-        </SidebarMenu>
-      </AppSidebar>
-      <SidebarInset>
-        <Outlet />
-      </SidebarInset>
-    </>
+  const nav = (
+    <SidebarMenu>
+      {toolsNavItems.map((item) => {
+        const isActive = activeSubNavItem === item.title;
+        return (
+          <SidebarMenuItem key={item.title}>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive}
+              className="px-2.5 md:px-2"
+            >
+              <Link to={item.url}>
+                <item.icon />
+                <span>{item.title}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      })}
+    </SidebarMenu>
   );
+
+  return <DesktopShell title="Tools" sidebar={nav} />;
 }
 
 function MobileToolsLayout() {

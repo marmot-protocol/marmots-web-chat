@@ -5,13 +5,13 @@ import { normalizeToProfilePointer } from "applesauce-core/helpers";
 import { npubEncode } from "applesauce-core/helpers/pointers";
 import { use$ } from "applesauce-react/hooks";
 import { useMemo, useState } from "react";
-import { Link, Outlet, useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 import { BehaviorSubject } from "rxjs";
 
-import { AppSidebar } from "@/components/app-sidebar";
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { Label } from "@/components/ui/label";
-import { SidebarInput, SidebarInset } from "@/components/ui/sidebar";
+import { SidebarInput } from "@/components/ui/sidebar";
+import { DesktopShell } from "@/layouts/desktop/shell";
 import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
@@ -139,45 +139,38 @@ function useContactsData() {
 function DesktopContactsLayout() {
   const { filteredContacts, query, setQuery } = useContactsData();
 
-  return (
-    <>
-      <AppSidebar title="Contacts">
-        <div className="flex flex-col">
-          <div className="p-2 border-b flex gap-2">
-            <SidebarInput
-              placeholder="Search contacts..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <Label className="flex items-center gap-2 text-sm shrink-0">
-              <span>MLS</span>
-              <Switch
-                className="shadow-none"
-                checked={use$(hasKeyPackageRelays$)}
-                onCheckedChange={(checked) =>
-                  hasKeyPackageRelays$.next(checked)
-                }
-              />
-            </Label>
-          </div>
-          {filteredContacts && filteredContacts.length > 0 ? (
-            filteredContacts.map((contact) => (
-              <ContactItem key={contact.pubkey} user={contact} />
-            ))
-          ) : (
-            <div className="p-4 text-sm text-muted-foreground text-center">
-              {query.trim()
-                ? "No contacts found matching your search"
-                : "No contacts yet"}
-            </div>
-          )}
+  const sidebar = (
+    <div className="flex flex-col">
+      <div className="p-2 border-b flex gap-2">
+        <SidebarInput
+          placeholder="Search contacts..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <Label className="flex items-center gap-2 text-sm shrink-0">
+          <span>MLS</span>
+          <Switch
+            className="shadow-none"
+            checked={use$(hasKeyPackageRelays$)}
+            onCheckedChange={(checked) => hasKeyPackageRelays$.next(checked)}
+          />
+        </Label>
+      </div>
+      {filteredContacts && filteredContacts.length > 0 ? (
+        filteredContacts.map((contact) => (
+          <ContactItem key={contact.pubkey} user={contact} />
+        ))
+      ) : (
+        <div className="p-4 text-sm text-muted-foreground text-center">
+          {query.trim()
+            ? "No contacts found matching your search"
+            : "No contacts yet"}
         </div>
-      </AppSidebar>
-      <SidebarInset>
-        <Outlet />
-      </SidebarInset>
-    </>
+      )}
+    </div>
   );
+
+  return <DesktopShell title="Contacts" sidebar={sidebar} />;
 }
 
 function MobileContactsLayout() {

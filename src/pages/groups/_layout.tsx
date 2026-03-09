@@ -7,7 +7,6 @@ import { useMemo, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { from, map } from "rxjs";
 
-import { AppSidebar } from "@/components/app-sidebar";
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import {
   AlertDialog,
@@ -26,8 +25,8 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { SidebarInset } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DesktopShell } from "@/layouts/desktop/shell";
 import { MobileShell } from "@/layouts/mobile/shell";
 import accounts from "@/lib/accounts";
 import { liveGroups$, marmotClient$ } from "@/lib/marmot-client";
@@ -236,7 +235,22 @@ function MultiGroupsList() {
   return <GroupList groups={multi} />;
 }
 
-function GroupsSidebarContent() {
+function DesktopGroupsLayout() {
+  return (
+    <DesktopShell
+      title="Groups"
+      sidebar={<GroupsListContent />}
+      scroll={false}
+    />
+  );
+}
+
+function MobileGroupsLayout() {
+  return <Outlet />;
+}
+
+/** Group list with Create button and All/1:1/Groups tabs. Exported for mobile index. */
+export function GroupsListContent() {
   return (
     <div className="flex flex-col">
       <Link
@@ -269,23 +283,6 @@ function GroupsSidebarContent() {
       </Tabs>
     </div>
   );
-}
-
-function DesktopGroupsLayout() {
-  return (
-    <>
-      <AppSidebar title="Groups">
-        <GroupsSidebarContent />
-      </AppSidebar>
-      <SidebarInset>
-        <Outlet />
-      </SidebarInset>
-    </>
-  );
-}
-
-function MobileGroupsLayout() {
-  return <MobileShell title="Groups" />;
 }
 
 export default function GroupsPage() {

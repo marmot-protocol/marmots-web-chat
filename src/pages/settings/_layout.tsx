@@ -1,11 +1,10 @@
-import { AppSidebar } from "@/components/app-sidebar";
 import {
-  SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { DesktopShell } from "@/layouts/desktop/shell";
 import { MobileShell } from "@/layouts/mobile/shell";
 import {
   HardDriveUploadIcon,
@@ -14,7 +13,7 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { Link, Outlet, useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 
 const settingsNavItems = [
   {
@@ -51,34 +50,29 @@ function DesktopSettingsLayout() {
     (item) => location.pathname === item.url,
   )?.title;
 
-  return (
-    <>
-      <AppSidebar title="Settings">
-        <SidebarMenu>
-          {settingsNavItems.map((item) => {
-            const isActive = activeSubNavItem === item.title;
-            return (
-              <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={isActive}
-                  className="px-2.5 md:px-2"
-                >
-                  <Link to={item.url}>
-                    <item.icon />
-                    <span>{item.title}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            );
-          })}
-        </SidebarMenu>
-      </AppSidebar>
-      <SidebarInset>
-        <Outlet />
-      </SidebarInset>
-    </>
+  const nav = (
+    <SidebarMenu>
+      {settingsNavItems.map((item) => {
+        const isActive = activeSubNavItem === item.title;
+        return (
+          <SidebarMenuItem key={item.title}>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive}
+              className="px-2.5 md:px-2"
+            >
+              <Link to={item.url}>
+                <item.icon />
+                <span>{item.title}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      })}
+    </SidebarMenu>
   );
+
+  return <DesktopShell title="Settings" sidebar={nav} />;
 }
 
 function MobileSettingsLayout() {
