@@ -22,7 +22,7 @@ import { keyPackageRelays$, publishedKeyPackages$ } from "@/lib/lifecycle";
 import { liveKeyPackages$ } from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
 import { formatTimeAgo } from "@/lib/time";
-import { MobileShell } from "@/layouts/mobile-shell";
+import { MobileShell } from "@/layouts/mobile/shell";
 
 /** An observable of all relays to read key packages from */
 const readRelays$ = combineLatest([

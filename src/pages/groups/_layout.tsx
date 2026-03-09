@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/context-menu";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MobileShell } from "@/layouts/mobile-shell";
+import { MobileShell } from "@/layouts/mobile/shell";
 import accounts from "@/lib/accounts";
 import { liveGroups$, marmotClient$ } from "@/lib/marmot-client";
 import { getGroupSubscriptionManager } from "@/lib/runtime";

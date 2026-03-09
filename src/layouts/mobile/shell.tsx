@@ -1,7 +1,7 @@
 import { Outlet } from "react-router";
 
-import { MobileBottomNav } from "@/components/mobile-bottom-nav";
-import { MobileTopHeader } from "@/components/mobile-top-header";
+import { MobileBottomNav } from "@/layouts/mobile/bottom-nav";
+import { MobileTopHeader } from "@/layouts/mobile/top-header";
 
 interface MobileShellProps {
   /** Section title shown in the top header. */

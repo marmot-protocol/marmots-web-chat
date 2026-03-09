@@ -40,7 +40,7 @@ export function MobileBottomNav() {
   const groupsUnread = use$(useGroupUnreadGroupIds$());
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 h-14 border-t bg-background flex items-stretch">
+    <nav className="w-full h-14 border-t bg-background flex items-stretch">
       {MOBILE_TABS.map((tab) => {
         const isActive = location.pathname.startsWith(tab.url);
         const hasUnread =

@@ -114,7 +114,7 @@ function MobileGroupShell() {
 
   if (!id) {
     return (
-      <div className="flex flex-col min-h-dvh bg-background">
+      <div className="flex flex-col h-dvh overflow-hidden bg-background">
         <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b bg-background flex items-center px-4 gap-3">
           <Button
             variant="ghost"
@@ -140,7 +140,7 @@ function MobileGroupShell() {
 
   if (group === undefined) {
     return (
-      <div className="flex flex-col min-h-dvh bg-background">
+      <div className="flex flex-col h-dvh overflow-hidden bg-background">
         <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b bg-background flex items-center px-4 gap-3">
           <Button
             variant="ghost"
@@ -201,14 +201,12 @@ function MobileGroupShell() {
         <span className="flex-1 text-base font-medium truncate">
           {groupName}
         </span>
-        {/* Details drawer trigger — reuse same pattern as desktop */}
         <Button
           variant="ghost"
           size="icon"
           className="shrink-0"
           onClick={() => setDetailsOpen(true)}
         >
-          {/* Three-dot menu placeholder — GroupDetailsDrawer wired below */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="20"

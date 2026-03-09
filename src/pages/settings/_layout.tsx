@@ -6,7 +6,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { MobileShell } from "@/layouts/mobile-shell";
+import { MobileShell } from "@/layouts/mobile/shell";
 import {
   HardDriveUploadIcon,
   KeyIcon,

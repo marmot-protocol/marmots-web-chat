@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/card";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { MobileShell } from "@/layouts/mobile-shell";
+import { MobileShell } from "@/layouts/mobile/shell";
 import accountManager from "@/lib/accounts";
 import databaseBroker from "@/lib/account-database";
 import { eventStore } from "@/lib/nostr";

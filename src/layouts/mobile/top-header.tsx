@@ -43,7 +43,7 @@ export function MobileTopHeader({ title }: MobileTopHeaderProps) {
     : "";
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b bg-background flex items-center px-4 gap-3">
+    <header className="w-full z-50 h-14 border-b bg-background flex items-center px-4 gap-3">
       <div className="flex-1 text-base font-medium truncate">{title}</div>
       <Button
         variant="ghost"

@@ -29,7 +29,7 @@ import { accounts } from "@/lib/accounts";
 import { marmotClient$ } from "@/lib/marmot-client";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
 import { cn } from "@/lib/utils";
-import MobileGroupShell from "@/layouts/mobile-group-shell";
+import MobileGroupShell from "@/layouts/mobile/group-shell";
 import { GroupDetailsDrawer } from "./components/group-details-drawer";
 
 function DesktopGroupDetailLayout() {

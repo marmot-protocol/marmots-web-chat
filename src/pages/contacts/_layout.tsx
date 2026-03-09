@@ -24,7 +24,7 @@ import { user$ } from "@/lib/accounts";
 import { eventLoader, eventStore } from "@/lib/nostr";
 import { profileSearch } from "@/lib/search";
 import { persist } from "@/lib/settings";
-import { MobileShell } from "@/layouts/mobile-shell";
+import { MobileShell } from "@/layouts/mobile/shell";
 
 const hasKeyPackageRelays$ = new BehaviorSubject<boolean>(false);
 persist("contacts:has-key-package-relays", hasKeyPackageRelays$);

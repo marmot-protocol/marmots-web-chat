@@ -22,7 +22,7 @@ import {
   liveUnreadInvites$,
 } from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
-import { MobileShell } from "@/layouts/mobile-shell";
+import { MobileShell } from "@/layouts/mobile/shell";
 
 /** An observable of all relays to read invites from (user inboxes + extra relays) */
 const readRelays$ = combineLatest([
