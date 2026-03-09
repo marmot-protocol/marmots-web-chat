@@ -24,9 +24,9 @@ interface MobileShellProps {
  */
 export function MobileShell({ title }: MobileShellProps) {
   return (
-    <div className="flex flex-col min-h-dvh bg-background">
+    <div className="flex flex-col h-dvh overflow-hidden bg-background">
       <MobileTopHeader title={title} />
-      <main className="flex-1 overflow-y-auto pt-14 pb-14">
+      <main className="flex-1 overflow-y-auto">
         <Outlet />
       </main>
       <MobileBottomNav />

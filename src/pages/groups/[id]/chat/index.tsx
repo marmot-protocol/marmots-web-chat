@@ -99,7 +99,7 @@ export default function GroupChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-118px)]">
+    <div className="flex flex-col flex-1 overflow-hidden">
       {/* Error Display */}
       {sendError && (
         <div className="p-4">
@@ -114,7 +114,7 @@ export default function GroupChatPage() {
           The GroupEventStoreContext (provided by the layout) is used by the
           group-aware mention renderer to resolve nevent references to private
           kind-9 rumours as inline quote blocks. */}
-      <div className="flex flex-col-reverse h-full overflow-y-auto overflow-x-hidden px-2 pt-10">
+      <div className="flex flex-col-reverse flex-1 overflow-y-auto overflow-x-hidden px-2 pt-10">
         <MessageList
           messages={messages as Rumor[]}
           group={group}

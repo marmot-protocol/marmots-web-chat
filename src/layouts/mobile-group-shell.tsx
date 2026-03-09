@@ -187,7 +187,7 @@ function MobileGroupShell() {
     );
 
   return (
-    <div className="flex flex-col min-h-dvh bg-background">
+    <div className="flex flex-col h-dvh overflow-hidden bg-background">
       {/* Fixed header: back button + group name + optional actions */}
       <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b bg-background flex items-center px-2 gap-2">
         <Button
@@ -256,8 +256,10 @@ function MobileGroupShell() {
         </Link>
       </div>
 
-      {/* Scrollable content area: offset by header (56px) + tab strip (41px) */}
-      <main className="flex-1 overflow-y-auto pt-[calc(56px+41px)]">
+      {/* Content area: offset by fixed header (56px) + tab strip (41px).
+          overflow-hidden here — the outlet child (chat, members, etc.)
+          owns its own scroll box so each tab controls its own scroll position. */}
+      <main className="flex flex-col flex-1 overflow-hidden pt-[calc(56px+41px)]">
         <GroupEventStoreContext.Provider value={groupEventStore}>
           <GroupContext.Provider
             value={{
