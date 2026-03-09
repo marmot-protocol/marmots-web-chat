@@ -52,7 +52,7 @@ export function DesktopShell({
       </AppSidebar>
       <SidebarInset
         className={cn(
-          "flex flex-col flex-1 h-full w-full",
+          "flex flex-col flex-1 h-dvh",
           scroll ? "overflow-y-auto" : "overflow-hidden",
         )}
       >

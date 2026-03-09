@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router";
+import { BrowserRouter, Route, Routes } from "react-router";
 
 import "./index.css";
 
@@ -12,8 +12,9 @@ import { SidebarProvider } from "./components/ui/sidebar";
 import ContactsPage from "./pages/contacts/_layout.tsx";
 import ContactDetailPage from "./pages/contacts/[npub].tsx";
 import ContactsIndexPage from "./pages/contacts/index.tsx";
-import GroupsPage from "./pages/groups/_layout.tsx";
-import GroupDetailPage from "./pages/groups/[id]/_layout.tsx";
+import ContactsExplorePage from "./pages/contacts/explore.tsx";
+import GroupsLayout from "./pages/groups/_layout.tsx";
+import GroupPage from "./pages/groups/[id]/_layout.tsx";
 import GroupAdminPage from "./pages/groups/[id]/admin/index.tsx";
 import GroupChatPage from "./pages/groups/[id]/chat/index.tsx";
 import GroupTreePage from "./pages/groups/[id]/tree/index.tsx";
@@ -33,6 +34,7 @@ import ProfilePage from "./pages/profile.tsx";
 import SettingsPage from "./pages/settings/_layout.tsx";
 import SettingsAccountPage from "./pages/settings/account.tsx";
 import SettingsAccountsPage from "./pages/settings/accounts.tsx";
+import SettingsIndexPage from "./pages/settings/index.tsx";
 import MarmotSettingsPage from "./pages/settings/marmot";
 import SettingsRelaysPage from "./pages/settings/relays.tsx";
 import BlossomSettingsPage from "./pages/settings/blossom.tsx";
@@ -61,10 +63,10 @@ createRoot(document.getElementById("root")!).render(
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/groups" element={<GroupsPage />}>
+            <Route path="/groups" element={<GroupsLayout />}>
               <Route index element={<GroupsIndexPage />} />
               <Route path="create" element={<CreateGroupPage />} />
-              <Route path=":id" element={<GroupDetailPage />}>
+              <Route path=":id" element={<GroupPage />}>
                 <Route index element={<GroupChatPage />} />
                 <Route path="chat" element={<GroupChatPage />} />
                 <Route path="members" element={<GroupMembersPage />} />
@@ -90,6 +92,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="qr" element={<SignInQRPage />} />
             </Route>
             <Route path="/contacts" element={<ContactsPage />}>
+              <Route path="explore" element={<ContactsExplorePage />} />
               <Route path=":npub" element={<ContactDetailPage />} />
               <Route index element={<ContactsIndexPage />} />
             </Route>
@@ -105,10 +108,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="key-package-feed" element={<KeyPackageFeedPage />} />
             </Route>
             <Route path="/settings" element={<SettingsPage />}>
-              <Route
-                index
-                element={<Navigate to="/settings/accounts" replace />}
-              />
+              <Route index element={<SettingsIndexPage />} />
               <Route path="marmot" element={<MarmotSettingsPage />} />
               <Route path="relays" element={<SettingsRelaysPage />} />
               <Route path="account" element={<SettingsAccountPage />} />

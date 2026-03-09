@@ -1,14 +1,22 @@
 import type { AppGroup } from "@/lib/marmot-client";
 import type { MediaAttachment } from "@internet-privacy/marmot-ts";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
-import { FileIcon, Loader2, Paperclip, Reply, X } from "lucide-react";
+import {
+  FileIcon,
+  Loader2,
+  LoaderCircle,
+  Paperclip,
+  Reply,
+  SendIcon,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { UserName } from "@/components/nostr-user";
-import { TranscriptionButton } from "@/components/transcription-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMediaUpload } from "@/hooks/use-media-upload";
+import { useIsMobile } from "../../../../hooks/use-mobile";
 
 export interface MessageFormProps {
   group: AppGroup;
@@ -28,6 +36,7 @@ export function MessageForm({
   const input = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [messageText, setMessageText] = useState("");
+  const isMobile = useIsMobile();
 
   const {
     state: uploadState,
@@ -207,17 +216,25 @@ export function MessageForm({
           disabled={isSending}
           className="flex-1"
         />
-        <TranscriptionButton onTranscription={(text) => setMessageText(text)} />
-        <Button onClick={handleSubmit} disabled={!canSend}>
-          {isSending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Sending...
-            </>
-          ) : (
-            "Send"
-          )}
-        </Button>
+        {/* <TranscriptionButton onTranscription={(text) => setMessageText(text)} /> */}
+        {isMobile ? (
+          <Button
+            onClick={handleSubmit}
+            disabled={!canSend}
+            size="icon"
+            aria-label="Send message"
+          >
+            {isSending ? <LoaderCircle /> : <SendIcon />}
+          </Button>
+        ) : (
+          <Button
+            onClick={handleSubmit}
+            disabled={!canSend}
+            aria-label="Send message"
+          >
+            {isSending ? "Sending..." : "Send"}
+          </Button>
+        )}
       </div>
     </div>
   );

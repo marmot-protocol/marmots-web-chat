@@ -51,7 +51,7 @@ function GroupContextProviders({
 
 // ─── Desktop layout ────────────────────────────────────────────────────────────
 
-function DesktopGroupDetailLayout() {
+function DesktopGroupLayout() {
   const data = useGroupDetail();
   const { id, group, groupName, isAdmin, navigate } = data;
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -153,7 +153,7 @@ function DesktopGroupDetailLayout() {
 
 // ─── Mobile layout ─────────────────────────────────────────────────────────────
 
-function MobileGroupDetailLayout() {
+function MobileGroupLayout() {
   const data = useGroupDetail();
   const { id, group, groupName, isAdmin, navigate } = data;
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -222,7 +222,7 @@ function MobileGroupDetailLayout() {
   return (
     <div className="flex flex-col h-dvh overflow-hidden bg-background">
       {/* Fixed header: back button + group name + kebab */}
-      <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b bg-background flex items-center px-2 gap-2">
+      <header className="h-14 border-b bg-background flex items-center px-2 gap-2">
         <Button
           variant="ghost"
           size="icon"
@@ -255,7 +255,7 @@ function MobileGroupDetailLayout() {
       </header>
 
       {/* Horizontally scrollable tab strip */}
-      <div className="fixed top-14 left-0 right-0 z-40 border-b bg-background overflow-x-auto flex no-scrollbar">
+      <div className="border-b bg-background overflow-x-auto flex no-scrollbar">
         <GroupTabLinks isAdmin={isAdmin} tabClassName={tabClass} />
       </div>
 
@@ -278,9 +278,9 @@ function MobileGroupDetailLayout() {
 
 // ─── Switch ────────────────────────────────────────────────────────────────────
 
-function GroupDetailPage() {
+function GroupPage() {
   const isMobile = useIsMobile();
-  return isMobile ? <MobileGroupDetailLayout /> : <DesktopGroupDetailLayout />;
+  return isMobile ? <MobileGroupLayout /> : <DesktopGroupLayout />;
 }
 
-export default withActiveAccount(GroupDetailPage);
+export default withActiveAccount(GroupPage);

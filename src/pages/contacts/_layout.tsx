@@ -1,17 +1,23 @@
 import { KEY_PACKAGE_RELAY_LIST_KIND } from "@internet-privacy/marmot-ts";
-import { IconLock } from "@tabler/icons-react";
+import { IconLock, IconUsersGroup } from "@tabler/icons-react";
 import { castUser, User } from "applesauce-common/casts/user";
 import { normalizeToProfilePointer } from "applesauce-core/helpers";
 import { npubEncode } from "applesauce-core/helpers/pointers";
 import { use$ } from "applesauce-react/hooks";
-import { useMemo, useState } from "react";
-import { Link, useLocation } from "react-router";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { Link, useLocation, Outlet } from "react-router";
 import { BehaviorSubject } from "rxjs";
 
 import { UserAvatar, UserName } from "@/components/nostr-user";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { SidebarInput } from "@/components/ui/sidebar";
-import { DesktopShell } from "@/layouts/desktop/shell";
 import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
@@ -24,10 +30,36 @@ import { user$ } from "@/lib/accounts";
 import { eventLoader, eventStore } from "@/lib/nostr";
 import { profileSearch } from "@/lib/search";
 import { persist } from "@/lib/settings";
+import { withActiveAccount } from "@/components/with-active-account";
+import { DesktopShell } from "@/layouts/desktop/shell";
 import { MobileShell } from "@/layouts/mobile/shell";
 
 const hasKeyPackageRelays$ = new BehaviorSubject<boolean>(false);
 persist("contacts:has-key-package-relays", hasKeyPackageRelays$);
+
+// ============================================================================
+// Contacts context
+// ============================================================================
+
+export interface ContactsContextValue {
+  filteredContacts: User[] | undefined;
+  query: string;
+  setQuery: (value: string) => void;
+  hasKeyPackageRelays: boolean;
+  setHasKeyPackageRelays: (value: boolean) => void;
+}
+
+const ContactsContext = createContext<ContactsContextValue | null>(null);
+
+/**
+ * Hook to access contacts list data (search, filter, MLS toggle).
+ * Must be used within ContactsProvider.
+ */
+export function useContacts() {
+  const ctx = useContext(ContactsContext);
+  if (!ctx) throw new Error("useContacts must be used within ContactsProvider");
+  return ctx;
+}
 
 // ============================================================================
 // ContactItem — sidebar link row to /contacts/:npub
@@ -76,14 +108,13 @@ function ContactItem({ user }: { user: User }) {
 }
 
 // ============================================================================
-// Shared contacts hook
+// Contacts provider (owns search/filter state and provides context)
 // ============================================================================
 
-function useContactsData() {
+function useContactsData(): ContactsContextValue {
   const contacts = use$(user$.contacts$);
   const [query, setQuery] = useState("");
 
-  // Always load the latest contacts
   const user = use$(user$);
   const outboxes = use$(user$.outboxes$);
   use$(
@@ -107,7 +138,6 @@ function useContactsData() {
 
     const trimmed = debouncedQuery.trim();
 
-    // Allow direct navigation by pasting a pubkey (hex) or npub.
     let directPubkey: string | null = null;
     try {
       const pointer = normalizeToProfilePointer(trimmed);
@@ -129,33 +159,56 @@ function useContactsData() {
 
   const hasKeyPackageRelays = use$(hasKeyPackageRelays$);
 
-  return { filteredContacts, query, setQuery, hasKeyPackageRelays };
+  return {
+    filteredContacts,
+    query,
+    setQuery,
+    hasKeyPackageRelays,
+    setHasKeyPackageRelays: (v: boolean) => hasKeyPackageRelays$.next(v),
+  };
+}
+
+export function ContactsProvider({ children }: { children: ReactNode }) {
+  const value = useContactsData();
+  return (
+    <ContactsContext.Provider value={value}>
+      {children}
+    </ContactsContext.Provider>
+  );
 }
 
 // ============================================================================
-// Layouts
+// Composable components (use within ContactsProvider)
 // ============================================================================
 
-function DesktopContactsLayout() {
-  const { filteredContacts, query, setQuery } = useContactsData();
-
-  const sidebar = (
-    <div className="flex flex-col">
-      <div className="p-2 border-b flex gap-2">
-        <SidebarInput
-          placeholder="Search contacts..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+/** Search input and MLS filter toggle. */
+export function ContactListSearchForm() {
+  const { query, setQuery, hasKeyPackageRelays, setHasKeyPackageRelays } =
+    useContacts();
+  return (
+    <div className="p-2 border-b flex gap-2">
+      <SidebarInput
+        placeholder="Search contacts..."
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      <Label className="flex items-center gap-2 text-sm shrink-0">
+        <span>MLS</span>
+        <Switch
+          className="shadow-none"
+          checked={hasKeyPackageRelays}
+          onCheckedChange={setHasKeyPackageRelays}
         />
-        <Label className="flex items-center gap-2 text-sm shrink-0">
-          <span>MLS</span>
-          <Switch
-            className="shadow-none"
-            checked={use$(hasKeyPackageRelays$)}
-            onCheckedChange={(checked) => hasKeyPackageRelays$.next(checked)}
-          />
-        </Label>
-      </div>
+      </Label>
+    </div>
+  );
+}
+
+/** List of contact items or empty state. */
+export function ContactList() {
+  const { filteredContacts, query } = useContacts();
+  return (
+    <>
       {filteredContacts && filteredContacts.length > 0 ? (
         filteredContacts.map((contact) => (
           <ContactItem key={contact.pubkey} user={contact} />
@@ -167,17 +220,70 @@ function DesktopContactsLayout() {
             : "No contacts yet"}
         </div>
       )}
+    </>
+  );
+}
+
+/** Link to the explore (Who's Online) page. For mobile layout. */
+export function ContactListExploreButton() {
+  return (
+    <div className="p-2 border-b">
+      <Button variant="outline" className="w-full justify-center gap-2" asChild>
+        <Link to="/contacts/explore">
+          <IconUsersGroup size={18} />
+          Explore
+        </Link>
+      </Button>
     </div>
   );
+}
 
-  return <DesktopShell title="Contacts" sidebar={sidebar} />;
+// ============================================================================
+// Composed layouts: desktop (search + list) and mobile (explore + list + search)
+// ============================================================================
+
+/** Desktop: search form at top, then list. Use in sidebar. */
+export function ContactListContent() {
+  return (
+    <div className="flex flex-col">
+      <ContactListSearchForm />
+      <ContactList />
+    </div>
+  );
+}
+
+/** Mobile: explore button at top, list, search form at bottom. */
+export function ContactListContentMobile() {
+  return (
+    <div className="flex flex-col h-full">
+      <ContactListExploreButton />
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <ContactList />
+      </div>
+      <ContactListSearchForm />
+    </div>
+  );
+}
+
+// ============================================================================
+// Layouts
+// ============================================================================
+
+function DesktopContactsLayout() {
+  return <DesktopShell title="Contacts" sidebar={<ContactListContent />} />;
 }
 
 function MobileContactsLayout() {
   return <MobileShell title="Contacts" />;
 }
 
-export default function ContactsPage() {
+function ContactsPage() {
   const isMobile = useIsMobile();
-  return isMobile ? <MobileContactsLayout /> : <DesktopContactsLayout />;
+  return (
+    <ContactsProvider>
+      {isMobile ? <MobileContactsLayout /> : <DesktopContactsLayout />}
+    </ContactsProvider>
+  );
 }
+
+export default withActiveAccount(ContactsPage);

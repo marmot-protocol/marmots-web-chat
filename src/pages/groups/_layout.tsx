@@ -252,7 +252,7 @@ function MobileGroupsLayout() {
 /** Group list with Create button and All/1:1/Groups tabs. Exported for mobile index. */
 export function GroupsListContent() {
   return (
-    <div className="flex flex-col">
+    <>
       <Link
         to="/groups/create"
         className="m-2 bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2"
@@ -281,11 +281,11 @@ export function GroupsListContent() {
           <MultiGroupsList />
         </TabsContent>
       </Tabs>
-    </div>
+    </>
   );
 }
 
-export default function GroupsPage() {
+export default function GroupsLayout() {
   const isMobile = useIsMobile();
   return isMobile ? <MobileGroupsLayout /> : <DesktopGroupsLayout />;
 }
