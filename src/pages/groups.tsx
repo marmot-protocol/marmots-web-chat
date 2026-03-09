@@ -7,11 +7,19 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { UserAvatar } from "@/components/nostr-user";
 import { AvatarGroup, AvatarGroupCount } from "@/components/ui/avatar";
 import { SidebarInset } from "@/components/ui/sidebar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import accounts from "@/lib/accounts";
+import { liveGroups$ } from "@/lib/marmot-client";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
-import { liveGroups$ } from "../lib/marmot-client";
 
 const MAX_AVATARS = 3;
+
+/** Returns true if the group is a 1:1 direct message (exactly 2 members). */
+function isDirect(group: AppGroup, selfPubkey: string | undefined): boolean {
+  const members = getGroupMembers(group.state);
+  if (members.length !== 2) return false;
+  return selfPubkey ? members.includes(selfPubkey) : true;
+}
 
 function GroupItem({ group }: { group: AppGroup }) {
   const location = useLocation();
@@ -81,9 +89,50 @@ function GroupItem({ group }: { group: AppGroup }) {
   );
 }
 
-export default function GroupsPage() {
-  const groups = use$(liveGroups$);
+function GroupList({ groups }: { groups: AppGroup[] | undefined }) {
+  if (groups === undefined) {
+    return (
+      <div className="p-4 text-sm text-muted-foreground text-center">
+        Loading...
+      </div>
+    );
+  }
+  if (groups.length === 0) {
+    return (
+      <div className="p-4 text-sm text-muted-foreground text-center">
+        No groups yet
+      </div>
+    );
+  }
+  return (
+    <>
+      {groups.map((group) => (
+        <GroupItem key={group.idStr} group={group} />
+      ))}
+    </>
+  );
+}
 
+function AllGroupsList() {
+  const groups = use$(liveGroups$);
+  return <GroupList groups={groups} />;
+}
+
+function DirectGroupsList() {
+  const groups = use$(liveGroups$);
+  const account = use$(accounts.active$);
+  const dms = groups?.filter((g) => isDirect(g, account?.pubkey));
+  return <GroupList groups={dms} />;
+}
+
+function MultiGroupsList() {
+  const groups = use$(liveGroups$);
+  const account = use$(accounts.active$);
+  const multi = groups?.filter((g) => !isDirect(g, account?.pubkey));
+  return <GroupList groups={multi} />;
+}
+
+export default function GroupsPage() {
   return (
     <>
       <AppSidebar title="Groups">
@@ -94,13 +143,31 @@ export default function GroupsPage() {
           >
             Create Group
           </Link>
-          {groups && groups.length > 0 ? (
-            groups.map((group) => <GroupItem key={group.idStr} group={group} />)
-          ) : (
-            <div className="p-4 text-sm text-muted-foreground text-center">
-              {groups === undefined ? "Loading..." : "No groups yet"}
-            </div>
-          )}
+          <Tabs defaultValue="all" className="w-full">
+            <TabsList
+              variant="line"
+              className="w-full px-2 border-b rounded-none"
+            >
+              <TabsTrigger value="all" className="flex-1">
+                All
+              </TabsTrigger>
+              <TabsTrigger value="dm" className="flex-1">
+                1:1
+              </TabsTrigger>
+              <TabsTrigger value="group" className="flex-1">
+                Groups
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="all">
+              <AllGroupsList />
+            </TabsContent>
+            <TabsContent value="dm">
+              <DirectGroupsList />
+            </TabsContent>
+            <TabsContent value="group">
+              <MultiGroupsList />
+            </TabsContent>
+          </Tabs>
         </div>
       </AppSidebar>
       <SidebarInset>

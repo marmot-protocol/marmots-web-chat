@@ -4,11 +4,12 @@ import {
   getMediaAttachments,
 } from "@internet-privacy/marmot-ts";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
-import { kinds } from "applesauce-core/helpers";
+import { kinds, npubEncode } from "applesauce-core/helpers";
 import type { ComponentMap } from "applesauce-react/helpers";
 import { use$, useRenderedContent } from "applesauce-react/hooks";
 import { Bug, Reply } from "lucide-react";
 import { memo, useMemo, useState } from "react";
+import { Link } from "react-router";
 
 import { defaultContentComponents } from "@/components/content-renderers";
 import { GroupChatMentionRenderer } from "@/components/content-renderers/group-chat-mention";
@@ -120,17 +121,21 @@ export const MessageItem = memo(function MessageItem({
     [rumor],
   );
 
+  const npub = npubEncode(rumor.pubkey);
+
   return (
     // Avatar floats left, everything else stacks to its right
     <div className="flex items-start gap-2">
-      <UserAvatar pubkey={rumor.pubkey} size="sm" />
+      <Link to={`/contacts/${npub}`} className="shrink-0">
+        <UserAvatar pubkey={rumor.pubkey} size="sm" />
+      </Link>
 
       <div className="flex flex-col gap-0.5 min-w-0">
         {/* Title row: name · timestamp · action buttons (when no reactions yet) */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="font-bold">
+          <Link to={`/contacts/${npub}`} className="font-bold hover:underline">
             <UserName pubkey={rumor.pubkey} />
-          </span>
+          </Link>
           <span className="text-sm text-muted-foreground/60">
             {formatTimestamp(rumor.created_at)}
           </span>
