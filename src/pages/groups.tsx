@@ -1,15 +1,33 @@
 import { use$ } from "applesauce-react/hooks";
 import { getGroupMembers } from "@internet-privacy/marmot-ts";
+import { useState } from "react";
 import type { AppGroup } from "@/lib/marmot-client";
-import { Link, Outlet, useLocation } from "react-router";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { UserAvatar } from "@/components/nostr-user";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AvatarGroup, AvatarGroupCount } from "@/components/ui/avatar";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import accounts from "@/lib/accounts";
-import { liveGroups$ } from "@/lib/marmot-client";
+import { liveGroups$, marmotClient$ } from "@/lib/marmot-client";
 import { getGroupSubscriptionManager } from "@/lib/runtime";
 
 const MAX_AVATARS = 3;
@@ -23,6 +41,7 @@ function isDirect(group: AppGroup, selfPubkey: string | undefined): boolean {
 
 function GroupItem({ group }: { group: AppGroup }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const isActive = location.pathname.startsWith(`/groups/${group.idStr}`);
   const marmotData = group.groupData;
   const name = marmotData?.name || "Unnamed Group";
@@ -30,6 +49,7 @@ function GroupItem({ group }: { group: AppGroup }) {
 
   const account = use$(accounts.active$);
   const selfPubkey = account?.pubkey;
+  const client = use$(marmotClient$);
 
   const groupMgr = getGroupSubscriptionManager();
   const unreadGroups = use$(groupMgr?.unreadGroupIds$ ?? undefined);
@@ -49,43 +69,96 @@ function GroupItem({ group }: { group: AppGroup }) {
     description ||
     `${allMembers.length} ${allMembers.length === 1 ? "member" : "members"}`;
 
-  return (
-    <Link
-      to={`/groups/${group.idStr}`}
-      className={`hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex items-center gap-3 border-b text-sm leading-tight last:border-b-0 p-4 ${
-        isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""
-      }`}
-    >
-      {/* Avatar stack */}
-      <AvatarGroup className="shrink-0">
-        {visibleAvatars.map((pk) => (
-          <UserAvatar
-            key={pk}
-            pubkey={pk}
-            size="sm"
-            className="ring-background ring-2"
-          />
-        ))}
-        {overflowCount > 0 && (
-          <AvatarGroupCount>+{overflowCount}</AvatarGroupCount>
-        )}
-      </AvatarGroup>
+  const [showLeave, setShowLeave] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
 
-      {/* Text */}
-      <div className="flex-1 min-w-0">
-        <div className="font-medium truncate flex items-center gap-2">
-          <span className="truncate">{name}</span>
-          {hasUnread && (
-            <span
-              className="h-2 w-2 rounded-full bg-destructive shrink-0"
-              aria-label="Unread messages"
-              title="Unread messages"
-            />
-          )}
-        </div>
-        <div className="text-xs text-muted-foreground truncate">{subtitle}</div>
-      </div>
-    </Link>
+  const handleLeave = async () => {
+    if (!client) return;
+    try {
+      setIsLeaving(true);
+      await client.leaveGroup(group.id);
+      navigate("/groups", { replace: true });
+    } catch (error) {
+      console.error("Failed to leave group:", error);
+    } finally {
+      setIsLeaving(false);
+      setShowLeave(false);
+    }
+  };
+
+  return (
+    <>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <Link
+            to={`/groups/${group.idStr}`}
+            className={`hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex items-center gap-3 border-b text-sm leading-tight last:border-b-0 p-4 ${
+              isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""
+            }`}
+          >
+            {/* Avatar stack */}
+            <AvatarGroup className="shrink-0">
+              {visibleAvatars.map((pk) => (
+                <UserAvatar
+                  key={pk}
+                  pubkey={pk}
+                  size="sm"
+                  className="ring-background ring-2"
+                />
+              ))}
+              {overflowCount > 0 && (
+                <AvatarGroupCount>+{overflowCount}</AvatarGroupCount>
+              )}
+            </AvatarGroup>
+
+            {/* Text */}
+            <div className="flex-1 min-w-0">
+              <div className="font-medium truncate flex items-center gap-2">
+                <span className="truncate">{name}</span>
+                {hasUnread && (
+                  <span
+                    className="h-2 w-2 rounded-full bg-destructive shrink-0"
+                    aria-label="Unread messages"
+                    title="Unread messages"
+                  />
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground truncate">
+                {subtitle}
+              </div>
+            </div>
+          </Link>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem
+            variant="destructive"
+            onSelect={() => setShowLeave(true)}
+          >
+            Leave group
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+
+      {/* Leave confirmation */}
+      <AlertDialog open={showLeave} onOpenChange={setShowLeave}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave &ldquo;{name}&rdquo;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will publish a self-remove proposal to the group relays.
+              Other members will see that you left. Your local data for this
+              group will also be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLeaving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLeave} disabled={isLeaving}>
+              {isLeaving ? "Leaving…" : "Leave group"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

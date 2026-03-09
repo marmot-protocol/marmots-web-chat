@@ -331,6 +331,10 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const navigate = useNavigate();
   const active = use$(accountManager.active$);
+  const unreadInvites = use$(liveUnreadInvites$);
+  const groupsUnread = use$(
+    getGroupSubscriptionManager()?.unreadGroupIds$ ?? undefined,
+  );
 
   const pinnedTabs = use$(pinnedTabs$)
     .map((tab) => TOP_TABS.find((t) => t.url === tab))
@@ -400,14 +404,24 @@ export function AppSidebar({
         {pinnedTabs.length > 0 && !showAppSwitcher && (
           <SidebarGroup>
             <SidebarGroupContent>
-              {pinnedTabs.map((tab) => (
-                <Button key={tab.url} variant="ghost" asChild>
-                  <Link to={tab.url}>
-                    <tab.icon />
-                    <span>{tab.title}</span>
-                  </Link>
-                </Button>
-              ))}
+              {pinnedTabs.map((tab) => {
+                const hasNotification =
+                  (tab.url === "/groups" && (groupsUnread?.length ?? 0) > 0) ||
+                  (tab.url === "/invites" && (unreadInvites?.length ?? 0) > 0);
+                return (
+                  <Button key={tab.url} variant="ghost" asChild>
+                    <Link to={tab.url}>
+                      <span className="relative shrink-0">
+                        <tab.icon />
+                        {hasNotification && (
+                          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive" />
+                        )}
+                      </span>
+                      <span>{tab.title}</span>
+                    </Link>
+                  </Button>
+                );
+              })}
             </SidebarGroupContent>
           </SidebarGroup>
         )}

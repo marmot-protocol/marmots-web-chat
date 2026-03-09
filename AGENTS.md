@@ -1,45 +1,72 @@
 # Agent Guidelines for marmot-ts Web Chat
 
-This document provides guidelines for AI coding agents working in this chat application - a React + TypeScript reference implementation of marmot-ts (MLS group chat on Nostr).
+React + TypeScript + Vite reference implementation of marmot-ts (MLS group chat on Nostr).
 
 ## Build, Lint, and Test Commands
 
 ```bash
 # Development
 pnpm dev              # Start development server (Vite)
-pnpm build            # Type check and build for production
+pnpm build            # Type check + production build (tsc -b && vite build)
 pnpm preview          # Preview production build
 
 # Code Quality
 pnpm format           # Format all files with Prettier
-tsc -b                # Type check only (no build)
+tsc -b                # Type check only (no emit); run this before committing
 
 # Dependencies
-pnpm install          # Install dependencies (also builds marmot-ts submodule)
-pnpm prepare          # Build marmot-ts submodule (runs automatically on install)
+pnpm install          # Install dependencies (also builds marmot-ts submodule via prepare)
+pnpm prepare          # Build marmot-ts submodule (cd marmot-ts && pnpm build)
 ```
 
-**Note:** This project does not currently have test files. If tests are added, they should use the `.test.ts` or `.test.tsx` extension.
+**No test suite exists yet.** If tests are added, use `.test.ts` / `.test.tsx` extensions.
+The canonical pre-commit check is `tsc -b` — the build must pass with zero errors.
 
 ## Project Structure
 
-React + TypeScript + Vite application with Nostr/MLS integration:
+```text
+src/
+  components/         React components
+    ui/               shadcn/ui primitives — regenerate with `shadcn`, do NOT edit by hand
+    form/             Form-specific components
+    key-package/      Key package UI
+  contexts/           React context definitions + typed hooks
+  hooks/              Custom React hooks (use-*.ts)
+  lib/                Core app logic, singletons, utilities
+  pages/              Route-based page components
+    groups/[id]/      Group layout + mini-app tabs (chat, members, admin, …)
+  types/              Global ambient type declarations
+marmot-ts/            Git submodule — MLS group chat library (@internet-privacy/marmot-ts)
+```
 
-- **`/src/components`**: React components (UI + custom)
-  - `/ui`: shadcn/ui components (don't edit directly, regenerate with `shadcn`)
-  - `/form`: Form-specific components
-  - `/key-package`: Key package related components
-- **`/src/hooks`**: Custom React hooks
-- **`/src/lib`**: Utility libraries & core logic (Nostr, settings, utils)
-- **`/src/pages`**: Route-based page components
-- **`/public`**: Static assets
-- **`/marmot-ts`**: Git submodule for MLS functionality (workspace dependency)
+Key singletons in `src/lib/`:
 
-## Code Style Guidelines
+- `nostr.ts` — `eventStore` (public), `pool`, `eventLoader`
+- `marmot-client.ts` — `marmotClient$`, `liveGroups$`, `liveKeyPackages$`, `AppGroup` type
+- `accounts.ts` — `accounts`, `user$`, `factory`, `actions`, `publish()`
+- `settings.ts` — all RxJS `BehaviorSubject`s for user preferences + `persist()`
+- `blossom.ts` — `uploadToConfiguredBlossomServers()`
+- `account-database.ts` — `MultiAccountDatabaseBroker` (IndexedDB + localforage)
+- `runtime.ts` — import once in `main.tsx` to activate background managers
 
-### Imports
+## Code Style
 
-**Order**: External libraries first, then path alias imports, then relative imports
+### TypeScript Strictness
+
+```jsonc
+// tsconfig.app.json enforces:
+"strict": true,
+"noUnusedParameters": true,       // unused params → compile error
+"noUnusedLocals": false,          // locals are linted but not errors
+"erasableSyntaxOnly": true,       // no const enum / namespace
+"noFallthroughCasesInSwitch": true,
+"noUncheckedSideEffectImports": true
+```
+
+Always run `tsc -b` to verify. Never silence errors with `// @ts-ignore` except for
+browser globals exposed on `window` in DEV-only blocks.
+
+### Import Order
 
 ```typescript
 // 1. External libraries
@@ -47,204 +74,130 @@ import { useState, useEffect } from "react";
 import { EventStore } from "applesauce-core";
 import { Link } from "react-router";
 
-// 2. Path alias imports (@/*)
+// 2. Path-alias imports (@/*)
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/page-header";
 
-// 3. Type-only imports
-import type { ClassValue } from "clsx";
+// 3. Relative imports
+import { MessageItem } from "./message-item";
+
+// 4. Type-only imports (anywhere in the block, marked with `type`)
 import type { NostrEvent } from "applesauce-core/helpers";
+import type { AppGroup } from "@/lib/marmot-client";
 ```
 
-**Type imports**: Use `type` keyword for type-only imports
-
-```typescript
-import type { ReactNode } from "react";
-import type { BreadcrumbItemType } from "@/components/page-header";
-```
-
-### TypeScript Configuration
-
-- **Strict mode enabled**: `strict: true` in tsconfig
-- **No unused locals/parameters**: Compiler will error on unused variables
-- **Import type keyword**: Use `import type` for type-only imports
-- **Path alias**: Use `@/*` for imports from `src/` (e.g., `@/components/ui/button`)
+- Always use `import type` for type-only imports.
+- Use the `@/*` alias for anything under `src/`.
 
 ### Naming Conventions
 
-- **Components**: PascalCase function components (e.g., `UserBadge`, `PageHeader`)
-- **Hooks**: camelCase with `use` prefix (e.g., `useDebounce`, `use$`)
-- **Types/Interfaces**: PascalCase (e.g., `UserBadgeProps`, `BreadcrumbItemType`)
-- **Observables**: camelCase with `$` suffix (e.g., `extraRelays$`, `relayConfig$`)
-- **Constants**: SCREAMING_SNAKE_CASE for module-level (e.g., `DEFAULT_LOOKUP_RELAYS`)
-- **Size/variant types**: string literal unions (e.g., `type UserAvatarSize = "sm" | "md" | "lg"`)
+| Thing                  | Convention               | Example                         |
+| ---------------------- | ------------------------ | ------------------------------- |
+| React components       | PascalCase               | `UserBadge`, `PageHeader`       |
+| Hooks                  | `use` prefix + camelCase | `useDebounce`, `use$`           |
+| Types / Interfaces     | PascalCase               | `GroupContextValue`, `AppGroup` |
+| RxJS observables       | `$` suffix               | `extraRelays$`, `marmotClient$` |
+| Module-level constants | SCREAMING_SNAKE_CASE     | `DEFAULT_LOOKUP_RELAYS`         |
+| Variant / size types   | String literal unions    | `"sm" \| "md" \| "lg"`          |
 
-### Formatting
+### Formatting (Prettier)
 
-- **Prettier**: 2 spaces, no tabs (configured in `.prettierrc`)
-- **Line length**: No hard limit, but keep reasonable (<120 chars when possible)
-- **Quotes**: Use double quotes for strings (Prettier default)
-- **Semicolons**: Always use semicolons (Prettier default)
+Config (`.prettierrc`): `tabWidth: 2`, `useTabs: false`.
+All other Prettier defaults apply: double quotes, semicolons, trailing commas.
+Run `pnpm format` before submitting — do not fix formatting by hand.
 
 ### Error Handling
 
-**Throw errors with descriptive messages**:
+- Throw with descriptive messages: `throw new Error("Invalid nostr public key, must be 64 hex characters")`.
+- Use empty `catch {}` for expected silent failures (e.g. `localStorage` unavailable).
+- Boolean-return validators: `try { verify(e); return true; } catch { return false; }`.
 
-```typescript
-if (!isValidPubkey(pubkey)) {
-  throw new Error("Invalid nostr public key, must be 64 hex characters");
-}
-```
+### JSDoc
 
-**Use try-catch for expected failures**:
-
-```typescript
-try {
-  const data = localStorage.getItem(key);
-  if (data) {
-    subject.next(JSON.parse(data));
-  }
-} catch {
-  // Silent failure for localStorage (expected in some environments)
-}
-```
-
-**Verify with try-catch for validation**:
-
-```typescript
-eventStore.verifyEvent = (e) => {
-  try {
-    nw.verifyEvent(e);
-    return true;
-  } catch {
-    return false;
-  }
-};
-```
-
-### Documentation
-
-**Use JSDoc** for exported functions and hooks
-
-## Group Mini-App Pattern
-
-Each tab under a group route (`/groups/:id/*`) is a self-contained "mini app" — a folder with its own `index.tsx` — that sources everything it needs from two React contexts provided by the `[id].tsx` layout route:
-
-| Context                                                                | Hook                   | Provides                                                                          |
-| ---------------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------- |
-| `GroupContext` (`src/contexts/group-context.ts`)                       | `useGroup()`           | `group` (`AppGroup`), `isAdmin`, `loadingMore`, `loadingDone`, `loadMoreMessages` |
-| `GroupEventStoreContext` (`src/contexts/group-event-store-context.ts`) | `useGroupEventStore()` | Per-group `EventStore` for reactive queries on private MLS events                 |
-
-**Rules for mini apps:**
-
-- Never accept the group via props or `useOutletContext` — always call `useGroup()`.
-- Derive group metadata (members, admins, name, epoch) directly from `group.state` using the marmot-ts helpers (`extractMarmotGroupData`, `getGroupMembers`) — do not add pre-computed derived fields to `GroupContextValue`.
-- Each mini app lives in `src/pages/groups/[id]/<tab-name>/index.tsx`. Any sub-components or hooks used exclusively by that tab live in the same folder.
-
-**Folder layout:**
-
-```text
-src/pages/groups/[id]/
-  [id].tsx          ← layout: resolves group, provides both contexts, renders tabs + <Outlet>
-  chat/             index.tsx, message-form.tsx, message-list.tsx, …
-  members/          index.tsx
-  admin/            index.tsx
-  timeline/         index.tsx
-  media/            index.tsx
-  tree/             index.tsx, ratchet-tree-graph.tsx, …
-```
-
-**Adding a new tab:**
-
-1. Create `src/pages/groups/[id]/<tab-name>/index.tsx`.
-2. Call `useGroup()` (and `useGroupEventStore()` if you need group-private events).
-3. Add a `<Route path="<tab-name>" element={<YourPage />} />` inside the `:id` route in `src/main.tsx`.
-4. Add the tab link in the nav bar inside `[id].tsx`.
+Export every public function, hook, and context with JSDoc.
+Include `@param`, `@returns`, and at least one `@example` for hooks.
 
 ## React Patterns
 
-### Component Structure
+### Component structure (canonical order)
 
-```typescript
-interface ComponentProps {
-  required: string;
-  optional?: number;
-}
+1. All hooks (never reorder or conditionalise)
+2. Early returns for loading / error states
+3. Event handlers
+4. Render
 
-export function Component({ required, optional = 42 }: ComponentProps) {
-  // 1. Hooks first (always in same order)
-  const [state, setState] = useState<string>("");
-  const profile = use$(() => eventStore.profile(pubkey), [pubkey]);
+### Custom hooks
 
-  useEffect(() => {
-    // Side effects
-  }, [dependencies]);
-
-  // 2. Early returns for loading/error states
-  if (!profile) return <Skeleton />;
-  if (error) return <ErrorMessage error={error} />;
-
-  // 3. Event handlers
-  const handleClick = () => {
-    setState("new value");
-  };
-
-  // 4. Render
-  return (
-    <div>
-      {required}
-    </div>
-  );
-}
-```
-
-### Custom Hooks
-
-- **Prefix with `use`**: `useDebounce`, `use$`, `useProfile`
-- **Document with JSDoc** and examples
-- **Export as named exports**
-- **Return consistent types** (arrays, objects, or single values)
+- Prefix with `use`: `useDebounce`, `use$`, `useGroupEventStore`.
+- Document with JSDoc + `@example`.
+- Export as named exports; return consistent shapes (array, object, or scalar).
+- Clean up subscriptions and object URLs in `useEffect` return functions.
 
 ## State Management
 
-### RxJS Observables
+### RxJS BehaviorSubjects (module-level singletons)
 
 ```typescript
-import { BehaviorSubject } from "rxjs";
+export const extraRelays$ = new BehaviorSubject<string[]>(DEFAULT_EXTRA_RELAYS);
+persist("extra-relays", extraRelays$); // auto-persists to localStorage
 
-// Create observable
-export const extraRelays$ = new BehaviorSubject<string[]>([]);
-
-// Persist to localStorage
-persist("extra-relays", extraRelays$);
-
-// Subscribe in components
-const relays = use$(() => extraRelays$, []);
+const relays = use$(() => extraRelays$, []); // subscribe reactively in components
 ```
 
-### LocalStorage Persistence
+- Observable names end with `$`.
+- Use `shareReplay(1)` on observables derived from async work so late subscribers get the latest value.
+- Convert async generators to Observables with `new Observable(subscriber => …)` (see `liveGroups$`).
 
-BehaviorSubject can be persisted to localStorage using the `persist` function
+### Two EventStore instances
+
+- **`eventStore`** (`src/lib/nostr.ts`) — public signed Nostr events, verified by nostr-wasm.
+- **per-group `groupEventStore`** (`useGroupEventStore` hook) — private unsigned MLS rumors from IndexedDB; verification bypassed.
+
+Never mix them. Rumors from `group.history` → `groupEventStore`; profile/relay-list events → `eventStore`.
+
+## Group Mini-App Pattern
+
+Each tab under `/groups/:id/*` is a self-contained mini-app. Two contexts are provided by the `[id].tsx` layout:
+
+| Context                  | Hook                   | Provides                                                             |
+| ------------------------ | ---------------------- | -------------------------------------------------------------------- |
+| `GroupContext`           | `useGroup()`           | `group`, `isAdmin`, `loadingMore`, `loadingDone`, `loadMoreMessages` |
+| `GroupEventStoreContext` | `useGroupEventStore()` | Per-group `EventStore` for private MLS events                        |
+
+**Rules:**
+
+- Source the group via `useGroup()` — never via props or `useOutletContext`.
+- Derive metadata (name, members, admins, epoch) from `group.state` using
+  `extractMarmotGroupData` / `getGroupMembers` — do not cache them in context.
+- Each mini-app lives in `src/pages/groups/[id]/<tab>/index.tsx`.
+  Sub-components exclusive to that tab live in the same folder.
+
+**Adding a new tab:**
+
+1. Create `src/pages/groups/[id]/<tab>/index.tsx`.
+2. Call `useGroup()` (+ `useGroupEventStore()` if you need private events).
+3. Add `<Route path="<tab>" element={<YourPage />} />` inside the `:id` route in `src/main.tsx`.
+4. Add the tab link in the nav bar inside `[id].tsx`.
 
 ## UI Framework
 
-- **shadcn/ui** with Radix UI primitives
-- **Tailwind CSS v4** with custom themes
-- **Tabler Icons** (`@tabler/icons-react`)
-- **JetBrains Mono** variable font
-
-### shadcn/ui Components
-
-Located in `src/components/ui/`:
-
-- Import and use as React components
-- Styled with Tailwind CSS
-- Customizable via `className` prop
+- **shadcn/ui** components live in `src/components/ui/` — regenerate with `shadcn`, never hand-edit.
+- **Tailwind CSS v4** — utility classes only; custom theme tokens in `src/index.css`.
+- **Tabler Icons** (`@tabler/icons-react`) — preferred icon set.
+- **lucide-react** is also available but prefer Tabler.
 
 ```typescript
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-
-<Button variant="outline" size="sm">Click me</Button>
+import { IconSend } from "@tabler/icons-react";
+<Button variant="outline" size="sm"><IconSend size={16} /> Send</Button>
 ```
+
+## Key Domain Concepts
+
+- **AppGroup** (`MarmotGroup<GroupRumorHistory, GroupMediaStore>`) — the concrete group type; always has `.media` wired.
+- **Rumor** — unsigned Nostr event used inside an MLS group; stored in IndexedDB.
+- **MIP-04** — E2E encrypted media: encrypt → upload to Blossom → publish kind-1063 rumor.
+- **kind 9** (`kinds.ChatMessage`) — plain text group chat message.
+- **kind 1063** (`kinds.FileMetadata`) — file metadata rumor (media in chat).
+- **`persist(key, subject$)`** — saves/loads a BehaviorSubject to localStorage automatically.
+- **`nostr-wasm`** — used for fast Schnorr signature verification; initialised once in `nostr.ts`.

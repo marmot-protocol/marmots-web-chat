@@ -1,8 +1,12 @@
+import {
+  getMarmotGroupData,
+  getGroupMembers,
+  getNostrGroupIdHex,
+} from "@internet-privacy/marmot-ts";
 import { npubEncode } from "applesauce-core/helpers";
+import { use$ } from "applesauce-react/hooks";
 import { Loader2 } from "lucide-react";
-import { getNostrGroupIdHex } from "@internet-privacy/marmot-ts";
-import type { AppGroup } from "@/lib/marmot-client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { UserAvatar, UserName } from "@/components/nostr-user";
@@ -28,24 +32,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-
-import { use$ } from "applesauce-react/hooks";
-import type { GroupRumorHistory } from "@internet-privacy/marmot-ts";
-import { marmotClient$ } from "../../lib/marmot-client";
-
-interface GroupDetailsDrawerProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  groupDetails: {
-    name: string;
-    epoch: bigint;
-    members: string[];
-    admins: string[];
-  } | null;
-  isAdmin: boolean;
-  group: AppGroup | null;
-  trigger?: React.ReactNode;
-}
+import { AppGroup, marmotClient$ } from "@/lib/marmot-client";
 
 function UserLinkCard({ pubkey }: { pubkey: string }) {
   return (
@@ -70,36 +57,51 @@ function UserLinkCard({ pubkey }: { pubkey: string }) {
 export function GroupDetailsDrawer({
   open,
   onOpenChange,
-  groupDetails,
-  isAdmin,
-  group,
   trigger,
-}: GroupDetailsDrawerProps) {
+  group,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  trigger?: React.ReactNode;
+  group: AppGroup;
+}) {
   const navigate = useNavigate();
-  const [isPurgingGroup, setIsPurgingGroup] = useState(false);
+  const [isLeavingGroup, setIsLeavingGroup] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
   const [isSelfUpdating, setIsSelfUpdating] = useState(false);
 
-  const groupIdHex = group ? getNostrGroupIdHex(group.state) : null;
+  const groupIdHex = getNostrGroupIdHex(group.state);
+
+  const groupDetails = useMemo(() => {
+    const data = getMarmotGroupData(group.state);
+    const allMembers = getGroupMembers(group.state);
+    const adminPubkeys = data?.adminPubkeys ?? [];
+    const members = allMembers.filter((pk) => !adminPubkeys.includes(pk));
+    return {
+      name: data?.name ?? "Unnamed Group",
+      epoch: group.state.groupContext.epoch,
+      members,
+      admins: adminPubkeys,
+    };
+  }, [group.state]);
 
   const client = use$(marmotClient$);
-  const handlePurgeGroup = async () => {
-    if (!client || !group) throw new Error("Group not found");
+
+  const handleLeaveGroup = async () => {
+    if (!client) throw new Error("Client not found");
     try {
-      setIsPurgingGroup(true);
-      await client.destroyGroup(group.id);
+      setIsLeavingGroup(true);
+      await client.leaveGroup(group.id);
       onOpenChange(false);
       navigate("/groups", { replace: true });
     } catch (error) {
-      console.error("Failed to purge group:", error);
+      console.error("Failed to leave group:", error);
     } finally {
-      setIsPurgingGroup(false);
+      setIsLeavingGroup(false);
     }
   };
 
   const handleSelfUpdate = async () => {
-    if (!group) return;
-
     try {
       setIsSelfUpdating(true);
       await group.selfUpdate();
@@ -111,7 +113,7 @@ export function GroupDetailsDrawer({
   };
 
   const handleClearHistory = async () => {
-    if (!group?.history) return;
+    if (!group.history) return;
 
     try {
       setIsClearingHistory(true);
@@ -183,27 +185,6 @@ export function GroupDetailsDrawer({
                   </p>
                 )}
               </div>
-
-              {/* Manage Members Button */}
-              <div className="pt-2">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    if (groupIdHex) {
-                      navigate(`/groups/${groupIdHex}/members`);
-                      onOpenChange(false);
-                    }
-                  }}
-                >
-                  Manage members
-                </Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {isAdmin
-                    ? "View, invite, and remove group members"
-                    : "View group members"}
-                </p>
-              </div>
             </>
           )}
         </div>
@@ -262,37 +243,37 @@ export function GroupDetailsDrawer({
             </AlertDialogContent>
           </AlertDialog>
 
-          {/* Purge Group Button */}
+          {/* Leave Group Button */}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
                 variant="destructive"
                 className="w-full"
-                disabled={isPurgingGroup}
+                disabled={isLeavingGroup}
               >
-                {isPurgingGroup ? (
+                {isLeavingGroup ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Purging...
+                    Leaving...
                   </>
                 ) : (
-                  "Purge group"
+                  "Leave group"
                 )}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Purge group?</AlertDialogTitle>
+                <AlertDialogTitle>Leave group?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently remove the group and all its messages
-                  from your local storage. No protocol action will be published.
-                  This action cannot be undone.
+                  This will publish a leave proposal to the group relays and
+                  remove the group from your local storage. This action cannot
+                  be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handlePurgeGroup}>
-                  Purge group
+                <AlertDialogAction onClick={handleLeaveGroup}>
+                  Leave group
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

@@ -131,21 +131,13 @@ export default function GroupMembersPage() {
                   pubkey={member.pubkey}
                   isAdmin={member.isAdmin}
                   canRemove={isAdmin && member.pubkey !== account?.pubkey}
+                  canLeave={member.pubkey === account?.pubkey}
                   group={group}
                 />
               ))}
             </div>
           )}
         </div>
-
-        {/* Admin notice if not admin */}
-        {!isAdmin && (
-          <div className="mt-4 p-3 bg-muted rounded-lg">
-            <p className="text-sm text-muted-foreground">
-              Only group admins can invite or remove members
-            </p>
-          </div>
-        )}
       </div>
     </>
   );

@@ -86,7 +86,7 @@ function BlossomServerItem({
         </code>
         <Button
           variant="destructive"
-          size="sm"
+          size="icon"
           onClick={handleRemove}
           disabled={removing}
         >
