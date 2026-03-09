@@ -7,11 +7,7 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import accountManager from "@/lib/accounts";
 
-interface SignerBunkerProps {
-  onSuccess?: () => void;
-}
-
-export default function BunkerTab({ onSuccess }: SignerBunkerProps) {
+export default function BunkerPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [bunkerUrl, setBunkerUrl] = useState("");
@@ -43,13 +39,8 @@ export default function BunkerTab({ onSuccess }: SignerBunkerProps) {
       // Clear the form
       setBunkerUrl("");
 
-      // Call success callback or navigate
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        const from = (location.state as any)?.from ?? "/";
-        navigate(from);
-      }
+      const from = (location.state as { from?: string })?.from ?? "/";
+      navigate(from);
     } catch (err) {
       console.error("Connection error:", err);
       setError(err instanceof Error ? err.message : "Failed to connect");

@@ -1,8 +1,8 @@
-import { IconAlertCircle, IconLock } from "@tabler/icons-react";
+import { IconAlertCircle, IconArrowLeft, IconLock } from "@tabler/icons-react";
 import { relaySet } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { useState } from "react";
-import { Outlet, useNavigate } from "react-router";
+import { Outlet, useMatch, useNavigate } from "react-router";
 import { combineLatest, map, shareReplay } from "rxjs";
 
 import { PageBody } from "@/components/page-body";
@@ -12,6 +12,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { withActiveAccount } from "@/components/with-active-account";
 import { DesktopShell } from "@/layouts/desktop/shell";
+import { MobileBottomNav } from "@/layouts/mobile/bottom-nav";
+import { MobileTopHeader } from "@/layouts/mobile/top-header";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { user$ } from "@/lib/accounts";
 import { keyPackageRelays$ } from "@/lib/lifecycle";
@@ -21,7 +23,6 @@ import {
   liveUnreadInvites$,
 } from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
-import { MobileShell } from "@/layouts/mobile/shell";
 
 /** An observable of all relays to read invites from (user inboxes + extra relays) */
 const readRelays$ = combineLatest([
@@ -74,21 +75,19 @@ function useInviteActions() {
 }
 
 // ============================================================================
-// Layouts
+// Shared invite list component
 // ============================================================================
 
-function DesktopInvitesLayout() {
+/**
+ * Renders the scrollable list of unread invites with an optional decrypt button.
+ * Used in both the desktop sidebar and the mobile index view.
+ */
+function InviteListContent() {
   const navigate = useNavigate();
-  const {
-    inviteReader,
-    unread,
-    error,
-    isDecrypting,
-    receivedCount,
-    handleDecryptPending,
-  } = useInviteActions();
+  const { unread, receivedCount, isDecrypting, handleDecryptPending } =
+    useInviteActions();
 
-  const sidebar = (
+  return (
     <div className="flex flex-col">
       {receivedCount > 0 && (
         <div className="p-2 border-b">
@@ -135,6 +134,21 @@ function DesktopInvitesLayout() {
       )}
     </div>
   );
+}
+
+// ============================================================================
+// Layouts
+// ============================================================================
+
+function DesktopInvitesLayout() {
+  const {
+    inviteReader,
+    unread,
+    error,
+    isDecrypting,
+    receivedCount,
+    handleDecryptPending,
+  } = useInviteActions();
 
   const footer = (
     <div className="flex">
@@ -180,20 +194,118 @@ function DesktopInvitesLayout() {
             </AlertDescription>
           </Alert>
         )}
+        {unread && unread.length === 0 && receivedCount === 0 && (
+          <p className="text-sm text-muted-foreground">No unread invites.</p>
+        )}
         <Outlet />
       </PageBody>
     </>
   );
 
   return (
-    <DesktopShell title="Invites" sidebar={sidebar} footer={footer}>
+    <DesktopShell
+      title="Invites"
+      sidebar={<InviteListContent />}
+      footer={footer}
+    >
       {content}
     </DesktopShell>
   );
 }
 
 function MobileInvitesLayout() {
-  return <MobileShell title="Invites" />;
+  const navigate = useNavigate();
+  const isDetail = useMatch("/invites/:rumorId");
+  const {
+    inviteReader,
+    error,
+    receivedCount,
+    isDecrypting,
+    handleDecryptPending,
+  } = useInviteActions();
+
+  if (isDetail) {
+    // Detail view: custom header with back button, invite detail via Outlet
+    return (
+      <div className="flex flex-col h-dvh overflow-hidden bg-background w-full">
+        <header className="w-full z-50 h-14 border-b bg-background flex items-center px-2 gap-2 shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1 px-2"
+            onClick={() => navigate("/invites")}
+          >
+            <IconArrowLeft size={18} />
+            <span>Invites</span>
+          </Button>
+        </header>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+          <PageBody>
+            {!inviteReader && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  Invitation reader is not initialized (not signed in yet?).
+                </AlertDescription>
+              </Alert>
+            )}
+            {error && (
+              <Alert variant="destructive">
+                <IconAlertCircle className="w-4 h-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <Outlet />
+          </PageBody>
+        </main>
+        <MobileBottomNav />
+      </div>
+    );
+  }
+
+  // List view: standard top header, scrollable invite list
+  return (
+    <div className="flex flex-col h-dvh overflow-hidden bg-background w-full">
+      <MobileTopHeader title="Invites" />
+      <main className="flex-1 overflow-y-auto overflow-x-hidden">
+        {!inviteReader && (
+          <Alert variant="destructive" className="m-3">
+            <AlertDescription>
+              Invitation reader is not initialized (not signed in yet?).
+            </AlertDescription>
+          </Alert>
+        )}
+        {error && (
+          <Alert variant="destructive" className="m-3">
+            <IconAlertCircle className="w-4 h-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {receivedCount > 0 && (
+          <Alert className="m-3">
+            <IconLock className="w-4 h-4" />
+            <AlertDescription>
+              <div className="flex items-center justify-between gap-4">
+                <span>
+                  {receivedCount} encrypted invite
+                  {receivedCount === 1 ? "" : "s"} waiting
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDecryptPending}
+                  disabled={isDecrypting}
+                >
+                  {isDecrypting ? "Decrypting..." : "Decrypt"}
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+        <InviteListContent />
+      </main>
+      <MobileBottomNav />
+    </div>
+  );
 }
 
 function InvitesPage() {

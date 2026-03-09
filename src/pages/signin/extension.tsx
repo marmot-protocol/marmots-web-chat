@@ -4,13 +4,9 @@ import { ExtensionAccount } from "applesauce-accounts/accounts";
 import { ExtensionSigner } from "applesauce-signers";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import accountManager from "../../lib/accounts";
+import accountManager from "@/lib/accounts";
 
-interface ExtensionSignInProps {
-  onSuccess?: () => void;
-}
-
-export default function ExtensionTab({ onSuccess }: ExtensionSignInProps) {
+export default function ExtensionPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
@@ -30,7 +26,8 @@ export default function ExtensionTab({ onSuccess }: ExtensionSignInProps) {
       const existing = accountManager.getAccountForPubkey(pubkey);
       if (existing) {
         accountManager.setActive(existing.id);
-        onSuccess?.();
+        const from = (location.state as { from?: string })?.from ?? "/";
+        navigate(from);
         return;
       }
 
@@ -43,13 +40,8 @@ export default function ExtensionTab({ onSuccess }: ExtensionSignInProps) {
       // Set it as the active account
       accountManager.setActive(account.id);
 
-      // Call success callback or navigate
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        const from = (location.state as any)?.from ?? "/";
-        navigate(from);
-      }
+      const from = (location.state as { from?: string })?.from ?? "/";
+      navigate(from);
     } catch (err) {
       console.error("Sign in error:", err);
       setError(err instanceof Error ? err.message : "Failed to sign in");

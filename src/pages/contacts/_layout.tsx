@@ -1,5 +1,5 @@
 import { KEY_PACKAGE_RELAY_LIST_KIND } from "@internet-privacy/marmot-ts";
-import { IconLock, IconUsersGroup } from "@tabler/icons-react";
+import { IconLock, IconMailbox, IconUsersGroup } from "@tabler/icons-react";
 import { castUser, User } from "applesauce-common/casts/user";
 import { normalizeToProfilePointer } from "applesauce-core/helpers";
 import { npubEncode } from "applesauce-core/helpers/pointers";
@@ -11,7 +11,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Link, useLocation, Outlet } from "react-router";
+import { Link, useLocation } from "react-router";
 import { BehaviorSubject } from "rxjs";
 
 import { UserAvatar, UserName } from "@/components/nostr-user";
@@ -27,6 +27,7 @@ import {
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { user$ } from "@/lib/accounts";
+import { liveUnreadInvites$ } from "@/lib/marmot-client";
 import { eventLoader, eventStore } from "@/lib/nostr";
 import { profileSearch } from "@/lib/search";
 import { persist } from "@/lib/settings";
@@ -224,43 +225,12 @@ export function ContactList() {
   );
 }
 
-/** Link to the explore (Who's Online) page. For mobile layout. */
-export function ContactListExploreButton() {
-  return (
-    <div className="p-2 border-b">
-      <Button variant="outline" className="w-full justify-center gap-2" asChild>
-        <Link to="/contacts/explore">
-          <IconUsersGroup size={18} />
-          Explore
-        </Link>
-      </Button>
-    </div>
-  );
-}
-
-// ============================================================================
-// Composed layouts: desktop (search + list) and mobile (explore + list + search)
-// ============================================================================
-
 /** Desktop: search form at top, then list. Use in sidebar. */
 export function ContactListContent() {
   return (
     <div className="flex flex-col">
       <ContactListSearchForm />
       <ContactList />
-    </div>
-  );
-}
-
-/** Mobile: explore button at top, list, search form at bottom. */
-export function ContactListContentMobile() {
-  return (
-    <div className="flex flex-col h-full">
-      <ContactListExploreButton />
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <ContactList />
-      </div>
-      <ContactListSearchForm />
     </div>
   );
 }

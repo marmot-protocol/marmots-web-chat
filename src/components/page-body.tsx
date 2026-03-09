@@ -10,10 +10,9 @@ export function PageBody({
 }) {
   return (
     <div
-      className={cn(
-        "w-full max-w-4xl space-y-6 p-4 sm:space-y-8 sm:p-6",
-        { "mx-auto": center },
-      )}
+      className={cn("w-full max-w-4xl space-y-6 p-4 sm:space-y-8 sm:p-6", {
+        "mx-auto": center,
+      })}
     >
       {children}
     </div>

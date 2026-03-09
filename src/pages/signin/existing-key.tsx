@@ -8,11 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import accountManager from "@/lib/accounts";
 
-interface ExistingKeyTabProps {
-  onSuccess?: () => void;
-}
-
-export default function ExistingKeyTab({ onSuccess }: ExistingKeyTabProps) {
+export default function ExistingKeyPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [nsecInput, setNsecInput] = useState("");
@@ -45,13 +41,8 @@ export default function ExistingKeyTab({ onSuccess }: ExistingKeyTabProps) {
       // Clear the input for security
       setNsecInput("");
 
-      // Call success callback or navigate
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        const from = (location.state as any)?.from ?? "/";
-        navigate(from);
-      }
+      const from = (location.state as { from?: string })?.from ?? "/";
+      navigate(from);
     } catch (err) {
       console.error("Login error:", err);
       setError(

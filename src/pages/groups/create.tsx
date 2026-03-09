@@ -188,9 +188,7 @@ function CreateGroupDesktop({
       <PageBody>
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              Create Group
-            </h1>
+            <h1 className="text-3xl font-bold tracking-tight">Create Group</h1>
             <p className="text-muted-foreground mt-2">
               Configure your new MLS group with Marmot Group Data Extension
             </p>
@@ -306,8 +304,7 @@ function CreateGroupPage() {
 
   const defaultRelays = extraRelays ?? [];
   const onSubmit = (data: ConfigurationFormData) => {
-    const relays =
-      data.relays.length > 0 ? data.relays : defaultRelays;
+    const relays = data.relays.length > 0 ? data.relays : defaultRelays;
     return handleFormSubmit({ ...data, relays });
   };
 

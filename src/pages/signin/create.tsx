@@ -22,17 +22,13 @@ import accountManager from "@/lib/accounts";
 import { eventStore, pool } from "@/lib/nostr";
 import { extraRelays$, lookupRelays$ } from "@/lib/settings";
 
-interface NewUserProps {
-  onSuccess?: () => void;
-}
-
 interface PreviewUser {
   name: string;
   pubkey: string;
   account: PrivateKeyAccount;
 }
 
-export default function CreateUserTab({ onSuccess }: NewUserProps) {
+export default function CreateUserPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
@@ -113,14 +109,8 @@ export default function CreateUserTab({ onSuccess }: NewUserProps) {
       // Set it as the active account
       accountManager.setActive(account.id);
 
-      // Call success callback or navigate
-      if (onSuccess) {
-        onSuccess();
-        generateRandomUser();
-      } else {
-        const from = (location.state as any)?.from ?? "/";
-        navigate(from);
-      }
+      const from = (location.state as { from?: string })?.from ?? "/";
+      navigate(from);
     } catch (err) {
       console.error("Create user error:", err);
       setError(err instanceof Error ? err.message : "Failed to create user");

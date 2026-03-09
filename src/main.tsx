@@ -41,7 +41,8 @@ import BlossomSettingsPage from "./pages/settings/blossom.tsx";
 import SignInPage from "./pages/signin/_layout.tsx";
 import SignInBunkerPage from "./pages/signin/bunker.tsx";
 import SignInQRPage from "./pages/signin/connect-qr.tsx";
-import SignInNewUserPage from "./pages/signin/create.tsx";
+import SignInCreatePage from "./pages/signin/create.tsx";
+import SignInExistingKeyPage from "./pages/signin/existing-key.tsx";
 import SignInExtensionPage from "./pages/signin/extension.tsx";
 import SignInIndexPage from "./pages/signin/index.tsx";
 import ToolsPage from "./pages/tools/_layout.tsx";
@@ -86,7 +87,8 @@ createRoot(document.getElementById("root")!).render(
             </Route>
             <Route path="/signin" element={<SignInPage />}>
               <Route index element={<SignInIndexPage />} />
-              <Route path="new-user" element={<SignInNewUserPage />} />
+              <Route path="create" element={<SignInCreatePage />} />
+              <Route path="existing-key" element={<SignInExistingKeyPage />} />
               <Route path="extension" element={<SignInExtensionPage />} />
               <Route path="bunker" element={<SignInBunkerPage />} />
               <Route path="qr" element={<SignInQRPage />} />

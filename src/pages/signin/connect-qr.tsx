@@ -4,7 +4,7 @@ import { NostrConnectAccount } from "applesauce-accounts/accounts";
 import { NostrConnectSigner } from "applesauce-signers";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import accountManager from "../../lib/accounts";
+import accountManager from "@/lib/accounts";
 
 // Simple QR code component using an API
 const QRCode = ({ data }: { data: string }) => (
@@ -17,11 +17,7 @@ const QRCode = ({ data }: { data: string }) => (
   </div>
 );
 
-interface SignerConnectQRProps {
-  onSuccess?: () => void;
-}
-
-export default function ConnectQrTab({ onSuccess }: SignerConnectQRProps) {
+export default function ConnectQrPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [nostrConnectUri, setNostrConnectUri] = useState<string | null>(null);
@@ -70,13 +66,8 @@ export default function ConnectQrTab({ onSuccess }: SignerConnectQRProps) {
 
           setNostrConnectUri(null);
 
-          // Call success callback or navigate
-          if (onSuccess) {
-            onSuccess();
-          } else {
-            const from = (location.state as any)?.from ?? "/";
-            navigate(from);
-          }
+          const from = (location.state as { from?: string })?.from ?? "/";
+          navigate(from);
         } catch (err) {
           console.error("Wait for signer error:", err);
           if (err instanceof Error && err.message === "Aborted") {
@@ -96,7 +87,7 @@ export default function ConnectQrTab({ onSuccess }: SignerConnectQRProps) {
     };
 
     handleQrCodeLogin();
-  }, [onSuccess]);
+  }, [navigate, location.state]);
 
   if (isConnecting && !nostrConnectUri) {
     return (

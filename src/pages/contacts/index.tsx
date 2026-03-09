@@ -1,4 +1,9 @@
-import { IconLoader2, IconUserOff } from "@tabler/icons-react";
+import {
+  IconLoader2,
+  IconMailbox,
+  IconUserOff,
+  IconUsersGroup,
+} from "@tabler/icons-react";
 import { use$ } from "applesauce-react/hooks";
 
 import { PageBody } from "@/components/page-body";
@@ -6,8 +11,8 @@ import { PageHeader } from "@/components/page-header";
 import { withActiveAccount } from "@/components/with-active-account";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { user$ } from "@/lib/accounts";
-import { liveGroups$ } from "@/lib/marmot-client";
-import { ContactListContentMobile } from "@/pages/contacts/_layout";
+import { liveGroups$, liveUnreadInvites$ } from "@/lib/marmot-client";
+import { ContactList, ContactListSearchForm } from "@/pages/contacts/_layout";
 import {
   StartChatDialog,
   useOnlineContactsKeyPackages,
@@ -17,6 +22,8 @@ import {
   RecentKeyPackageCard,
   RecentKeyPackagesFeed,
 } from "@/pages/contacts/components/recent-key-packages";
+import { Link } from "react-router";
+import { Button } from "../../components/ui/button";
 
 function ContactsIndexDesktop() {
   const contacts = use$(user$.contacts$);
@@ -82,6 +89,49 @@ function ContactsIndexDesktop() {
         <StartChatDialog {...chat} />
       </PageBody>
     </>
+  );
+}
+
+/** Link to the explore (Who's Online) page. For mobile layout. */
+export function ContactListExploreButton() {
+  return (
+    <Button variant="outline" className="flex-1 justify-center gap-2" asChild>
+      <Link to="/contacts/explore">Explore</Link>
+    </Button>
+  );
+}
+
+/** Link to the invites page with an unread count badge. For mobile layout. */
+export function ContactListInvitesButton() {
+  const unread = use$(liveUnreadInvites$);
+  const count = unread?.length ?? 0;
+  return (
+    <Button variant="outline" className="flex-1 justify-center gap-2" asChild>
+      <Link to="/invites">
+        Invites
+        {count > 0 && (
+          <span className="ml-auto bg-primary text-primary-foreground text-xs font-medium rounded-full px-2 py-0.5 leading-none">
+            {count}
+          </span>
+        )}
+      </Link>
+    </Button>
+  );
+}
+
+/** Mobile: explore + invites buttons at top, list, search form at bottom. */
+function ContactListContentMobile() {
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex gap-2 p-2 border-b">
+        <ContactListInvitesButton />
+        <ContactListExploreButton />
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <ContactList />
+      </div>
+      <ContactListSearchForm />
+    </div>
   );
 }
 
