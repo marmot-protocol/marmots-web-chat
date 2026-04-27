@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { extendedExtensionTypes } from "@internet-privacy/marmot-ts";
-import { greaseValues } from "ts-mls/grease.js";
+import { greaseValues } from "ts-mls";
 
 interface ExtensionBadgeProps {
   extensionType: number;
@@ -21,7 +21,9 @@ export default function ExtensionBadge({
       ? extensionType
       : extendedExtensionTypes[extensionType];
 
-  const isGrease = greaseValues.includes(extensionTypeId);
+  const isGrease = (greaseValues as readonly number[]).includes(
+    extensionTypeId,
+  );
 
   // Find the extension name from the extendedExtensionTypes map
   const extensionName =

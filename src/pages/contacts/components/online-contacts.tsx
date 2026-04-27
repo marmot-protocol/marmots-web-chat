@@ -1,4 +1,4 @@
-import { KEY_PACKAGE_KIND } from "@internet-privacy/marmot-ts";
+import { ADDRESSABLE_KEY_PACKAGE_KIND } from "@internet-privacy/marmot-ts";
 import { mapEventsToStore } from "applesauce-core";
 import type { NostrEvent } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
@@ -42,7 +42,7 @@ export function useOnlineContactsKeyPackages(): NostrEvent[] | undefined {
       if (!extraRelays?.length || !contacts?.length) return;
       return pool
         .request(extraRelays, {
-          kinds: [KEY_PACKAGE_KIND],
+          kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
           authors: contactPubkeys,
           since: onlineThreshold(),
         })
@@ -57,7 +57,7 @@ export function useOnlineContactsKeyPackages(): NostrEvent[] | undefined {
     () =>
       eventStore
         .timeline({
-          kinds: [KEY_PACKAGE_KIND],
+          kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
           authors: contactPubkeys,
           since: onlineThreshold(),
         })

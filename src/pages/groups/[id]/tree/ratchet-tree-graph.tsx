@@ -2,16 +2,38 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { hierarchy, tree } from "d3-hierarchy";
 import { getCredentialPubkey } from "@internet-privacy/marmot-ts";
 import { defaultCredentialTypes, nodeTypes } from "ts-mls";
-import {
-  left as treeLeft,
-  right as treeRight,
-  rootFromNodeWidth,
-  toNodeIndex,
-} from "ts-mls/treemath.js";
 
-import type { ClientState } from "ts-mls";
-import type { LeafNode } from "ts-mls/leafNode.js";
-import type { ParentNode } from "ts-mls/parentNode.js";
+import type { ClientState, LeafNode, ParentNode } from "ts-mls";
+
+function treeLog2(x: number): number {
+  if (x === 0) return 0;
+  let k = 0;
+  while (x >> k) k++;
+  return k - 1;
+}
+
+function treeLevel(nodeIndex: number): number {
+  if ((nodeIndex & 0x01) === 0) return 0;
+  let k = 0;
+  while (((nodeIndex >> k) & 0x01) === 1) k++;
+  return k;
+}
+
+function rootFromNodeWidth(nodeWidth: number): number {
+  return (1 << treeLog2(nodeWidth)) - 1;
+}
+
+function treeLeft(nodeIndex: number): number {
+  const k = treeLevel(nodeIndex);
+  if (k === 0) throw new Error("Leaf node has no children");
+  return nodeIndex ^ (0x01 << (k - 1));
+}
+
+function treeRight(nodeIndex: number): number {
+  const k = treeLevel(nodeIndex);
+  if (k === 0) throw new Error("Leaf node has no children");
+  return nodeIndex ^ (0x03 << (k - 1));
+}
 
 // ─── Public node info types (used by the detail panel too) ───────────────────
 
@@ -91,8 +113,8 @@ function buildTreeNode(
   // Parent nodes (odd indices) have children.
   // Use the MLS-spec bit-level formulas (from ts-mls/treemath) — NOT nodeIndex±1.
   if (!isLeaf) {
-    const leftIndex = treeLeft(toNodeIndex(nodeIndex));
-    const rightIndex = treeRight(toNodeIndex(nodeIndex));
+    const leftIndex = treeLeft(nodeIndex);
+    const rightIndex = treeRight(nodeIndex);
     if (leftIndex >= 0 && rightIndex < flatTree.length) {
       treeNode.children = [
         buildTreeNode(flatTree, leftIndex),

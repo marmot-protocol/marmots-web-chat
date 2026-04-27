@@ -3,9 +3,10 @@ import { type NostrEvent } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { onlyEvents } from "applesauce-relay";
 import {
+  ADDRESSABLE_KEY_PACKAGE_KIND,
   getKeyPackageCipherSuiteId,
   getKeyPackageClient,
-  KEY_PACKAGE_KIND,
+  getKeyPackageIdentifier,
 } from "@internet-privacy/marmot-ts";
 import { useMemo, useState } from "react";
 import { EMPTY, of } from "rxjs";
@@ -127,7 +128,7 @@ export default function KeyPackageFeedPage() {
     return pool
       .relay(selectedRelay)
       .subscription({
-        kinds: [KEY_PACKAGE_KIND],
+        kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
         limit: 50,
       })
       .pipe(
@@ -138,14 +139,16 @@ export default function KeyPackageFeedPage() {
       );
   }, [selectedRelay]);
 
-  // Deduplicate events by ID, keeping the most recent one
+  // Deduplicate replaceable key package slots, keeping the newest event per slot.
   const uniqueEvents = useMemo(() => {
     if (!events) return [];
     const seen = new Map<string, NostrEvent>();
     for (const event of events) {
-      const existing = seen.get(event.id);
+      const slot = getKeyPackageIdentifier(event) ?? event.id;
+      const key = `${event.pubkey}:${slot}`;
+      const existing = seen.get(key);
       if (!existing || event.created_at > existing.created_at) {
-        seen.set(event.id, event);
+        seen.set(key, event);
       }
     }
     return Array.from(seen.values());

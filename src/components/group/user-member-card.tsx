@@ -52,7 +52,7 @@ export function UserMemberCard({
     try {
       setIsLeaving(true);
       setError(null);
-      await client.leaveGroup(group.id);
+      await client.groups.leave(group.id);
       navigate("/groups", { replace: true });
     } catch (err) {
       console.error("Failed to leave group:", err);

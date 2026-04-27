@@ -9,7 +9,7 @@ import {
 } from "@internet-privacy/marmot-ts";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { CiphersuiteId } from "ts-mls";
-import type { LeafNodeKeyPackage } from "ts-mls/leafNode.js";
+import type { LeafNodeKeyPackage } from "ts-mls";
 
 /**
  * A reusable component that displays leaf node capabilities and lifetime information.

@@ -2,7 +2,7 @@ import { IconCircleX, IconLoader2 } from "@tabler/icons-react";
 import { use$ } from "applesauce-react/hooks";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import type { CiphersuiteName } from "ts-mls/crypto/ciphersuite.js";
+import type { CiphersuiteName } from "ts-mls";
 
 import { CipherSuitePicker } from "@/components/form/cipher-suite-picker";
 import { PubkeyListCreator } from "@/components/form/pubkey-list-creator";
@@ -288,7 +288,7 @@ function CreateGroupPage() {
       ];
       const allRelays = [...data.relays];
 
-      const group = await client.createGroup(data.groupName, {
+      const group = await client.groups.create(data.groupName, {
         description: data.groupDescription,
         adminPubkeys: adminPubkeysList,
         relays: allRelays,

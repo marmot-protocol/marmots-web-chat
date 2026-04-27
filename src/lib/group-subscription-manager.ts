@@ -239,7 +239,7 @@ export class GroupSubscriptionManager {
     this.client = client;
     this.databaseName = databaseName;
 
-    this.#live$ = from(this.client.watchGroups()).pipe(
+    this.#live$ = from(this.client.groups.watch()).pipe(
       switchMap((groups) =>
         merge(
           ...groups.map((group) => {
@@ -262,7 +262,7 @@ export class GroupSubscriptionManager {
       mapEventsToStore(eventStore),
     );
 
-    this.#ingest$ = from(this.client.watchGroups()).pipe(
+    this.#ingest$ = from(this.client.groups.watch()).pipe(
       switchMap((groups) =>
         merge(
           ...groups.map((group) => {
@@ -456,8 +456,8 @@ export class GroupSubscriptionManager {
     this.running = true;
 
     // Pre-load persisted records for all known groups before starting ingestion.
-    // watchGroups() yields the current snapshot on its first iteration.
-    const groupsIter = this.client.watchGroups()[Symbol.asyncIterator]();
+    // groups.watch() yields the current snapshot on its first iteration.
+    const groupsIter = this.client.groups.watch()[Symbol.asyncIterator]();
     const { value: groups } = await groupsIter.next();
     groupsIter.return?.(undefined);
     if (groups && groups.length > 0) {

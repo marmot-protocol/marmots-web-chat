@@ -82,7 +82,7 @@ export function useStartChat(): UseStartChatReturn {
       const profile = eventStore.getReplaceable(0, user.pubkey);
       const contactName = getDisplayName(profile, user.npub.slice(0, 12));
 
-      const group = await client.createGroup(contactName, {
+      const group = await client.groups.create(contactName, {
         adminPubkeys: [acc.pubkey],
         relays: extraRelays ?? [],
         ciphersuite: "MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519",

@@ -3,7 +3,7 @@ import { AlertCircle, Loader2, XCircle } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { bytesToHex } from "@noble/hashes/utils.js";
-import type { CiphersuiteName } from "ts-mls/crypto/ciphersuite.js";
+import type { CiphersuiteName } from "ts-mls";
 
 import { CipherSuitePicker } from "@/components/form/cipher-suite-picker";
 import { PageBody } from "@/components/page-body";

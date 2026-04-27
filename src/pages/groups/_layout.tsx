@@ -25,7 +25,6 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DesktopShell } from "@/layouts/desktop/shell";
 import { MobileShell } from "@/layouts/mobile/shell";
 import accounts from "@/lib/accounts";
@@ -102,7 +101,7 @@ function GroupItem({ group }: { group: AppGroup }) {
     if (!client) return;
     try {
       setIsLeaving(true);
-      await client.leaveGroup(group.id);
+      await client.groups.leave(group.id);
       navigate("/groups", { replace: true });
     } catch (error) {
       console.error("Failed to leave group:", error);
@@ -222,20 +221,6 @@ function AllGroupsList() {
   return <GroupList groups={groups} />;
 }
 
-function DirectGroupsList() {
-  const groups = use$(liveGroups$);
-  const account = use$(accounts.active$);
-  const dms = groups?.filter((g) => isDirect(g, account?.pubkey));
-  return <GroupList groups={dms} />;
-}
-
-function MultiGroupsList() {
-  const groups = use$(liveGroups$);
-  const account = use$(accounts.active$);
-  const multi = groups?.filter((g) => !isDirect(g, account?.pubkey));
-  return <GroupList groups={multi} />;
-}
-
 function DesktopGroupsLayout() {
   return (
     <DesktopShell
@@ -259,34 +244,9 @@ function MobileGroupsLayout() {
   return <Outlet />;
 }
 
-/** Group list with Create button and All/1:1/Groups tabs. Exported for mobile index. */
+/** Group list with Create button. Exported for mobile index. */
 export function GroupsListContent() {
-  return (
-    <>
-      <Tabs defaultValue="all" className="w-full">
-        <TabsList variant="line" className="w-full px-2 border-b rounded-none">
-          <TabsTrigger value="all" className="flex-1">
-            All
-          </TabsTrigger>
-          <TabsTrigger value="dm" className="flex-1">
-            1:1
-          </TabsTrigger>
-          <TabsTrigger value="group" className="flex-1">
-            Groups
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="all">
-          <AllGroupsList />
-        </TabsContent>
-        <TabsContent value="dm">
-          <DirectGroupsList />
-        </TabsContent>
-        <TabsContent value="group">
-          <MultiGroupsList />
-        </TabsContent>
-      </Tabs>
-    </>
-  );
+  return <AllGroupsList />;
 }
 
 export default function GroupsLayout() {

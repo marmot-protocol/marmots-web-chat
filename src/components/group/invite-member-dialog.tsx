@@ -1,7 +1,9 @@
 import type { AppGroup } from "@/lib/marmot-client";
 import {
+  ADDRESSABLE_KEY_PACKAGE_KIND,
   getKeyPackageCipherSuiteId,
   getKeyPackageClient,
+  getKeyPackageIdentifier,
   getKeyPackageRelayList,
   KEY_PACKAGE_RELAY_LIST_KIND,
 } from "@internet-privacy/marmot-ts";
@@ -14,7 +16,7 @@ import { use$ } from "applesauce-react/hooks";
 import { Loader2, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { map } from "rxjs/operators";
-import type { CiphersuiteId } from "ts-mls/crypto/ciphersuite.js";
+import type { CiphersuiteId } from "ts-mls";
 
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -188,7 +190,7 @@ function KeyPackageSelectionStep({
 
     return pool
       .request(keyPackageRelays, {
-        kinds: [443],
+        kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
         authors: [selectedPubkey],
         limit: 50,
       })
@@ -202,12 +204,22 @@ function KeyPackageSelectionStep({
   const compatibleKeyPackages = useMemo(() => {
     if (!keyPackages) return [];
 
-    return keyPackages
-      .filter((event) => {
-        const cipherSuiteId = getKeyPackageCipherSuiteId(event);
-        return cipherSuiteId === groupCipherSuite;
-      })
-      .sort((a, b) => b.created_at - a.created_at); // Most recent first
+    const seen = new Map<string, NostrEvent>();
+    for (const event of keyPackages) {
+      const cipherSuiteId = getKeyPackageCipherSuiteId(event);
+      if (cipherSuiteId !== groupCipherSuite) continue;
+
+      const slot = getKeyPackageIdentifier(event) ?? event.id;
+      const key = `${event.pubkey}:${slot}`;
+      const existing = seen.get(key);
+      if (!existing || event.created_at > existing.created_at) {
+        seen.set(key, event);
+      }
+    }
+
+    return Array.from(seen.values()).sort(
+      (a, b) => b.created_at - a.created_at,
+    );
   }, [keyPackages, groupCipherSuite]);
 
   if (!keyPackageRelays) {
@@ -347,7 +359,7 @@ export function InviteMemberDialog({
     if (!selectedPubkey || !keyPackageRelays) return;
     return pool
       .request(keyPackageRelays, {
-        kinds: [443],
+        kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
         authors: [selectedPubkey],
         limit: 50,
       })

@@ -1,27 +1,30 @@
 import {
   getKeyPackageClient,
   isLastResortExtension,
-  KeyPackageEntry,
+  KEY_PACKAGE_RELAY_LIST_KIND,
+  ListedKeyPackage,
 } from "@internet-privacy/marmot-ts";
+import { IconKey } from "@tabler/icons-react";
 import { bytesToHex, relaySet } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { SettingsIcon } from "lucide-react";
-import { useMemo } from "react";
+import { ReactNode, useMemo } from "react";
 import { Link, useLocation } from "react-router";
-import { combineLatest, map, shareReplay } from "rxjs";
+import { combineLatest, from, map, shareReplay } from "rxjs";
+import { User } from "applesauce-common/casts/user";
 
 import { SubscriptionStatusButton } from "@/components/subscription-status-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { withActiveAccount } from "@/components/with-active-account";
-import { DesktopShell } from "@/layouts/desktop/shell";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { DesktopShell } from "@/layouts/desktop/shell";
+import { MobileShell } from "@/layouts/mobile/shell";
 import { user$ } from "@/lib/accounts";
-import { keyPackageRelays$, publishedKeyPackages$ } from "@/lib/lifecycle";
-import { liveKeyPackages$ } from "@/lib/marmot-client";
+import { keyPackageRelays$ } from "@/lib/lifecycle";
+import { marmotClient$ } from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
 import { formatTimeAgo } from "@/lib/time";
-import { MobileShell } from "@/layouts/mobile/shell";
 
 /** An observable of all relays to read key packages from */
 const readRelays$ = combineLatest([
@@ -33,7 +36,116 @@ const readRelays$ = combineLatest([
   shareReplay(1),
 );
 
-function KeyPackageItem({ keyPackage }: { keyPackage: KeyPackageEntry }) {
+// ============================================================================
+// Sidebar building blocks
+// ============================================================================
+
+function SidebarSectionHeader({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-b">
+      {children}
+    </div>
+  );
+}
+
+/** Prominent card shown at the top of the sidebar for the active client's key package. */
+function CurrentKeyPackageCard({
+  keyPackage,
+  user,
+}: {
+  keyPackage: ListedKeyPackage;
+  user: User;
+}) {
+  const location = useLocation();
+  const linkTo = useMemo(
+    () => `/key-packages/${bytesToHex(keyPackage.keyPackageRef)}`,
+    [keyPackage.keyPackageRef],
+  );
+  const isActive = location.pathname === linkTo;
+  const isLastResort = !!keyPackage.publicPackage.extensions.some(
+    isLastResortExtension,
+  );
+
+  const outboxes = use$(user$.outboxes$);
+  const event = use$(
+    () =>
+      user.replaceable(
+        KEY_PACKAGE_RELAY_LIST_KIND,
+        keyPackage.identifier,
+        outboxes,
+      ),
+    [user, keyPackage.identifier, outboxes?.join(",")],
+  );
+  const client = event ? getKeyPackageClient(event) : undefined;
+  const timeAgo = event ? formatTimeAgo(event.created_at) : "Unpublished";
+
+  return (
+    <Link
+      to={linkTo}
+      className={`flex flex-col gap-3 border-b p-4 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
+        isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""
+      }`}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center bg-primary text-primary-foreground">
+          <IconKey size={20} />
+        </span>
+        <div className="flex flex-col flex-1 min-w-0">
+          <span className="text-sm font-medium truncate">
+            {client?.name || "Unknown Client"}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            Published {timeAgo}
+          </span>
+        </div>
+      </div>
+      {(keyPackage.used || isLastResort) && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {keyPackage.used && (
+            <Badge variant="destructive" className="text-xs">
+              Used
+            </Badge>
+          )}
+          {isLastResort && (
+            <Badge variant="outline" className="text-xs">
+              Last Resort
+            </Badge>
+          )}
+        </div>
+      )}
+    </Link>
+  );
+}
+
+/** Empty-state card prompting the user to create a key package for this client. */
+function CurrentKeyPackageEmptyState() {
+  return (
+    <div className="flex flex-col gap-3 border-b p-4">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center bg-muted text-muted-foreground">
+          <IconKey size={20} />
+        </span>
+        <div className="flex flex-col flex-1 min-w-0">
+          <span className="text-sm font-medium">No key package</span>
+          <span className="text-xs text-muted-foreground">
+            Publish one so others can invite you to encrypted groups.
+          </span>
+        </div>
+      </div>
+      <Button asChild size="sm">
+        <Link to="/key-packages/create">Create Key Package</Link>
+      </Button>
+    </div>
+  );
+}
+
+function KeyPackageItem({
+  keyPackage,
+  user,
+}: {
+  keyPackage: ListedKeyPackage;
+  user: User;
+}) {
   const location = useLocation();
 
   const linkTo = useMemo(
@@ -45,11 +157,19 @@ function KeyPackageItem({ keyPackage }: { keyPackage: KeyPackageEntry }) {
     isLastResortExtension,
   );
 
-  const latestEvent = keyPackage.published[keyPackage.published.length - 1];
-  const client = latestEvent ? getKeyPackageClient(latestEvent) : undefined;
-  const timeAgo = latestEvent
-    ? formatTimeAgo(latestEvent.created_at)
-    : "Unpublished";
+  const outboxes = use$(user$.outboxes$);
+  const event = use$(
+    () =>
+      user.replaceable(
+        KEY_PACKAGE_RELAY_LIST_KIND,
+        keyPackage.identifier,
+        outboxes,
+      ),
+    [user, keyPackage.identifier, outboxes?.join(",")],
+  );
+
+  const client = event ? getKeyPackageClient(event) : undefined;
+  const timeAgo = event ? formatTimeAgo(event.created_at) : "Unpublished";
 
   return (
     <Link
@@ -66,25 +186,46 @@ function KeyPackageItem({ keyPackage }: { keyPackage: KeyPackageEntry }) {
           <span className="text-xs text-muted-foreground">{timeAgo}</span>
         </span>
       </div>
-      <div className="flex items-center gap-2">
-        {keyPackage.used && (
-          <Badge variant="destructive" className="text-xs shrink-0">
-            Used
-          </Badge>
-        )}
-        {isLastResort && (
-          <Badge variant="outline" className="text-xs shrink-0">
-            Last Resort
-          </Badge>
-        )}
-      </div>
+      {(keyPackage.used || isLastResort) && (
+        <div className="flex items-center gap-2">
+          {keyPackage.used && (
+            <Badge variant="destructive" className="text-xs shrink-0">
+              Used
+            </Badge>
+          )}
+          {isLastResort && (
+            <Badge variant="outline" className="text-xs shrink-0">
+              Last Resort
+            </Badge>
+          )}
+        </div>
+      )}
     </Link>
   );
 }
 
+// ============================================================================
+// Layouts
+// ============================================================================
+
 function DesktopKeyPackagesLayout() {
-  const keyPackages = use$(liveKeyPackages$);
-  use$(publishedKeyPackages$);
+  const client = use$(marmotClient$);
+  const user = use$(user$)!;
+  const keyPackages = use$(
+    () => (client ? from(client.keyPackages.watchKeyPackages()) : undefined),
+    [client],
+  );
+
+  const clientId = client?.keyPackages.clientId;
+
+  const current = useMemo(
+    () => keyPackages?.find((pkg) => pkg.identifier === clientId),
+    [keyPackages, clientId],
+  );
+  const others = useMemo(
+    () => keyPackages?.filter((pkg) => pkg.identifier !== clientId) ?? [],
+    [keyPackages, clientId],
+  );
 
   const footer = (
     <div className="flex">
@@ -98,28 +239,38 @@ function DesktopKeyPackagesLayout() {
   );
 
   const sidebar = (
-    <>
-      <div className="flex flex-col">
-        <Button asChild variant="default" className="m-2">
-          <Link to="/key-packages/create">Create Key Package</Link>
-        </Button>
-        {keyPackages && keyPackages.length > 0 ? (
-          keyPackages.map((pkg) => (
-            <KeyPackageItem
-              key={bytesToHex(pkg.keyPackageRef)}
-              keyPackage={pkg}
-            />
-          ))
-        ) : (
-          <div className="p-4 text-sm text-muted-foreground text-center">
-            {keyPackages === undefined ? "Loading..." : "No key packages yet"}
-          </div>
-        )}
-      </div>
-      <div className="p-4 text-sm text-muted-foreground text-center">
-        Found {keyPackages?.length ?? 0} key packages
-      </div>
-    </>
+    <div className="flex flex-col">
+      <SidebarSectionHeader>This client</SidebarSectionHeader>
+      {keyPackages === undefined ? (
+        <div className="px-4 py-3 text-sm text-muted-foreground">
+          Loading...
+        </div>
+      ) : current ? (
+        <CurrentKeyPackageCard user={user} keyPackage={current} />
+      ) : (
+        <CurrentKeyPackageEmptyState />
+      )}
+
+      <SidebarSectionHeader>
+        <span>Other key packages</span>
+        <span className="ml-auto tabular-nums">{others.length}</span>
+      </SidebarSectionHeader>
+      {others.length > 0 ? (
+        others.map((pkg) => (
+          <KeyPackageItem
+            key={bytesToHex(pkg.keyPackageRef)}
+            keyPackage={pkg}
+            user={user}
+          />
+        ))
+      ) : (
+        <div className="px-4 py-3 text-xs text-muted-foreground">
+          {keyPackages === undefined
+            ? ""
+            : "No key packages from other clients."}
+        </div>
+      )}
+    </div>
   );
 
   return (

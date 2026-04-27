@@ -25,11 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  inviteReader$,
-  liveUnreadInvites$,
-  marmotClient$,
-} from "@/lib/marmot-client";
+import { liveUnreadInvites$, marmotClient$ } from "@/lib/marmot-client";
 import { Badge } from "../../components/ui/badge";
 
 function JoinButton({
@@ -42,13 +38,12 @@ function JoinButton({
   variant?: ComponentProps<typeof Button>["variant"];
 }) {
   const client = use$(marmotClient$);
-  const inviteReader = use$(inviteReader$);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
   /** Join group from selected invite and mark as read */
   const handleJoin = async () => {
-    if (!client || !inviteReader || !invite) return;
+    if (!client || !invite) return;
     try {
       setLoading(true);
       // The selected invite is now a Rumor (UnreadInvite extends Rumor)
@@ -58,7 +53,7 @@ function JoinButton({
       });
 
       // Mark invite as read (removes from unread, keeps in seen)
-      await inviteReader.markAsRead(invite.id);
+      await client.invites.markAsRead(invite.id);
 
       navigate(`/groups/${group.idStr}`);
     } catch (err) {
@@ -85,17 +80,17 @@ function ReadButton({
   setError: (error: string | null) => void;
   variant?: ComponentProps<typeof Button>["variant"];
 }) {
-  const inviteReader = use$(inviteReader$);
+  const client = use$(marmotClient$);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
   /** Mark invite as read without joining */
   const handleMarkAsRead = async () => {
-    if (!inviteReader || !invite) return;
+    if (!client || !invite) return;
 
     try {
       setLoading(true);
-      await inviteReader.markAsRead(invite.id);
+      await client.invites.markAsRead(invite.id);
       // Navigate back to invites list
       navigate("/invites");
     } catch (err) {
@@ -118,7 +113,6 @@ function ReadButton({
  */
 export function InviteDetailPage() {
   const { rumorId } = useParams<{ rumorId: string }>();
-  const inviteReader = use$(inviteReader$);
   const unread = use$(liveUnreadInvites$);
   const client = use$(marmotClient$);
   const [advancedView, setAdvancedView] = useState(false);
@@ -174,7 +168,7 @@ export function InviteDetailPage() {
     );
   }, [client, invite]);
 
-  if (!inviteReader) {
+  if (!client) {
     return (
       <Alert variant="destructive">
         <AlertDescription>

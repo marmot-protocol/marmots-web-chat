@@ -1,32 +1,169 @@
 import {
+  ADDRESSABLE_KEY_PACKAGE_KIND,
+  createKeyPackageRelayListEvent,
+} from "@internet-privacy/marmot-ts";
+import {
   AddDirectMessageRelay,
   RemoveDirectMessageRelay,
 } from "applesauce-actions/actions";
 import { relaySet } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
-import {
-  createKeyPackageRelayListEvent,
-  KEY_PACKAGE_RELAY_LIST_KIND,
-} from "@internet-privacy/marmot-ts";
-import { useState } from "react";
-import { combineLatest, of, switchMap } from "rxjs";
+import { useMemo, useState } from "react";
+import { from } from "rxjs";
 
 import { EventStatusButton } from "@/components/event-status-button";
 import { PageBody } from "@/components/page-body";
 import { PageHeader } from "@/components/page-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { accounts, actions, user$ } from "@/lib/accounts";
-import { keyPackageRelays$ } from "@/lib/lifecycle";
+import { keyPackageRelays$, publishedKeyPackages$ } from "@/lib/lifecycle";
+import { marmotClient$ } from "@/lib/marmot-client";
 import { extraRelays$, lookupRelays$ } from "@/lib/settings";
+import { formatTimeAgo } from "@/lib/time";
 import { NewRelayForm, RelayItem } from "./relays";
 
-// Observable of current user's key package relay list event
-const keyPackageRelayListEvent$ = combineLatest([user$, user$.outboxes$]).pipe(
-  switchMap(([user, outboxes]) =>
-    user
-      ? user.replaceable(KEY_PACKAGE_RELAY_LIST_KIND, undefined, outboxes)
-      : of(undefined),
-  ),
-);
+function ClientKeyPackageSection() {
+  const client = use$(marmotClient$);
+  const keyPackages = use$(
+    () => (client ? from(client.keyPackages.watchKeyPackages()) : undefined),
+    [client],
+  );
+  const keyPackageRelays = use$(keyPackageRelays$);
+
+  // Start key package subscription
+  use$(publishedKeyPackages$);
+
+  const clientId = client?.keyPackages.clientId;
+
+  const matchingKeyPackage = useMemo(() => {
+    if (!clientId || !keyPackages) return undefined;
+    return keyPackages.find((pkg) => pkg.identifier === clientId);
+  }, [clientId, keyPackages]);
+
+  const latestEvent = useMemo(() => {
+    const addressableEvents = matchingKeyPackage?.published?.filter(
+      (event) => event.kind === ADDRESSABLE_KEY_PACKAGE_KIND,
+    );
+    if (!addressableEvents || addressableEvents.length === 0) return undefined;
+    return addressableEvents.reduce((latest, event) =>
+      event.created_at > latest.created_at ? event : latest,
+    );
+  }, [matchingKeyPackage]);
+
+  const [isRotating, setIsRotating] = useState(false);
+  const [rotateError, setRotateError] = useState<string | null>(null);
+  const [rotateSuccess, setRotateSuccess] = useState(false);
+
+  const handleRotate = async () => {
+    if (!client || !matchingKeyPackage) return;
+
+    try {
+      setIsRotating(true);
+      setRotateError(null);
+      setRotateSuccess(false);
+
+      // Rotate publishes a new addressable key package event under the same
+      // `d` slot — relays automatically replace the old event.
+      await client.keyPackages.rotate(matchingKeyPackage.keyPackageRef, {
+        relays: keyPackageRelays ?? undefined,
+        client: "marmot-chat",
+      });
+
+      setRotateSuccess(true);
+      setTimeout(() => setRotateSuccess(false), 3000);
+    } catch (err) {
+      console.error("Error rotating key package:", err);
+      setRotateError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsRotating(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-2xl font-semibold">This Client's Key Package</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          The addressable key package published for this device. Other users
+          fetch it from your key package relays to invite you to encrypted
+          groups.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <Label className="text-muted-foreground/60 mb-0.5 text-xs">
+            Client ID
+          </Label>
+          {clientId ? (
+            <div className="font-mono text-xs text-muted-foreground break-all">
+              {clientId}
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">Loading…</div>
+          )}
+        </div>
+
+        <div>
+          <Label className="text-muted-foreground/60 mb-0.5 text-xs">
+            Published Key Package
+          </Label>
+          {latestEvent ? (
+            <div>
+              <EventStatusButton event={latestEvent} />
+            </div>
+          ) : (
+            <div>
+              <Badge variant="outline">Unpublished</Badge>
+            </div>
+          )}
+        </div>
+
+        {latestEvent && (
+          <div>
+            <Label className="text-muted-foreground/60 mb-0.5 text-xs">
+              Last Rotated
+            </Label>
+            <div className="text-sm">
+              {formatTimeAgo(latestEvent.created_at)}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <Button
+          onClick={handleRotate}
+          disabled={isRotating || !client || !matchingKeyPackage}
+          variant="outline"
+          className="w-full sm:w-auto"
+        >
+          {isRotating ? "Rotating..." : "Rotate key package"}
+        </Button>
+      </div>
+
+      {!matchingKeyPackage && keyPackages !== undefined && clientId && (
+        <div className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-md">
+          No key package has been created for this client yet.
+        </div>
+      )}
+
+      {rotateError && (
+        <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">
+          Error: {rotateError}
+        </div>
+      )}
+
+      {rotateSuccess && (
+        <div className="bg-green-500/15 text-green-600 text-sm p-3 rounded-md">
+          Key package rotated successfully!
+        </div>
+      )}
+    </div>
+  );
+}
 
 function DirectMessageRelaysSection() {
   const directMessageRelays = use$(user$.directMessageRelays$);
@@ -190,8 +327,6 @@ function KeyPackageRelaysSection() {
 }
 
 export default function MarmotSettingsPage() {
-  const keyPackageRelayListEvent = use$(keyPackageRelayListEvent$);
-
   return (
     <>
       <PageHeader
@@ -200,13 +335,9 @@ export default function MarmotSettingsPage() {
           { label: "Settings", to: "/settings" },
           { label: "Marmot" },
         ]}
-        actions={
-          keyPackageRelayListEvent && (
-            <EventStatusButton event={keyPackageRelayListEvent} />
-          )
-        }
       />
       <PageBody>
+        <ClientKeyPackageSection />
         <KeyPackageRelaysSection />
         <DirectMessageRelaysSection />
       </PageBody>

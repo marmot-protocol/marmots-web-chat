@@ -1,18 +1,23 @@
 import {
+  ADDRESSABLE_KEY_PACKAGE_KIND,
   getCredentialPubkey,
   getKeyPackage,
   getKeyPackageCipherSuiteId,
   getKeyPackageClient,
   getKeyPackageExtensions,
+  getKeyPackageIdentifier,
   getKeyPackageMLSVersion,
   getKeyPackageRelayList,
   getKeyPackageRelays,
   getGroupMembers,
-  KEY_PACKAGE_KIND,
   KEY_PACKAGE_RELAY_LIST_KIND,
 } from "@internet-privacy/marmot-ts";
 import { castUser, User } from "applesauce-common/casts/user";
-import { mapEventsToStore, mapEventsToTimeline } from "applesauce-core";
+import {
+  defined,
+  mapEventsToStore,
+  mapEventsToTimeline,
+} from "applesauce-core";
 import {
   bytesToHex,
   normalizeToProfilePointer,
@@ -32,12 +37,22 @@ import { UserAvatar, UserName } from "@/components/nostr-user";
 import { PageHeader } from "@/components/page-header";
 import QRButton from "@/components/qr-button";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { eventStore, pool } from "@/lib/nostr";
 import accountManager from "@/lib/accounts";
 import { liveGroups$ } from "@/lib/marmot-client";
 import { extraRelays$, lookupRelays$ } from "@/lib/settings";
-import { IconChevronRight, IconUsers, IconMessage } from "@tabler/icons-react";
+import {
+  StartChatDialog,
+  useStartChat,
+} from "@/pages/contacts/components/start-chat-dialog";
+import {
+  IconChevronRight,
+  IconMessagePlus,
+  IconUsers,
+  IconMessage,
+  IconPackage,
+  IconWorld,
+} from "@tabler/icons-react";
 import { Link } from "react-router";
 
 function KeyPackageCard({ event }: { event: NostrEvent }) {
@@ -63,7 +78,7 @@ function KeyPackageCard({ event }: { event: NostrEvent }) {
   };
 
   return (
-    <div className="border rounded-lg p-4 space-y-3">
+    <div className="px-5 py-4 space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -90,7 +105,7 @@ function KeyPackageCard({ event }: { event: NostrEvent }) {
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div>
           <div className="text-xs text-muted-foreground mb-1">MLS Version</div>
-          <span className="px-2 py-1 text-xs border rounded">
+          <span className="px-2 py-1 text-xs bg-muted rounded">
             {mlsVersion || "Not specified"}
           </span>
         </div>
@@ -100,7 +115,7 @@ function KeyPackageCard({ event }: { event: NostrEvent }) {
           {cipherSuiteId !== undefined ? (
             <CipherSuiteBadge cipherSuite={cipherSuiteId} />
           ) : (
-            <span className="px-2 py-1 text-xs border border-red-500 text-red-600 rounded">
+            <span className="px-2 py-1 text-xs bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 rounded">
               Unknown
             </span>
           )}
@@ -109,7 +124,7 @@ function KeyPackageCard({ event }: { event: NostrEvent }) {
         {client && (
           <div className="col-span-2">
             <div className="text-xs text-muted-foreground mb-1">Client</div>
-            <span className="px-2 py-1 text-xs border rounded">
+            <span className="px-2 py-1 text-xs bg-muted rounded">
               {client.name}
             </span>
           </div>
@@ -122,7 +137,7 @@ function KeyPackageCard({ event }: { event: NostrEvent }) {
             </div>
             <div className="flex flex-wrap gap-1">
               {relays.map((relay) => (
-                <span key={relay} className="px-2 py-1 text-xs border rounded">
+                <span key={relay} className="px-2 py-1 text-xs bg-muted rounded">
                   {relay}
                 </span>
               ))}
@@ -137,7 +152,7 @@ function KeyPackageCard({ event }: { event: NostrEvent }) {
             </div>
             <div className="flex flex-wrap gap-1">
               {extensions.map((ext) => (
-                <span key={ext} className="px-2 py-1 text-xs border rounded">
+                <span key={ext} className="px-2 py-1 text-xs bg-muted rounded">
                   {ext}
                 </span>
               ))}
@@ -148,7 +163,7 @@ function KeyPackageCard({ event }: { event: NostrEvent }) {
 
       {/* Error Display */}
       {keyPackageError && (
-        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
+        <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded text-sm">
           <strong>Parse Error:</strong> {keyPackageError.message}
         </div>
       )}
@@ -202,14 +217,14 @@ function KeyPackageCard({ event }: { event: NostrEvent }) {
   );
 }
 
-function ContactKeyPackagesTab({
+function ContactKeyPackagesList({
   keyPackages,
 }: {
   keyPackages: NostrEvent[] | null | undefined;
 }) {
   if (keyPackages && keyPackages.length > 0) {
     return (
-      <div className="space-y-3">
+      <div className="divide-y">
         {keyPackages.map((event) => (
           <KeyPackageCard key={event.id} event={event as NostrEvent} />
         ))}
@@ -219,125 +234,61 @@ function ContactKeyPackagesTab({
 
   if (keyPackages && keyPackages.length === 0) {
     return (
-      <div className="border rounded-lg p-8 text-center text-muted-foreground">
+      <div className="px-5 py-8 text-center text-sm text-muted-foreground">
         No key packages found for this user.
       </div>
     );
   }
 
   return (
-    <div className="flex justify-center p-8">
-      <span className="text-muted-foreground">Loading...</span>
-    </div>
+    <div className="px-5 py-6 text-sm text-muted-foreground">Loading...</div>
   );
 }
 
-function ContactProfileTab({ user }: { user: User }) {
-  const profile = use$(user.profile$);
-  const displayName = profile?.displayName;
-  const picture =
-    profile?.picture ||
-    `https://api.dicebear.com/7.x/identicon/svg?seed=${user.pubkey}`;
+function ContactRelaysSection({
+  user,
+  relays,
+}: {
+  user: User;
+  relays: string[] | undefined;
+}) {
+  const list = use$(
+    () => user.replaceable(KEY_PACKAGE_RELAY_LIST_KIND),
+    [user],
+  );
 
   return (
-    <div className="border rounded-lg p-6 space-y-4">
-      <div className="flex items-center gap-4">
-        <div className="h-24 w-24 rounded-full overflow-hidden">
-          <img
-            src={picture}
-            alt={displayName}
-            className="h-full w-full object-cover"
-          />
-        </div>
-        <div className="flex-1">
-          <h3 className="text-xl font-semibold">{displayName}</h3>
-          {profile?.about && (
-            <p className="text-sm text-muted-foreground mt-2">
-              {profile.about}
-            </p>
-          )}
-        </div>
+    <div className="border rounded-lg">
+      <div className="flex items-center gap-2 px-5 py-3 border-b text-sm font-semibold">
+        <IconWorld size={16} className="text-muted-foreground" />
+        Key Package Relays ({relays?.length ?? 0})
       </div>
 
-      {profile?.website && (
-        <div>
-          <div className="text-xs text-muted-foreground mb-1">Website</div>
-          <a
-            href={profile.website}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-primary hover:underline"
-          >
-            {profile.website}
-          </a>
+      {!list ? (
+        <div className="px-5 py-6 text-sm text-muted-foreground">
+          No relay list published. This user may not have configured their key
+          package relays yet.
+        </div>
+      ) : !relays || relays.length === 0 ? (
+        <div className="px-5 py-6 text-sm text-muted-foreground">
+          Relay list event found but contains no valid relays.
+        </div>
+      ) : (
+        <div className="divide-y">
+          {relays.map((relay) => (
+            <div
+              key={relay}
+              className="px-5 py-2 text-sm font-mono break-all"
+            >
+              {relay}
+            </div>
+          ))}
         </div>
       )}
 
-      <div>
-        <div className="text-xs text-muted-foreground mb-1">Public Key</div>
-        <code className="text-xs break-all block bg-muted p-2 rounded">
-          {user.pubkey}
-        </code>
-      </div>
-    </div>
-  );
-}
-
-function ContactRelaysTab({
-  keyPackageRelayList,
-  keyPackageRelays,
-}: {
-  keyPackageRelayList: NostrEvent | null | undefined;
-  keyPackageRelays: string[] | undefined;
-}) {
-  return (
-    <div className="border rounded-lg p-6 space-y-4">
-      <div>
-        <h3 className="text-lg font-semibold mb-2">Key Package Relay List</h3>
-        <p className="text-sm text-muted-foreground">
-          This user publishes their key package relay list (kind{" "}
-          {KEY_PACKAGE_RELAY_LIST_KIND}) to indicate where their key packages
-          can be found.
-        </p>
-      </div>
-
-      {keyPackageRelayList ? (
-        <div className="space-y-3">
-          <div>
-            <div className="text-xs text-muted-foreground mb-1">
-              Last Updated
-            </div>
-            <div className="text-sm">
-              {new Date(keyPackageRelayList.created_at * 1000).toLocaleString()}
-            </div>
-          </div>
-
-          {keyPackageRelays && keyPackageRelays.length > 0 ? (
-            <div>
-              <div className="text-xs text-muted-foreground mb-2">
-                Relays ({keyPackageRelays.length})
-              </div>
-              <div className="space-y-2">
-                {keyPackageRelays.map((relay) => (
-                  <div
-                    key={relay}
-                    className="px-3 py-2 border rounded text-sm font-mono"
-                  >
-                    {relay}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
-              Relay list event found but contains no valid relays.
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
-          No relay list found for this user. They may not have configured their
-          key package relays yet.
+      {list && (
+        <div className="px-5 py-2 border-t text-xs text-muted-foreground">
+          Last updated {new Date(list.created_at * 1000).toLocaleString()}
         </div>
       )}
     </div>
@@ -363,40 +314,60 @@ function ContactDetailContent({ user }: { user: User }) {
     });
   }, [allGroups, user.pubkey, activeAccount]);
 
-  const [inviteOpen, setInviteOpen] = useState(false);
+  // Existing 1:1 group with this user, if any. Used by the chat action button.
+  const existingDmGroupId = useMemo(() => {
+    if (!activeAccount) return null;
+    for (const group of sharedGroups) {
+      const members = getGroupMembers(group.state);
+      if (members.length === 2) return group.idStr;
+    }
+    return null;
+  }, [sharedGroups, activeAccount]);
 
-  const keyPackageRelayList = use$(
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const chat = useStartChat();
+
+  // Get the users key package relays
+  const keyPackageRelays = use$(
     () =>
-      user.replaceable(
-        KEY_PACKAGE_RELAY_LIST_KIND,
-        undefined,
-        relaySet(outboxes, lookupRelays),
-      ),
+      user
+        .replaceable(
+          KEY_PACKAGE_RELAY_LIST_KIND,
+          undefined,
+          relaySet(outboxes, lookupRelays),
+        )
+        .pipe(defined(), map(getKeyPackageRelayList)),
     [user.pubkey, outboxes?.join(","), lookupRelays?.join(",")],
   );
 
-  // Extract relays from the relay list event
-  const keyPackageRelays = useMemo(() => {
-    return keyPackageRelayList && getKeyPackageRelayList(keyPackageRelayList);
-  }, [keyPackageRelayList]);
-
   // Fetch key packages from merged relay set
   const keyPackages = use$(() => {
-    const relays = relaySet(keyPackageRelays, extraRelays);
+    const relays = relaySet(keyPackageRelays, extraRelays, outboxes);
     if (relays.length === 0) return;
 
     return pool
       .request(relays, {
-        kinds: [KEY_PACKAGE_KIND],
+        kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
         authors: [user.pubkey],
-        limit: 50,
+        limit: 20,
       })
-      .pipe(
-        mapEventsToStore(eventStore),
-        mapEventsToTimeline(),
-        map((arr) => [...arr]),
-      );
-  }, [user.pubkey, keyPackageRelays?.join(","), extraRelays.join(",")]);
+      .pipe(mapEventsToStore(eventStore), mapEventsToTimeline());
+  }, [
+    user.pubkey,
+    keyPackageRelays?.join(","),
+    extraRelays.join(","),
+    outboxes?.join(","),
+  ]);
+
+  // Latest key package (newest by created_at) for the Start chat action.
+  const latestKeyPackage = useMemo(() => {
+    if (!keyPackages || keyPackages.length === 0) return null;
+    return keyPackages.reduce((latest, kp) =>
+      kp.created_at > latest.created_at ? kp : latest,
+    );
+  }, [keyPackages]);
+
+  const isSelf = activeAccount?.pubkey === user.pubkey;
 
   return (
     <>
@@ -410,20 +381,62 @@ function ContactDetailContent({ user }: { user: User }) {
 
       <div className="container mx-auto p-4 space-y-6">
         {/* User Header */}
-        <div className="flex items-center gap-4 p-6 border rounded-lg">
+        <div className="flex items-start gap-4 p-6 border rounded-lg">
           <UserAvatar pubkey={user.pubkey} size="xl" />
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h2 className="text-2xl font-semibold">
               <UserName pubkey={user.pubkey} />
             </h2>
-            <code className="text-xs text-muted-foreground block mt-1">
+            <code className="text-xs text-muted-foreground block break-all mt-1">
               {user.pubkey}
             </code>
+            {profile?.about && (
+              <p className="text-sm text-muted-foreground mt-3">
+                {profile.about}
+              </p>
+            )}
+            {profile?.website && (
+              <a
+                href={profile.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-primary hover:underline inline-block mt-2 break-all"
+              >
+                {profile.website}
+              </a>
+            )}
           </div>
 
-          <div className="flex">
+          <div className="flex shrink-0">
             <QRButton data={user.npub} size="lg" label="NPUB" />
             <FollowButton pubkey={user.pubkey} size="lg" />
+            {!isSelf &&
+              (existingDmGroupId ? (
+                <Button asChild variant="outline" size="lg">
+                  <Link to={`/groups/${existingDmGroupId}`}>
+                    <IconMessage size={18} />
+                    Open chat
+                  </Link>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  disabled={!latestKeyPackage || chat.isCreating}
+                  onClick={() => {
+                    if (latestKeyPackage)
+                      chat.startChat(user, latestKeyPackage);
+                  }}
+                  title={
+                    latestKeyPackage
+                      ? undefined
+                      : "No key package available — this user can't be invited yet"
+                  }
+                >
+                  <IconMessagePlus size={18} />
+                  Start chat
+                </Button>
+              ))}
             <Button
               variant="outline"
               size="lg"
@@ -439,122 +452,103 @@ function ContactDetailContent({ user }: { user: User }) {
           </div>
         </div>
 
-        {/* Tabs */}
-        <Tabs defaultValue="profile" className="w-full">
-          <TabsList variant="line">
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="key-packages">
-              Key Packages ({keyPackages?.length ?? 0})
-            </TabsTrigger>
-            <TabsTrigger value="relays">
-              Key Package Relays ({keyPackageRelays?.length ?? 0})
-            </TabsTrigger>
-          </TabsList>
+        {/* Key Package Relays */}
+        <ContactRelaysSection user={user} relays={keyPackageRelays} />
 
-          {/* Profile Tab */}
-          <TabsContent value="profile" className="space-y-4">
-            <ContactProfileTab user={user} />
-
-            {/* Shared Groups */}
-            <div className="border rounded-lg">
-              <div className="flex items-center justify-between px-5 py-3 border-b">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <IconUsers size={16} className="text-muted-foreground" />
-                  Shared Groups
-                </div>
-                {sharedGroups.length > 0 && (
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-muted-foreground h-auto py-1"
-                  >
-                    <Link to="/groups">View all</Link>
-                  </Button>
-                )}
-              </div>
-
-              {allGroups === undefined ? (
-                <div className="px-5 py-6 text-sm text-muted-foreground">
-                  Loading...
-                </div>
-              ) : sharedGroups.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 px-5 py-8 text-center">
-                  <IconMessage size={32} className="text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">
-                    You are not in any groups together yet.
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setInviteOpen(true)}
-                  >
-                    Invite to a Group
-                  </Button>
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {sharedGroups.map((group) => {
-                    const name = group.groupData?.name || "Unnamed Group";
-                    const description = group.groupData?.description || "";
-                    const memberCount = getGroupMembers(group.state).length;
-
-                    return (
-                      <Link
-                        key={group.idStr}
-                        to={`/groups/${group.idStr}`}
-                        className="flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors"
-                      >
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                          <IconMessage
-                            size={16}
-                            className="text-muted-foreground"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">
-                            {name}
-                          </div>
-                          {description ? (
-                            <div className="text-xs text-muted-foreground truncate">
-                              {description}
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <IconUsers size={11} />
-                              <span>
-                                {memberCount}{" "}
-                                {memberCount === 1 ? "member" : "members"}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <IconChevronRight
-                          size={16}
-                          className="shrink-0 text-muted-foreground"
-                        />
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
+        {/* Shared Groups */}
+        <div className="border rounded-lg">
+          <div className="flex items-center justify-between px-5 py-3 border-b">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <IconUsers size={16} className="text-muted-foreground" />
+              Shared Groups
             </div>
-          </TabsContent>
+            {sharedGroups.length > 0 && (
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground h-auto py-1"
+              >
+                <Link to="/groups">View all</Link>
+              </Button>
+            )}
+          </div>
 
-          {/* Key Packages Tab */}
-          <TabsContent value="key-packages" className="space-y-4">
-            <ContactKeyPackagesTab keyPackages={keyPackages} />
-          </TabsContent>
+          {allGroups === undefined ? (
+            <div className="px-5 py-6 text-sm text-muted-foreground">
+              Loading...
+            </div>
+          ) : sharedGroups.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 px-5 py-8 text-center">
+              <IconMessage size={32} className="text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">
+                You are not in any groups together yet.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setInviteOpen(true)}
+              >
+                Invite to a Group
+              </Button>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {sharedGroups.map((group) => {
+                const name = group.groupData?.name || "Unnamed Group";
+                const description = group.groupData?.description || "";
+                const memberCount = getGroupMembers(group.state).length;
 
-          {/* Key Package Relays Tab */}
-          <TabsContent value="relays" className="space-y-4">
-            <ContactRelaysTab
-              keyPackageRelayList={keyPackageRelayList}
-              keyPackageRelays={keyPackageRelays}
-            />
-          </TabsContent>
-        </Tabs>
+                return (
+                  <Link
+                    key={group.idStr}
+                    to={`/groups/${group.idStr}`}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                      <IconMessage
+                        size={16}
+                        className="text-muted-foreground"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{name}</div>
+                      {description ? (
+                        <div className="text-xs text-muted-foreground truncate">
+                          {description}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <IconUsers size={11} />
+                          <span>
+                            {memberCount}{" "}
+                            {memberCount === 1 ? "member" : "members"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <IconChevronRight
+                      size={16}
+                      className="shrink-0 text-muted-foreground"
+                    />
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Key Packages */}
+        <div className="border rounded-lg">
+          <div className="flex items-center gap-2 px-5 py-3 border-b text-sm font-semibold">
+            <IconPackage size={16} className="text-muted-foreground" />
+            Key Packages ({keyPackages?.length ?? 0})
+          </div>
+          <ContactKeyPackagesList keyPackages={keyPackages} />
+        </div>
       </div>
+
+      <StartChatDialog {...chat} />
     </>
   );
 }

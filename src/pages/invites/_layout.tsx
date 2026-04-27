@@ -18,9 +18,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { user$ } from "@/lib/accounts";
 import { keyPackageRelays$ } from "@/lib/lifecycle";
 import {
-  inviteReader$,
   liveReceivedInvites$,
   liveUnreadInvites$,
+  marmotClient$,
 } from "@/lib/marmot-client";
 import { extraRelays$ } from "@/lib/settings";
 
@@ -39,7 +39,7 @@ const readRelays$ = combineLatest([
 // ============================================================================
 
 function useInviteActions() {
-  const inviteReader = use$(inviteReader$);
+  const client = use$(marmotClient$);
   const received = use$(liveReceivedInvites$);
   const unread = use$(liveUnreadInvites$);
 
@@ -49,11 +49,11 @@ function useInviteActions() {
   const receivedCount = received?.length ?? 0;
 
   const handleDecryptPending = async () => {
-    if (!inviteReader) return;
+    if (!client) return;
     try {
       setError(null);
       setIsDecrypting(true);
-      const newInvites = await inviteReader.decryptGiftWraps();
+      const newInvites = await client.invites.decryptGiftWraps();
       console.log(`Decrypted ${newInvites.length} new invite(s)`);
     } catch (err) {
       console.error("Failed to decrypt invites:", err);
@@ -64,7 +64,7 @@ function useInviteActions() {
   };
 
   return {
-    inviteReader,
+    client,
     received,
     unread,
     error,
@@ -141,14 +141,9 @@ function InviteListContent() {
 // ============================================================================
 
 function DesktopInvitesLayout() {
-  const {
-    inviteReader,
-    unread,
-    error,
-    isDecrypting,
-    receivedCount,
-    handleDecryptPending,
-  } = useInviteActions();
+  const client = use$(marmotClient$);
+  const { unread, error, isDecrypting, receivedCount, handleDecryptPending } =
+    useInviteActions();
 
   const footer = (
     <div className="flex">
@@ -160,7 +155,7 @@ function DesktopInvitesLayout() {
     <>
       <PageHeader items={[{ label: "Home", to: "/" }, { label: "Invites" }]} />
       <PageBody>
-        {!inviteReader && (
+        {!client && (
           <Alert variant="destructive">
             <AlertDescription>
               Invitation reader is not initialized (not signed in yet?).
@@ -215,14 +210,10 @@ function DesktopInvitesLayout() {
 
 function MobileInvitesLayout() {
   const navigate = useNavigate();
+  const client = use$(marmotClient$);
   const isDetail = useMatch("/invites/:rumorId");
-  const {
-    inviteReader,
-    error,
-    receivedCount,
-    isDecrypting,
-    handleDecryptPending,
-  } = useInviteActions();
+  const { error, receivedCount, isDecrypting, handleDecryptPending } =
+    useInviteActions();
 
   if (isDetail) {
     // Detail view: custom header with back button, invite detail via Outlet
@@ -241,7 +232,7 @@ function MobileInvitesLayout() {
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <PageBody>
-            {!inviteReader && (
+            {!client && (
               <Alert variant="destructive">
                 <AlertDescription>
                   Invitation reader is not initialized (not signed in yet?).
@@ -267,7 +258,7 @@ function MobileInvitesLayout() {
     <div className="flex flex-col h-dvh overflow-hidden bg-background w-full">
       <MobileTopHeader title="Invites" />
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
-        {!inviteReader && (
+        {!client && (
           <Alert variant="destructive" className="m-3">
             <AlertDescription>
               Invitation reader is not initialized (not signed in yet?).

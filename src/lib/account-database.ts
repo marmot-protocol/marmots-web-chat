@@ -14,13 +14,20 @@ import {
   GroupMediaStore,
   GroupRumorHistory,
   GroupRumorHistoryBackend,
-  KeyPackageStore,
-  GroupStateStoreBackend,
-  KeyValueGroupStateBackend,
-  InviteStore,
+  type SerializedClientState,
+  type StoredInviteEntry,
+  type StoredKeyPackage,
   type StoredMedia,
 } from "@internet-privacy/marmot-ts";
 import { ingestResultsDatabaseName } from "@/lib/group-subscription-manager";
+
+interface GenericKeyValueStore<T> {
+  getItem(key: string): Promise<T | null>;
+  setItem(key: string, value: T): Promise<T>;
+  removeItem(key: string): Promise<void>;
+  clear(): Promise<void>;
+  keys(): Promise<string[]>;
+}
 
 const DB_VERSION = 1;
 
@@ -167,11 +174,11 @@ function createLocalforageMediaBackend(store: LocalForage): GroupMediaBackend {
 }
 
 type StorageInterfaces = {
-  groupStateBackend: GroupStateStoreBackend;
+  groupStateStore: GenericKeyValueStore<SerializedClientState>;
   historyFactory: GroupHistoryFactory<GroupRumorHistory>;
   mediaFactory: GroupMediaFactory<GroupMediaStore>;
-  keyPackageStore: KeyPackageStore;
-  inviteStore: InviteStore;
+  keyPackageStore: GenericKeyValueStore<StoredKeyPackage>;
+  inviteStore: GenericKeyValueStore<StoredInviteEntry>;
 };
 
 /** A singleton class that manages databases for  */
@@ -215,24 +222,15 @@ export class MultiAccountDatabaseBroker {
 
     const databaseKey = `${pubkey}-key-value`;
 
-    // Create a localforage instance for group state storage
-    // Namespacing is handled by the backend instance (per-account database)
-    const groupStateKeyValueBackend = localforage.createInstance({
+    const groupStateStore = localforage.createInstance({
       name: databaseKey,
       storeName: "groups",
     });
 
-    // Wrap the key-value backend with the adapter for bytes-only storage
-    const groupStateBackend = new KeyValueGroupStateBackend(
-      groupStateKeyValueBackend,
-    );
-
-    const keyPackageStore = new KeyPackageStore(
-      localforage.createInstance({
-        name: databaseKey,
-        storeName: "keyPackages",
-      }),
-    );
+    const keyPackageStore = localforage.createInstance({
+      name: databaseKey,
+      storeName: "keyPackages",
+    });
 
     const rumorDatabase = await this.getCustomDatabaseForAccount(pubkey);
     const historyFactory = (groupId: Uint8Array) =>
@@ -252,24 +250,13 @@ export class MultiAccountDatabaseBroker {
       return new GroupMediaStore(createLocalforageMediaBackend(mediaStore));
     };
 
-    // Create the storage interfaces for the invite store
-    const inviteStore: InviteStore = {
-      unread: localforage.createInstance({
-        name: databaseKey,
-        storeName: "invites-unread",
-      }),
-      received: localforage.createInstance({
-        name: databaseKey,
-        storeName: "invites-received",
-      }),
-      seen: localforage.createInstance({
-        name: databaseKey,
-        storeName: "invites-seen",
-      }),
-    };
+    const inviteStore = localforage.createInstance({
+      name: databaseKey,
+      storeName: "invites",
+    });
 
     const storageInterfaces: StorageInterfaces = {
-      groupStateBackend,
+      groupStateStore,
       historyFactory,
       mediaFactory,
       keyPackageStore,

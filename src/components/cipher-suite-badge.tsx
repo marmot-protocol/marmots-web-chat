@@ -2,8 +2,8 @@ import {
   type CiphersuiteId,
   type CiphersuiteName,
   ciphersuites,
-} from "ts-mls/crypto/ciphersuite.js";
-import { greaseValues } from "ts-mls/grease.js";
+  greaseValues,
+} from "ts-mls";
 
 import { cn } from "@/lib/utils";
 
@@ -35,7 +35,7 @@ export default function CipherSuiteBadge({
       ? cipherSuite
       : ciphersuites[cipherSuite] || parseInt(cipherSuite);
 
-  const isGrease = greaseValues.includes(cipherSuiteId);
+  const isGrease = (greaseValues as readonly number[]).includes(cipherSuiteId);
 
   // Get the cipher suite name
   const cipherSuiteName = isGrease

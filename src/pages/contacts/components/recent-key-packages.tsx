@@ -1,24 +1,21 @@
 import {
-  getGroupMembers,
+  ADDRESSABLE_KEY_PACKAGE_KIND,
   getKeyPackageClient,
-  KEY_PACKAGE_KIND,
 } from "@internet-privacy/marmot-ts";
 import { castUser } from "applesauce-common/casts/user";
 import { mapEventsToStore } from "applesauce-core";
 import type { NostrEvent } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 import { map } from "rxjs";
 
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import accounts, { user$ } from "@/lib/accounts";
-import { liveGroups$ } from "@/lib/marmot-client";
 import { eventStore, pool } from "@/lib/nostr";
 import { extraRelays$ } from "@/lib/settings";
 import { formatTimeAgo } from "@/lib/time";
 import { useMemo } from "react";
-import type { UseStartChatReturn } from "./online-contacts";
 
 /** Maximum number of recent key packages to show. */
 const FEED_LIMIT = 20;
@@ -32,107 +29,53 @@ function onlineThreshold() {
 
 interface RecentKeyPackageCardProps {
   event: NostrEvent;
-  onStartChat: UseStartChatReturn["startChat"];
-  isCreating: boolean;
 }
 
 /**
  * Card tile that renders a recent key package from any user.
- * The entire card is clickable — if a 1:1 group with this person already
- * exists, clicking navigates there directly; otherwise it starts a new chat.
- * Self-hides when the key package is older than 24 hours.
+ * Clicking the card navigates to the user's profile, where the actual
+ * "Start chat" / "Open chat" action lives.
  */
-export function RecentKeyPackageCard({
-  event,
-  onStartChat,
-  isCreating,
-}: RecentKeyPackageCardProps) {
-  const navigate = useNavigate();
-  const groups = use$(liveGroups$);
-  const account = use$(accounts.active$);
+export function RecentKeyPackageCard({ event }: RecentKeyPackageCardProps) {
   const user = useMemo(() => castUser(event.pubkey, eventStore), [event]);
   const about = use$(user.profile$.about);
   const client = useMemo(() => getKeyPackageClient(event), [event]);
 
-  // If a 2-member group with this person already exists, we can use a Link.
-  let existingGroupId: string | null = null;
-  if (groups && account?.pubkey) {
-    for (const group of groups) {
-      const members = getGroupMembers(group.state);
-      if (
-        members.length === 2 &&
-        members.includes(account.pubkey) &&
-        members.includes(event.pubkey)
-      ) {
-        existingGroupId = group.idStr;
-        break;
-      }
-    }
-  }
-
-  function handleClick() {
-    if (existingGroupId) {
-      navigate(`/groups/${existingGroupId}`);
-      return;
-    }
-    onStartChat(castUser(event.pubkey, eventStore), event);
-  }
-
-  const cardContent = (
-    <Card className="hover:bg-accent/50 transition-colors relative flex flex-row items-start gap-3 py-4">
-      <div className="relative shrink-0 pl-4">
-        <UserAvatar pubkey={event.pubkey} size="lg" />
-        <span
-          className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 ring-2 ring-background"
-          aria-label="Online"
-        />
-      </div>
-      <div className="min-w-0 flex-1 pr-4">
-        <CardHeader className="p-0">
-          <CardTitle className="truncate text-base font-semibold">
-            <UserName pubkey={event.pubkey} />
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0 pt-1">
-          <div className="text-xs text-muted-foreground truncate">{about}</div>
-          <p className="text-xs text-muted-foreground mt-1">
-            <span className="text-green-600 dark:text-green-400 font-medium">
-              {formatTimeAgo(event.created_at)}
-            </span>
-          </p>
-          {client?.name && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Client: {client.name}
-            </p>
-          )}
-        </CardContent>
-      </div>
-    </Card>
-  );
-
-  if (existingGroupId) {
-    return (
-      <Link to={`/groups/${existingGroupId}`} className="block">
-        {cardContent}
-      </Link>
-    );
-  }
-
   return (
-    <button
-      type="button"
-      className="block w-full text-left disabled:opacity-50 disabled:pointer-events-none"
-      disabled={isCreating}
-      onClick={handleClick}
-    >
-      {cardContent}
-    </button>
+    <Link to={`/contacts/${user.npub}`} className="block">
+      <Card className="hover:bg-accent/50 transition-colors relative flex flex-row items-start gap-3 py-4">
+        <div className="relative shrink-0 pl-4">
+          <UserAvatar pubkey={event.pubkey} size="lg" />
+          <span
+            className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 ring-2 ring-background"
+            aria-label="Online"
+          />
+        </div>
+        <div className="min-w-0 flex-1 pr-4">
+          <CardHeader className="p-0">
+            <CardTitle className="truncate text-base font-semibold">
+              <UserName pubkey={event.pubkey} />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 pt-1">
+            <div className="text-xs text-muted-foreground truncate">
+              {about}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              <span className="text-green-600 dark:text-green-400 font-medium">
+                {formatTimeAgo(event.created_at)}
+              </span>
+            </p>
+            {client?.name && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Client: {client.name}
+              </p>
+            )}
+          </CardContent>
+        </div>
+      </Card>
+    </Link>
   );
-}
-
-interface RecentKeyPackagesFeedProps {
-  onStartChat: UseStartChatReturn["startChat"];
-  isCreating: boolean;
 }
 
 /**
@@ -140,10 +83,7 @@ interface RecentKeyPackagesFeedProps {
  * user's configured relays. Renders nothing when there are no visible entries
  * (all entries are older than 24 h or belong to the current user).
  */
-export function RecentKeyPackagesFeed({
-  onStartChat,
-  isCreating,
-}: RecentKeyPackagesFeedProps) {
+export function RecentKeyPackagesFeed() {
   const account = use$(accounts.active$);
   const extraRelays = use$(extraRelays$);
   const contacts = use$(user$.contacts$);
@@ -155,7 +95,7 @@ export function RecentKeyPackagesFeed({
       if (!extraRelays || extraRelays.length === 0) return;
       return pool
         .request(extraRelays, {
-          kinds: [KEY_PACKAGE_KIND],
+          kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
           since: onlineThreshold(),
           limit: FEED_LIMIT * 5,
         })
@@ -169,7 +109,10 @@ export function RecentKeyPackagesFeed({
   const events = use$(
     () =>
       eventStore
-        .timeline({ kinds: [KEY_PACKAGE_KIND], since: onlineThreshold() })
+        .timeline({
+          kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
+          since: onlineThreshold(),
+        })
         .pipe(
           // Filter out self and contacts
           map((events) =>
@@ -197,19 +140,14 @@ export function RecentKeyPackagesFeed({
       <div>
         <h2 className="text-xl font-semibold">Others Online</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Recent key packages from anyone on your relays — click to start a
-          secure chat
+          Recent key packages from anyone on your relays — click to view their
+          profile
         </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {events?.slice(0, FEED_LIMIT).map((event) => (
-          <RecentKeyPackageCard
-            key={event.id}
-            event={event}
-            onStartChat={onStartChat}
-            isCreating={isCreating}
-          />
+          <RecentKeyPackageCard key={event.id} event={event} />
         ))}
       </div>
     </div>

@@ -2,11 +2,13 @@ import { getCredentialPubkey } from "@internet-privacy/marmot-ts";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { AlertCircle } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { CiphersuiteId, KeyPackage } from "ts-mls";
-import { decode, keyPackageDecoder } from "ts-mls";
-import type { CredentialBasic } from "ts-mls/credential.js";
-import { ciphersuites } from "ts-mls/crypto/ciphersuite.js";
-import { protocolVersions } from "ts-mls/protocolVersion.js";
+import {
+  ciphersuites,
+  decode,
+  keyPackageDecoder,
+  protocolVersions,
+} from "ts-mls";
+import type { CiphersuiteId, CredentialBasic, KeyPackage } from "ts-mls";
 
 import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import CredentialTypeBadge from "@/components/credential-type-badge";
@@ -317,13 +319,15 @@ export default function KeyPackageDecoderPage() {
                 <p className="font-semibold mb-2">Where to get key packages:</p>
                 <ul className="list-disc list-inside space-y-1">
                   <li>
-                    From Nostr events (kind 443) - use the "Key Package
-                    Explorer" example
+                    From Nostr events (kind 30443) - use the "Key
+                    Package Explorer" example
                   </li>
                   <li>
                     Create your own using the "Create Key Package" example
                   </li>
-                  <li>From the content field of a kind 443 Nostr event</li>
+                  <li>
+                    From the content field of a kind 30443 Nostr event
+                  </li>
                 </ul>
               </div>
             </CardContent>

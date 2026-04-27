@@ -1,9 +1,10 @@
 import {
+  ADDRESSABLE_KEY_PACKAGE_KIND,
   getGroupMembers,
   getKeyPackageCipherSuiteId,
   getKeyPackageClient,
+  getKeyPackageIdentifier,
   getKeyPackageRelayList,
-  KEY_PACKAGE_KIND,
   KEY_PACKAGE_RELAY_LIST_KIND,
 } from "@internet-privacy/marmot-ts";
 import { castUser } from "applesauce-common/casts/user";
@@ -14,7 +15,7 @@ import { use$ } from "applesauce-react/hooks";
 import { Loader2, Plus, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import type { CiphersuiteId } from "ts-mls/crypto/ciphersuite.js";
+import type { CiphersuiteId } from "ts-mls";
 
 import { RelayListCreator } from "@/components/form/relay-list-creator";
 import { UserAvatar, UserName } from "@/components/nostr-user";
@@ -70,7 +71,10 @@ function KeyPackageSelectionStep({
   }, [keyPackageRelayList]);
 
   const keyPackageFilter = useMemo(
-    () => ({ kinds: [KEY_PACKAGE_KIND], authors: [pubkey] }),
+    () => ({
+      kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
+      authors: [pubkey],
+    }),
     [pubkey],
   );
 
@@ -93,7 +97,21 @@ function KeyPackageSelectionStep({
     [keyPackageFilter],
   );
 
-  if (!keyPackages) {
+  const latestKeyPackages = useMemo(() => {
+    if (!keyPackages) return undefined;
+    const seen = new Map<string, NostrEvent>();
+    for (const event of keyPackages) {
+      const slot = getKeyPackageIdentifier(event) ?? event.id;
+      const key = `${event.pubkey}:${slot}`;
+      const existing = seen.get(key);
+      if (!existing || event.created_at > existing.created_at) {
+        seen.set(key, event);
+      }
+    }
+    return Array.from(seen.values());
+  }, [keyPackages]);
+
+  if (!latestKeyPackages) {
     return (
       <div className="flex justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -101,7 +119,7 @@ function KeyPackageSelectionStep({
     );
   }
 
-  if (keyPackages.length === 0) {
+  if (latestKeyPackages.length === 0) {
     return (
       <Alert variant="destructive">
         <XCircle className="h-4 w-4" />
@@ -116,13 +134,13 @@ function KeyPackageSelectionStep({
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Select which key package to use for the invite. {keyPackages.length}{" "}
+        Select which key package to use for the invite. {latestKeyPackages.length}{" "}
         package
-        {keyPackages.length === 1 ? "" : "s"} available.
+        {latestKeyPackages.length === 1 ? "" : "s"} available.
       </p>
 
       <div className="h-[300px] overflow-y-auto space-y-2 pr-1">
-        {keyPackages.map((event, index) => {
+        {latestKeyPackages.map((event, index) => {
           const client = getKeyPackageClient(event);
           const timeAgo = formatTimeAgo(event.created_at);
           const isRecommended = index === 0;
@@ -229,7 +247,7 @@ function NewGroupForm({
       setIsCreating(true);
       setError(null);
 
-      const group = await client.createGroup(groupName.trim(), {
+      const group = await client.groups.create(groupName.trim(), {
         relays: effectiveRelays,
       });
 
@@ -327,7 +345,7 @@ function GroupSelectionStep({
     try {
       setInviteError(null);
       setIsInviting(groupId);
-      const group = await client.getGroup(groupId);
+      const group = await client.groups.get(groupId);
       await group.inviteByKeyPackageEvent(selectedKeyPackageEvent);
       onInvited();
     } catch (err) {

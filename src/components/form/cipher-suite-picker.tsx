@@ -9,7 +9,7 @@ import {
 import {
   type CiphersuiteName,
   ciphersuites,
-} from "ts-mls/crypto/ciphersuite.js";
+} from "ts-mls";
 import { cn } from "../../lib/utils";
 
 // Available cipher suites

@@ -2,6 +2,7 @@ import { use$ } from "applesauce-react/hooks";
 import { getDisplayName } from "applesauce-core/helpers";
 import { getCredentialPubkey } from "@internet-privacy/marmot-ts";
 import { defaultCredentialTypes, leafNodeSources } from "ts-mls";
+import type { LeafNode, ParentNode } from "ts-mls";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import { useState } from "react";
 
@@ -18,8 +19,6 @@ import { Separator } from "@/components/ui/separator";
 import { eventStore } from "@/lib/nostr";
 
 import type { RatchetTreeNodeInfo } from "./ratchet-tree-graph";
-import type { LeafNode } from "ts-mls/leafNode.js";
-import type { ParentNode } from "ts-mls/parentNode.js";
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)

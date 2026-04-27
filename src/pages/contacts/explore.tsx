@@ -7,18 +7,14 @@ import { withActiveAccount } from "@/components/with-active-account";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { user$ } from "@/lib/accounts";
 import { liveGroups$ } from "@/lib/marmot-client";
-import {
-  StartChatDialog,
-  useOnlineContactsKeyPackages,
-  useStartChat,
-} from "@/pages/contacts/components/online-contacts";
+import { useOnlineContactsKeyPackages } from "@/pages/contacts/components/online-contacts";
 import {
   RecentKeyPackageCard,
   RecentKeyPackagesFeed,
 } from "@/pages/contacts/components/recent-key-packages";
 
 /** Shared explore content: Who's Online + recent key packages feed. */
-function ExploreContent({ chat }: { chat: ReturnType<typeof useStartChat> }) {
+function ExploreContent() {
   const contacts = use$(user$.contacts$);
   const groups = use$(liveGroups$);
   const onlineContacts = useOnlineContactsKeyPackages();
@@ -31,7 +27,7 @@ function ExploreContent({ chat }: { chat: ReturnType<typeof useStartChat> }) {
           <h2 className="text-xl font-semibold">Who's Online</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Contacts with a key package published in the last 24 hours — click
-            to start a secure chat
+            to view their profile
           </p>
         </div>
 
@@ -55,45 +51,33 @@ function ExploreContent({ chat }: { chat: ReturnType<typeof useStartChat> }) {
         {onlineContacts && onlineContacts.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {onlineContacts.map((kp) => (
-              <RecentKeyPackageCard
-                key={kp.pubkey}
-                event={kp}
-                onStartChat={chat.startChat}
-                isCreating={chat.isCreating}
-              />
+              <RecentKeyPackageCard key={kp.pubkey} event={kp} />
             ))}
           </div>
         )}
       </div>
 
-      <RecentKeyPackagesFeed
-        onStartChat={chat.startChat}
-        isCreating={chat.isCreating}
-      />
+      <RecentKeyPackagesFeed />
     </>
   );
 }
 
 /** Desktop explore view: header, Who's Online + recent key packages. Exported for contacts layout. */
 export function ContactsExploreDesktop() {
-  const chat = useStartChat();
   return (
     <>
       <PageHeader items={[{ label: "Home", to: "/" }, { label: "Contacts" }]} />
       <PageBody>
-        <ExploreContent chat={chat} />
-        <StartChatDialog {...chat} />
+        <ExploreContent />
       </PageBody>
     </>
   );
 }
 
 function ContactsExploreMobile() {
-  const chat = useStartChat();
   return (
     <div className="w-full space-y-6 p-4">
-      <ExploreContent chat={chat} />
-      <StartChatDialog {...chat} />
+      <ExploreContent />
     </div>
   );
 }

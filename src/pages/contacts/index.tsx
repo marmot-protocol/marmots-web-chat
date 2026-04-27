@@ -13,11 +13,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { user$ } from "@/lib/accounts";
 import { liveGroups$, liveUnreadInvites$ } from "@/lib/marmot-client";
 import { ContactList, ContactListSearchForm } from "@/pages/contacts/_layout";
-import {
-  StartChatDialog,
-  useOnlineContactsKeyPackages,
-  useStartChat,
-} from "@/pages/contacts/components/online-contacts";
+import { useOnlineContactsKeyPackages } from "@/pages/contacts/components/online-contacts";
 import {
   RecentKeyPackageCard,
   RecentKeyPackagesFeed,
@@ -28,7 +24,6 @@ import { Button } from "../../components/ui/button";
 function ContactsIndexDesktop() {
   const contacts = use$(user$.contacts$);
   const groups = use$(liveGroups$);
-  const chat = useStartChat();
 
   const isLoading = contacts === undefined || groups === undefined;
 
@@ -43,7 +38,7 @@ function ContactsIndexDesktop() {
             <h2 className="text-xl font-semibold">Who's Online</h2>
             <p className="text-sm text-muted-foreground mt-1">
               Contacts with a key package published in the last 24 hours — click
-              to start a secure chat
+              to view their profile
             </p>
           </div>
 
@@ -70,23 +65,13 @@ function ContactsIndexDesktop() {
           {onlineContacts && onlineContacts.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {onlineContacts.map((kp) => (
-                <RecentKeyPackageCard
-                  key={kp.pubkey}
-                  event={kp}
-                  onStartChat={chat.startChat}
-                  isCreating={chat.isCreating}
-                />
+                <RecentKeyPackageCard key={kp.pubkey} event={kp} />
               ))}
             </div>
           )}
         </div>
 
-        <RecentKeyPackagesFeed
-          onStartChat={chat.startChat}
-          isCreating={chat.isCreating}
-        />
-
-        <StartChatDialog {...chat} />
+        <RecentKeyPackagesFeed />
       </PageBody>
     </>
   );

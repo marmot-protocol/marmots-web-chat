@@ -1,19 +1,21 @@
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { defined, mapEventsToTimeline, simpleTimeout } from "applesauce-core";
 import { NostrEvent } from "applesauce-core/helpers/event";
 import { onlyEvents } from "applesauce-relay";
 import {
   GroupMediaStore,
   GroupRumorHistory,
-  InviteReader,
   MarmotClient,
   MarmotGroup,
   NostrNetworkInterface,
   PublishResponse,
 } from "@internet-privacy/marmot-ts";
-import type { KeyPackageEntry } from "@internet-privacy/marmot-ts";
+import type { ListedKeyPackage } from "@internet-privacy/marmot-ts";
+import localforage from "localforage";
 import {
   combineLatest,
   firstValueFrom,
+  from,
   lastValueFrom,
   map,
   Observable,
@@ -69,6 +71,21 @@ const networkInterface: NostrNetworkInterface = {
  */
 export type AppGroup = MarmotGroup<GroupRumorHistory, GroupMediaStore>;
 
+const clientIdStore = localforage.createInstance({
+  name: "marmot-chat-client-ids",
+  storeName: "clientIds",
+});
+
+/** Get or generate a unique client ID for this app instance, per account */
+async function getOrCreateClientId(pubkey: string): Promise<string> {
+  const existing = await clientIdStore.getItem<string>(pubkey);
+  if (existing) return existing;
+
+  const id = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+  await clientIdStore.setItem(pubkey, id);
+  return id;
+}
+
 // Create an observable that creates a MarmotClient instance based on the current active account and stores.
 export const marmotClient$: Observable<
   MarmotClient<GroupRumorHistory, GroupMediaStore> | undefined
@@ -80,20 +97,25 @@ export const marmotClient$: Observable<
     try {
       // Get storage interfaces for the account
       const {
-        groupStateBackend,
+        groupStateStore,
         keyPackageStore,
         historyFactory,
         mediaFactory,
+        inviteStore,
       } = await databaseBroker.getStorageInterfacesForAccount(account.pubkey);
+
+      const clientId = await getOrCreateClientId(account.pubkey);
 
       // Create a new marmot client for the active account
       return new MarmotClient<GroupRumorHistory, GroupMediaStore>({
         signer: account.signer,
-        groupStateBackend,
+        groupStateStore,
         keyPackageStore,
         network: networkInterface,
         historyFactory,
         mediaFactory,
+        clientId,
+        inviteStore,
       });
     } catch (error) {
       console.error("Failed to initialize MarmotClient for active account", {
@@ -107,32 +129,15 @@ export const marmotClient$: Observable<
   shareReplay(1),
 );
 
-// Create invite reader instance for handling gift wrap invites
-export const inviteReader$ = combineLatest([
-  marmotClient$,
-  accounts.active$,
-]).pipe(
-  switchMap(async ([client, account]) => {
-    if (!client || !account) return;
-
-    const { inviteStore } = await databaseBroker.getStorageInterfacesForAccount(
-      account.pubkey,
-    );
-
-    return new InviteReader({ store: inviteStore, signer: account.signer });
-  }),
-  shareReplay(1),
-);
-
 /** An observable of all received invites for the current user */
-export const liveReceivedInvites$ = inviteReader$.pipe(
-  switchMap((reader) => (reader ? reader.watchReceived() : of([]))),
+export const liveReceivedInvites$ = marmotClient$.pipe(
+  switchMap((client) => (client ? client.invites.watchReceived() : of([]))),
   shareReplay(1),
 );
 
 /** An observable of all unread invites for the current user */
-export const liveUnreadInvites$ = inviteReader$.pipe(
-  switchMap((reader) => (reader ? reader.watchUnread() : of([]))),
+export const liveUnreadInvites$ = marmotClient$.pipe(
+  switchMap((client) => (client ? client.invites.watchUnread() : of([]))),
   shareReplay(1),
 );
 
@@ -144,32 +149,7 @@ export const liveKeyPackages$ = marmotClient$.pipe(
   switchMap((client) => {
     if (!client) return of([]);
 
-    // Use the watchKeyPackages async generator from the KeyPackageManager
-    return new Observable<KeyPackageEntry[]>((subscriber) => {
-      const abortController = new AbortController();
-      const iterator = client.keyPackages
-        .watchKeyPackages()
-        [Symbol.asyncIterator]();
-
-      (async () => {
-        try {
-          while (!abortController.signal.aborted) {
-            const { value, done } = await iterator.next();
-            if (done) break;
-            subscriber.next(value);
-          }
-        } catch (error) {
-          subscriber.error(error);
-        } finally {
-          subscriber.complete();
-        }
-      })();
-
-      return () => {
-        abortController.abort();
-        iterator.return?.(undefined);
-      };
-    });
+    return from(client.keyPackages.watchKeyPackages());
   }),
   shareReplay(1),
 );
@@ -182,32 +162,7 @@ export const liveGroups$ = marmotClient$.pipe(
   switchMap((client) => {
     if (!client) return of([]);
 
-    // Use the new watchGroups async generator from MarmotClient
-    return new Observable<MarmotGroup<GroupRumorHistory, GroupMediaStore>[]>(
-      (subscriber) => {
-        const abortController = new AbortController();
-        const iterator = client.watchGroups()[Symbol.asyncIterator]();
-
-        (async () => {
-          try {
-            while (!abortController.signal.aborted) {
-              const { value, done } = await iterator.next();
-              if (done) break;
-              subscriber.next(value);
-            }
-          } catch (error) {
-            subscriber.error(error);
-          } finally {
-            subscriber.complete();
-          }
-        })();
-
-        return () => {
-          abortController.abort();
-          iterator.return?.(undefined);
-        };
-      },
-    );
+    return from(client.groups.watch());
   }),
   shareReplay(1),
 );

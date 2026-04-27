@@ -22,7 +22,7 @@ import { extraRelays$, lookupRelays$ } from "@/lib/settings";
  * One-click onboarding CTA that:
  * 1. Publishes a DM relay list (kind 10050) if the user has none
  * 2. Publishes a key package relay list (kind 10051) if the user has none
- * 3. Creates a first key package (kind 443)
+ * 3. Creates a first key package (kind 30443)
  *
  * Renders null when all three are already set up, or while loading.
  *

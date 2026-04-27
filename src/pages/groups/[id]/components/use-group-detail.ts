@@ -43,7 +43,7 @@ export function useGroupDetail() {
       marmotClient$.pipe(
         switchMap((client) => {
           if (!client || !id) return of(null);
-          return from(client.getGroup(id)).pipe(catchError(() => of(null)));
+          return from(client.groups.get(id)).pipe(catchError(() => of(null)));
         }),
       ),
     [id],

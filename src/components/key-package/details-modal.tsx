@@ -9,10 +9,8 @@ import {
   getKeyPackageRelays,
 } from "@internet-privacy/marmot-ts";
 import { useMemo, useState } from "react";
-import { encode, keyPackageEncoder } from "ts-mls";
-import type { CiphersuiteId, KeyPackage } from "ts-mls";
-import type { CredentialBasic } from "ts-mls/credential.js";
-import { protocolVersions } from "ts-mls/protocolVersion.js";
+import { encode, keyPackageEncoder, protocolVersions } from "ts-mls";
+import type { CiphersuiteId, CredentialBasic, KeyPackage } from "ts-mls";
 
 import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import CredentialTypeBadge from "@/components/credential-type-badge";
@@ -42,7 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 interface KeyPackageDetailsModalProps {
   /** Direct key package object */
   keyPackage?: KeyPackage;
-  /** Nostr event (kind 443) from which to extract key package */
+  /** Nostr event (kind 30443) from which to extract key package */
   event?: NostrEvent;
   /** Control modal visibility */
   open: boolean;

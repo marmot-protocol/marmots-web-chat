@@ -28,11 +28,7 @@ import {
 import { SidebarInset } from "@/components/ui/sidebar";
 import accounts, { user$ } from "@/lib/accounts";
 import { liveGroups$ } from "@/lib/marmot-client";
-import {
-  StartChatDialog,
-  useOnlineContactsKeyPackages,
-  useStartChat,
-} from "@/pages/contacts/components/online-contacts";
+import { useOnlineContactsKeyPackages } from "@/pages/contacts/components/online-contacts";
 import { RecentKeyPackageCard } from "./contacts/components/recent-key-packages";
 
 // ============================================================================
@@ -77,7 +73,6 @@ function OnlineContactsSection() {
   const contacts = use$(user$.contacts$);
   const groups = use$(liveGroups$);
   const account = use$(accounts.active$);
-  const chat = useStartChat();
 
   // Build a Set of contact pubkeys that already share a 1:1 group with me
   const existingDmPubkeys = useMemo(() => {
@@ -146,18 +141,10 @@ function OnlineContactsSection() {
       {onlineContacts && onlineContacts.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {onlineContacts.map((kp) => (
-            <RecentKeyPackageCard
-              key={kp.pubkey}
-              event={kp}
-              onStartChat={chat.startChat}
-              isCreating={chat.isCreating}
-            />
+            <RecentKeyPackageCard key={kp.pubkey} event={kp} />
           ))}
         </div>
       )}
-
-      {/* Progress dialog */}
-      <StartChatDialog {...chat} />
     </div>
   );
 }

@@ -1,11 +1,11 @@
 import {
-  createKeyPackageEvent,
+  ADDRESSABLE_KEY_PACKAGE_KIND,
   getKeyPackageClient,
   StoredKeyPackage,
 } from "@internet-privacy/marmot-ts";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { watchEventUpdates } from "applesauce-core";
-import { getSeenRelays, NostrEvent, relaySet } from "applesauce-core/helpers";
+import { getSeenRelays, NostrEvent } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -27,8 +27,7 @@ import { liveKeyPackages$, marmotClient$ } from "@/lib/marmot-client";
 import { eventStore, pool } from "@/lib/nostr";
 import { formatTimeAgo } from "@/lib/time";
 import { TriangleAlertIcon } from "lucide-react";
-import { CiphersuiteId, KeyPackage } from "ts-mls";
-import accounts, { publish, user$ } from "../../lib/accounts";
+import { CiphersuiteId } from "ts-mls";
 
 function KeyPackageRelayStatus({ event }: { event: NostrEvent | undefined }) {
   const keyPackageRelays = use$(keyPackageRelays$);
@@ -131,54 +130,6 @@ function KeyPackageRelayStatus({ event }: { event: NostrEvent | undefined }) {
   );
 }
 
-function PublishKeyPackageButton({
-  event,
-  keyPackage,
-}: {
-  event?: NostrEvent;
-  keyPackage: KeyPackage;
-}) {
-  const keyPackageRelays = use$(keyPackageRelays$);
-  const outboxes = use$(user$.outboxes$);
-  const account = use$(accounts.active$);
-
-  const [isPublishing, setIsPublishing] = useState(false);
-  const handlePublishKeyPackage = async () => {
-    try {
-      if (event) throw new Error("Event already published");
-      if (!keyPackageRelays || keyPackageRelays.length === 0) {
-        throw new Error("No key package relays configured");
-      }
-      if (!account) throw new Error("No active account");
-
-      setIsPublishing(true);
-      const unsignedEvent = await createKeyPackageEvent({
-        keyPackage: keyPackage,
-        relays: keyPackageRelays,
-        client: "marmot-chat",
-      });
-      const signed = await account.signEvent(unsignedEvent);
-      await publish(signed, relaySet(outboxes, keyPackageRelays));
-    } catch (err) {
-      console.error("Error publishing key package:", err);
-    } finally {
-      setIsPublishing(false);
-    }
-  };
-
-  if (event) return null;
-
-  return (
-    <Button
-      onClick={handlePublishKeyPackage}
-      disabled={isPublishing}
-      className="w-full sm:w-auto"
-    >
-      {isPublishing ? "Publishing..." : "Publish key package"}
-    </Button>
-  );
-}
-
 function RotateKeyPackageButton({
   keyPackageRef,
 }: {
@@ -268,12 +219,7 @@ function DeleteKeyPackageButton({
   );
 }
 
-function BroadcastKeyPackageButton({
-  event,
-}: {
-  event?: NostrEvent;
-  keyPackage: KeyPackage;
-}) {
+function BroadcastKeyPackageButton({ event }: { event?: NostrEvent }) {
   const keyPackageRelays = use$(keyPackageRelays$);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
 
@@ -320,7 +266,10 @@ function KeyPackageDetailBody({
     [keyPackage.keyPackageRef],
   );
 
-  const event = keyPackage.published?.[keyPackage.published.length - 1];
+  const addressableEvents = keyPackage.published?.filter(
+    (event) => event.kind === ADDRESSABLE_KEY_PACKAGE_KIND,
+  );
+  const event = addressableEvents?.[addressableEvents.length - 1];
   const cipherSuiteId = keyPackage.publicPackage.cipherSuite as CiphersuiteId;
   const clientInfo = event ? getKeyPackageClient(event) : undefined;
   const timeAgo = event ? formatTimeAgo(event.created_at) : "Unpublished";
@@ -416,14 +365,7 @@ function KeyPackageDetailBody({
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           {isLocal && (
             <>
-              <PublishKeyPackageButton
-                event={event}
-                keyPackage={keyPackage.publicPackage}
-              />
-              <BroadcastKeyPackageButton
-                event={event}
-                keyPackage={keyPackage.publicPackage}
-              />
+              <BroadcastKeyPackageButton event={event} />
             </>
           )}
           <RotateKeyPackageButton keyPackageRef={keyPackage.keyPackageRef} />

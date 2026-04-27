@@ -1,6 +1,6 @@
 import { defaultCredentialTypes } from "ts-mls";
 import type { DefaultCredentialTypeName } from "ts-mls";
-import { greaseValues } from "ts-mls/grease.js";
+import { greaseValues } from "ts-mls";
 
 import { Badge } from "./ui/badge";
 import { cn } from "@/lib/utils";
@@ -22,7 +22,9 @@ export default function CredentialTypeBadge({
     typeof credentialType === "number"
       ? credentialType
       : defaultCredentialTypes[credentialType] || parseInt(credentialType);
-  const isGrease = greaseValues.includes(credentialTypeId);
+  const isGrease = (greaseValues as readonly number[]).includes(
+    credentialTypeId,
+  );
 
   let credentialTypeName = isGrease
     ? "GREASE"

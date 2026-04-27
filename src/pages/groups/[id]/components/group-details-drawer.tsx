@@ -91,7 +91,7 @@ export function GroupDetailsDrawer({
     if (!client) throw new Error("Client not found");
     try {
       setIsLeavingGroup(true);
-      await client.leaveGroup(group.id);
+      await client.groups.leave(group.id);
       onOpenChange(false);
       navigate("/groups", { replace: true });
     } catch (error) {
