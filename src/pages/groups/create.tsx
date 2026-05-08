@@ -2,7 +2,7 @@ import { IconCircleX, IconLoader2 } from "@tabler/icons-react";
 import { use$ } from "applesauce-react/hooks";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import type { CiphersuiteName } from "ts-mls";
+import type { CiphersuiteName } from "@internet-privacy/marmot-ts/mls";
 
 import { CipherSuitePicker } from "@/components/form/cipher-suite-picker";
 import { PubkeyListCreator } from "@/components/form/pubkey-list-creator";

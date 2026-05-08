@@ -1,8 +1,11 @@
 import { use$ } from "applesauce-react/hooks";
 import { getDisplayName } from "applesauce-core/helpers";
 import { getCredentialPubkey } from "@internet-privacy/marmot-ts";
-import { defaultCredentialTypes, leafNodeSources } from "ts-mls";
-import type { LeafNode, ParentNode } from "ts-mls";
+import {
+  defaultCredentialTypes,
+  leafNodeSources,
+} from "@internet-privacy/marmot-ts/mls";
+import type { LeafNode, ParentNode } from "@internet-privacy/marmot-ts/mls";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import { useState } from "react";
 

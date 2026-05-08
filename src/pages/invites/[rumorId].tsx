@@ -13,7 +13,7 @@ import { use$ } from "applesauce-react/hooks";
 import { ComponentProps, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { filter, from, map, merge, of, startWith, take } from "rxjs";
-import { CiphersuiteId } from "ts-mls";
+import { CiphersuiteId } from "@internet-privacy/marmot-ts/mls";
 
 import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import DataView from "@/components/data-view";

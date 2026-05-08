@@ -1,6 +1,6 @@
 import {
   ADDRESSABLE_KEY_PACKAGE_KIND,
-  getCredentialPubkey,
+  getGroupMembers,
   getKeyPackage,
   getKeyPackageCipherSuiteId,
   getKeyPackageClient,
@@ -9,55 +9,60 @@ import {
   getKeyPackageMLSVersion,
   getKeyPackageRelayList,
   getKeyPackageRelays,
-  getGroupMembers,
   KEY_PACKAGE_RELAY_LIST_KIND,
 } from "@internet-privacy/marmot-ts";
-import { castUser, User } from "applesauce-common/casts/user";
+import { type KeyPackage } from "@internet-privacy/marmot-ts/mls";
+import {
+  IconChevronRight,
+  IconMessage,
+  IconMessagePlus,
+  IconPackage,
+  IconUsers,
+  IconWorld,
+} from "@tabler/icons-react";
+import { castUser, type User } from "applesauce-common/casts/user";
 import {
   defined,
   mapEventsToStore,
   mapEventsToTimeline,
 } from "applesauce-core";
 import {
-  bytesToHex,
   normalizeToProfilePointer,
-  NostrEvent,
   relaySet,
+  type NostrEvent,
 } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { useMemo, useState } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { map } from "rxjs/operators";
-import { defaultCredentialTypes, KeyPackage } from "ts-mls";
 
-import CipherSuiteBadge from "@/components/cipher-suite-badge";
+import DataView from "@/components/data-view";
+import KeyPackageDataView from "@/components/data-view/key-package";
 import FollowButton from "@/components/follow-button";
 import { InviteToGroupDialog } from "@/components/group/invite-to-group-dialog";
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { PageHeader } from "@/components/page-header";
 import QRButton from "@/components/qr-button";
 import { Button } from "@/components/ui/button";
-import { eventStore, pool } from "@/lib/nostr";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import accountManager from "@/lib/accounts";
 import { liveGroups$ } from "@/lib/marmot-client";
+import { eventStore, pool } from "@/lib/nostr";
 import { extraRelays$, lookupRelays$ } from "@/lib/settings";
 import {
   StartChatDialog,
   useStartChat,
 } from "@/pages/contacts/components/start-chat-dialog";
-import {
-  IconChevronRight,
-  IconMessagePlus,
-  IconUsers,
-  IconMessage,
-  IconPackage,
-  IconWorld,
-} from "@tabler/icons-react";
-import { Link } from "react-router";
+import JsonBlock from "../../components/json-block";
 
 function KeyPackageCard({ event }: { event: NostrEvent }) {
-  const [expanded, setExpanded] = useState(false);
-
   const mlsVersion = getKeyPackageMLSVersion(event);
   const cipherSuiteId = getKeyPackageCipherSuiteId(event);
   const extensions = getKeyPackageExtensions(event);
@@ -77,142 +82,108 @@ function KeyPackageCard({ event }: { event: NostrEvent }) {
     return new Date(timestamp * 1000).toLocaleString();
   };
 
+  const clientName = client?.name || "Unknown client";
+  const identifier = getKeyPackageIdentifier(event) ?? "";
+  const avatarUrl = `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(identifier)}`;
+
   return (
-    <div className="px-5 py-4 space-y-3">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="text-xs text-muted-foreground font-mono truncate">
-            {event.id}
-          </div>
-          <div className="text-xs text-muted-foreground/60 mt-1">
-            {formatDate(event.created_at)}
-          </div>
+    <div className="flex items-center justify-between gap-4 px-5 py-3">
+      <img
+        src={avatarUrl}
+        title={identifier}
+        alt={`Identicon for key package ${identifier}`}
+        className="h-10 w-10 shrink-0 bg-muted"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium">{clientName}</div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          {formatDate(event.created_at)}
         </div>
-        {keyPackage && !keyPackageError && (
-          <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
-            Valid
-          </span>
-        )}
-        {keyPackageError && (
-          <span className="px-2 py-1 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded">
-            Parse Error
-          </span>
-        )}
       </div>
 
-      {/* Quick Info Grid */}
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <div className="text-xs text-muted-foreground mb-1">MLS Version</div>
-          <span className="px-2 py-1 text-xs bg-muted rounded">
-            {mlsVersion || "Not specified"}
-          </span>
-        </div>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline">Details</Button>
+        </DialogTrigger>
 
-        <div>
-          <div className="text-xs text-muted-foreground mb-1">Cipher Suite</div>
-          {cipherSuiteId !== undefined ? (
-            <CipherSuiteBadge cipherSuite={cipherSuiteId} />
-          ) : (
-            <span className="px-2 py-1 text-xs bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 rounded">
-              Unknown
-            </span>
-          )}
-        </div>
+        <DialogContent className="max-h-[80vh] max-w-3xl overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Key Package Details</DialogTitle>
+            <DialogDescription>
+              {clientName} published {formatDate(event.created_at)}
+            </DialogDescription>
+          </DialogHeader>
 
-        {client && (
-          <div className="col-span-2">
-            <div className="text-xs text-muted-foreground mb-1">Client</div>
-            <span className="px-2 py-1 text-xs bg-muted rounded">
-              {client.name}
-            </span>
-          </div>
-        )}
-
-        {relays && relays.length > 0 && (
-          <div className="col-span-2">
-            <div className="text-xs text-muted-foreground mb-1">
-              Relays ({relays.length})
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {relays.map((relay) => (
-                <span key={relay} className="px-2 py-1 text-xs bg-muted rounded">
-                  {relay}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {extensions && extensions.length > 0 && (
-          <div className="col-span-2">
-            <div className="text-xs text-muted-foreground mb-1">
-              Extensions ({extensions.length})
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {extensions.map((ext) => (
-                <span key={ext} className="px-2 py-1 text-xs bg-muted rounded">
-                  {ext}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Error Display */}
-      {keyPackageError && (
-        <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded text-sm">
-          <strong>Parse Error:</strong> {keyPackageError.message}
-        </div>
-      )}
-
-      {/* Expandable Details */}
-      {keyPackage && (
-        <button
-          className="text-sm text-primary hover:underline"
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? "Hide" : "Show"} Details
-        </button>
-      )}
-
-      {expanded && keyPackage && (
-        <div className="space-y-2 border-t pt-3">
-          {/* Credential Info */}
-          {keyPackage.leafNode.credential.credentialType ===
-            defaultCredentialTypes.basic && (
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">
-                Credential Pubkey
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            <div className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <div className="text-xs text-muted-foreground">Event ID</div>
+                <code className="block break-all text-xs">{event.id}</code>
               </div>
-              <code className="text-xs break-all block bg-muted p-2 rounded">
-                {getCredentialPubkey(keyPackage.leafNode.credential)}
-              </code>
+              <div>
+                <div className="text-xs text-muted-foreground">MLS Version</div>
+                <div>{mlsVersion || "Not specified"}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">
+                  Cipher Suite
+                </div>
+                <div>{cipherSuiteId ?? "Unknown"}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Client</div>
+                <div>{clientName}</div>
+              </div>
+              {keyPackageError && (
+                <div className="sm:col-span-2">
+                  <div className="text-xs text-muted-foreground">
+                    Parse Error
+                  </div>
+                  <div className="text-destructive">
+                    {keyPackageError.message}
+                  </div>
+                </div>
+              )}
+              {relays && relays.length > 0 && (
+                <div className="sm:col-span-2">
+                  <div className="text-xs text-muted-foreground">
+                    Relays ({relays.length})
+                  </div>
+                  <div className="break-all">{relays.join(", ")}</div>
+                </div>
+              )}
+              {extensions && extensions.length > 0 && (
+                <div className="sm:col-span-2">
+                  <div className="text-xs text-muted-foreground">
+                    Extensions ({extensions.length})
+                  </div>
+                  <div className="break-all">{extensions.join(", ")}</div>
+                </div>
+              )}
             </div>
-          )}
 
-          {/* Public Keys */}
-          <div>
-            <div className="text-xs text-muted-foreground mb-1">
-              HPKE Public Key
-            </div>
-            <code className="text-xs break-all block bg-muted p-2 rounded">
-              {bytesToHex(keyPackage.leafNode.hpkePublicKey)}
-            </code>
-          </div>
+            <details className="border p-3">
+              <summary className="cursor-pointer text-sm font-medium">
+                Raw Nostr Event
+              </summary>
+              <div className="mt-3 overflow-x-auto">
+                <JsonBlock value={event} />
+              </div>
+            </details>
 
-          <div>
-            <div className="text-xs text-muted-foreground mb-1">
-              Signature Public Key
-            </div>
-            <code className="text-xs break-all block bg-muted p-2 rounded">
-              {bytesToHex(keyPackage.leafNode.signaturePublicKey)}
-            </code>
+            {keyPackage && (
+              <details className="border p-3">
+                <summary className="cursor-pointer text-sm font-medium">
+                  Raw Key Package
+                </summary>
+                <div className="mt-3 overflow-x-auto">
+                  <KeyPackageDataView keyPackage={keyPackage} />
+                </div>
+              </details>
+            )}
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -276,10 +247,7 @@ function ContactRelaysSection({
       ) : (
         <div className="divide-y">
           {relays.map((relay) => (
-            <div
-              key={relay}
-              className="px-5 py-2 text-sm font-mono break-all"
-            >
+            <div key={relay} className="px-5 py-2 text-sm font-mono break-all">
               {relay}
             </div>
           ))}

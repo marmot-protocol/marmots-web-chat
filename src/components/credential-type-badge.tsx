@@ -1,6 +1,6 @@
-import { defaultCredentialTypes } from "ts-mls";
-import type { DefaultCredentialTypeName } from "ts-mls";
-import { greaseValues } from "ts-mls";
+import { defaultCredentialTypes } from "@internet-privacy/marmot-ts/mls";
+import type { DefaultCredentialTypeName } from "@internet-privacy/marmot-ts/mls";
+import { greaseValues } from "@internet-privacy/marmot-ts/mls";
 
 import { Badge } from "./ui/badge";
 import { cn } from "@/lib/utils";

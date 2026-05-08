@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@internet-privacy/marmot-ts': link:../marmot-ts
+
 importers:
 
   .:
@@ -18,8 +21,8 @@ importers:
         specifier: ^5.2.8
         version: 5.2.8
       '@internet-privacy/marmot-ts':
-        specifier: ^0.5.1
-        version: 0.5.1(typescript@5.9.3)
+        specifier: link:../marmot-ts
+        version: link:../marmot-ts
       '@libs/qrcode':
         specifier: jsr:^3.0.1
         version: '@jsr/libs__qrcode@3.0.1'
@@ -116,9 +119,6 @@ importers:
       tailwindcss:
         specifier: ^4.2.4
         version: 4.2.4
-      ts-mls:
-        specifier: 2.0.0-rc.10
-        version: 2.0.0-rc.10(@noble/ciphers@2.2.0)(@noble/curves@2.2.0)
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
@@ -949,14 +949,6 @@ packages:
     peerDependencies:
       hono: ^4
 
-  '@hpke/common@1.10.1':
-    resolution: {integrity: sha512-moJwhmtLtuxiUzzNp1jpfBfx8yefKoO9D/RCR9dmwrnc7qjJqId1rEtQz+lSlU5cabX8daToMSx/7HayXOiaFw==}
-    engines: {node: '>=16.0.0'}
-
-  '@hpke/core@1.9.0':
-    resolution: {integrity: sha512-pFxWl1nNJeQCSUFs7+GAblHvXBCjn9EPN65vdKlYQil2aURaRxfGMO6vBKGqm1YHTKwiAxJQNEI70PbSowMP9Q==}
-    engines: {node: '>=16.0.0'}
-
   '@inquirer/ansi@2.0.5':
     resolution: {integrity: sha512-doc2sWgJpbFQ64UflSVd17ibMGDuxO1yKgOgLMwavzESnXjFWJqUeG8saYosqKpHp4kWiM5x1nXvEjbpx90gzw==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^21.7.0 || ^20.12.0'}
@@ -991,10 +983,6 @@ packages:
     peerDependenciesMeta:
       '@types/node':
         optional: true
-
-  '@internet-privacy/marmot-ts@0.5.1':
-    resolution: {integrity: sha512-AZ9924Dz75CHbB+YJPmEGj09xYIYAHpyDCq1xn++ubQjP95sQuV4yNXX5CmPQNXcyEMd50LL5dhJOMuH8gmPsg==}
-    engines: {bun: '>=1.1.0', deno: '>=2.0.0', node: '>=20.0.0'}
 
   '@isaacs/cliui@9.0.0':
     resolution: {integrity: sha512-AokJm4tuBHillT+FpMtxQ60n8ObyXBatq7jD2/JA9dxbDDokKQm8KMht5ibGzLVU9IJDIKK4TPKgMHEYMn3lMg==}
@@ -1042,10 +1030,6 @@ packages:
   '@noble/ciphers@1.3.0':
     resolution: {integrity: sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==}
     engines: {node: ^14.21.3 || >=16}
-
-  '@noble/ciphers@2.2.0':
-    resolution: {integrity: sha512-Z6pjIZ/8IJcCGzb2S/0Px5J81yij85xASuk1teLNeg75bfT07MV3a/O2Mtn1I2se43k3lkVEcFaR10N4cgQcZA==}
-    engines: {node: '>= 20.19.0'}
 
   '@noble/curves@1.1.0':
     resolution: {integrity: sha512-091oBExgENk/kGj3AZmtBDMpxQPDtxQABR2B9lb1JbVTs6ytdzZNwvhxQ4MWasRNEzlbEH8jCWFCwhF/Obj5AA==}
@@ -2788,9 +2772,6 @@ packages:
   eventemitter3@4.0.7:
     resolution: {integrity: sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw==}
 
-  eventemitter3@5.0.4:
-    resolution: {integrity: sha512-mlsTRyGaPBjPedk6Bvw+aqbsXDtoAyAzm5MO7JgU+yVRyMQ5O8bD4Kcci7BS85f93veegeCPkL8R4GLClnjLFw==}
-
   eventsource-parser@3.0.8:
     resolution: {integrity: sha512-70QWGkr4snxr0OXLRWsFLeRBIRPuQOvt4s8QYjmUlmlkyTZkRqS7EDVRZtzU3TiyDbXSzaOeF0XUKy8PchzukQ==}
     engines: {node: '>=18.0.0'}
@@ -4387,30 +4368,6 @@ packages:
   trough@2.2.0:
     resolution: {integrity: sha512-tmMpK00BjZiUyVyvrBK7knerNgmgvcV/KLVyuma/SC+TQN167GrMRciANTz09+k3zW8L8t60jWO1GpfkZdjTaw==}
 
-  ts-mls@2.0.0-rc.10:
-    resolution: {integrity: sha512-4FFbkysQkJlVaUv4fs7ZC4wuiwTOCgX/bEMo2fFGngy/QofC/lvWWgsScKuGxEIhEf4e2Q8APfJ7DknP0VRCoA==}
-    peerDependencies:
-      '@hpke/chacha20poly1305': 1.8.0
-      '@hpke/dhkem-x448': 1.8.0
-      '@hpke/hybridkem-x-wing': 0.7.0
-      '@hpke/ml-kem': 0.3.0
-      '@noble/ciphers': 2.1.1
-      '@noble/curves': 2.0.1
-      '@noble/post-quantum': 0.5.2
-    peerDependenciesMeta:
-      '@hpke/chacha20poly1305':
-        optional: true
-      '@hpke/dhkem-x448':
-        optional: true
-      '@hpke/hybridkem-x-wing':
-        optional: true
-      '@hpke/ml-kem':
-        optional: true
-      '@noble/curves':
-        optional: true
-      '@noble/post-quantum':
-        optional: true
-
   ts-morph@26.0.0:
     resolution: {integrity: sha512-ztMO++owQnz8c/gIENcM9XfCEzgoGphTv+nKpYNM1bgsdOVC/jRZuEBf6N+mLLDNg68Kl+GgUZfOySaRiG1/Ug==}
 
@@ -5652,12 +5609,6 @@ snapshots:
     dependencies:
       hono: 4.12.15
 
-  '@hpke/common@1.10.1': {}
-
-  '@hpke/core@1.9.0':
-    dependencies:
-      '@hpke/common': 1.10.1
-
   '@inquirer/ansi@2.0.5': {}
 
   '@inquirer/confirm@6.0.12(@types/node@24.12.2)':
@@ -5684,27 +5635,6 @@ snapshots:
   '@inquirer/type@4.0.5(@types/node@24.12.2)':
     optionalDependencies:
       '@types/node': 24.12.2
-
-  '@internet-privacy/marmot-ts@0.5.1(typescript@5.9.3)':
-    dependencies:
-      '@hpke/core': 1.9.0
-      '@noble/ciphers': 2.2.0
-      '@noble/curves': 2.2.0
-      '@noble/hashes': 2.2.0
-      '@scure/base': 2.2.0
-      applesauce-common: 5.2.0(typescript@5.9.3)
-      applesauce-core: 5.2.0(typescript@5.9.3)
-      debug: 4.4.3
-      eventemitter3: 5.0.4
-      ts-mls: 2.0.0-rc.10(@noble/ciphers@2.2.0)(@noble/curves@2.2.0)
-    transitivePeerDependencies:
-      - '@hpke/chacha20poly1305'
-      - '@hpke/dhkem-x448'
-      - '@hpke/hybridkem-x-wing'
-      - '@hpke/ml-kem'
-      - '@noble/post-quantum'
-      - supports-color
-      - typescript
 
   '@isaacs/cliui@9.0.0': {}
 
@@ -5768,8 +5698,6 @@ snapshots:
   '@noble/ciphers@0.5.3': {}
 
   '@noble/ciphers@1.3.0': {}
-
-  '@noble/ciphers@2.2.0': {}
 
   '@noble/curves@1.1.0':
     dependencies:
@@ -7633,8 +7561,6 @@ snapshots:
 
   eventemitter3@4.0.7: {}
 
-  eventemitter3@5.0.4: {}
-
   eventsource-parser@3.0.8: {}
 
   eventsource@3.0.7:
@@ -9472,13 +9398,6 @@ snapshots:
       punycode: 2.3.1
 
   trough@2.2.0: {}
-
-  ts-mls@2.0.0-rc.10(@noble/ciphers@2.2.0)(@noble/curves@2.2.0):
-    dependencies:
-      '@hpke/core': 1.9.0
-      '@noble/ciphers': 2.2.0
-    optionalDependencies:
-      '@noble/curves': 2.2.0
 
   ts-morph@26.0.0:
     dependencies:

@@ -1,9 +1,2 @@
-packages:
-  - .
-  - marmot-ts
-
-ignoredBuiltDependencies:
-  - msw
-
-onlyBuiltDependencies:
-  - esbuild
+overrides:
+  '@internet-privacy/marmot-ts': link:../marmot-ts

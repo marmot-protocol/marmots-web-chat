@@ -5,7 +5,7 @@ import type {
   StoredKeyPackage,
 } from "@internet-privacy/marmot-ts";
 import { useMemo, useState } from "react";
-import { encode, keyPackageEncoder } from "ts-mls";
+import { encode, keyPackageEncoder } from "@internet-privacy/marmot-ts/mls";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";

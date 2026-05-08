@@ -9,8 +9,16 @@ import {
   getKeyPackageRelays,
 } from "@internet-privacy/marmot-ts";
 import { useMemo, useState } from "react";
-import { encode, keyPackageEncoder, protocolVersions } from "ts-mls";
-import type { CiphersuiteId, CredentialBasic, KeyPackage } from "ts-mls";
+import {
+  encode,
+  keyPackageEncoder,
+  protocolVersions,
+} from "@internet-privacy/marmot-ts/mls";
+import type {
+  CiphersuiteId,
+  CredentialBasic,
+  KeyPackage,
+} from "@internet-privacy/marmot-ts/mls";
 
 import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import CredentialTypeBadge from "@/components/credential-type-badge";

@@ -27,7 +27,7 @@ import { liveKeyPackages$, marmotClient$ } from "@/lib/marmot-client";
 import { eventStore, pool } from "@/lib/nostr";
 import { formatTimeAgo } from "@/lib/time";
 import { TriangleAlertIcon } from "lucide-react";
-import { CiphersuiteId } from "ts-mls";
+import { CiphersuiteId } from "@internet-privacy/marmot-ts/mls";
 
 function KeyPackageRelayStatus({ event }: { event: NostrEvent | undefined }) {
   const keyPackageRelays = use$(keyPackageRelays$);

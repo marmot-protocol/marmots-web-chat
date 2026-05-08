@@ -3,7 +3,7 @@ import {
   type CiphersuiteName,
   ciphersuites,
   greaseValues,
-} from "ts-mls";
+} from "@internet-privacy/marmot-ts/mls";
 
 import { cn } from "@/lib/utils";
 

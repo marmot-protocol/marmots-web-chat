@@ -7,8 +7,12 @@ import {
   decode,
   keyPackageDecoder,
   protocolVersions,
-} from "ts-mls";
-import type { CiphersuiteId, CredentialBasic, KeyPackage } from "ts-mls";
+} from "@internet-privacy/marmot-ts/mls";
+import type {
+  CiphersuiteId,
+  CredentialBasic,
+  KeyPackage,
+} from "@internet-privacy/marmot-ts/mls";
 
 import CipherSuiteBadge from "@/components/cipher-suite-badge";
 import CredentialTypeBadge from "@/components/credential-type-badge";
@@ -319,15 +323,13 @@ export default function KeyPackageDecoderPage() {
                 <p className="font-semibold mb-2">Where to get key packages:</p>
                 <ul className="list-disc list-inside space-y-1">
                   <li>
-                    From Nostr events (kind 30443) - use the "Key
-                    Package Explorer" example
+                    From Nostr events (kind 30443) - use the "Key Package
+                    Explorer" example
                   </li>
                   <li>
                     Create your own using the "Create Key Package" example
                   </li>
-                  <li>
-                    From the content field of a kind 30443 Nostr event
-                  </li>
+                  <li>From the content field of a kind 30443 Nostr event</li>
                 </ul>
               </div>
             </CardContent>

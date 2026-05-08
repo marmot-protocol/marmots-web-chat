@@ -1,4 +1,7 @@
-import { type KeyPackage, type PrivateKeyPackage } from "ts-mls";
+import {
+  type KeyPackage,
+  type PrivateKeyPackage,
+} from "@internet-privacy/marmot-ts/mls";
 import DataView from "./index";
 
 /**

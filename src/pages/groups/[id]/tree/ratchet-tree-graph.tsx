@@ -1,9 +1,16 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import { hierarchy, tree } from "d3-hierarchy";
 import { getCredentialPubkey } from "@internet-privacy/marmot-ts";
-import { defaultCredentialTypes, nodeTypes } from "ts-mls";
+import {
+  defaultCredentialTypes,
+  nodeTypes,
+} from "@internet-privacy/marmot-ts/mls";
 
-import type { ClientState, LeafNode, ParentNode } from "ts-mls";
+import type {
+  ClientState,
+  LeafNode,
+  ParentNode,
+} from "@internet-privacy/marmot-ts/mls";
 
 function treeLog2(x: number): number {
   if (x === 0) return 0;

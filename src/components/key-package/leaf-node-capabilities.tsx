@@ -8,8 +8,8 @@ import {
   isLifetimeValid,
 } from "@internet-privacy/marmot-ts";
 import { bytesToHex } from "@noble/hashes/utils.js";
-import { CiphersuiteId } from "ts-mls";
-import type { LeafNodeKeyPackage } from "ts-mls";
+import { CiphersuiteId } from "@internet-privacy/marmot-ts/mls";
+import type { LeafNodeKeyPackage } from "@internet-privacy/marmot-ts/mls";
 
 /**
  * A reusable component that displays leaf node capabilities and lifetime information.

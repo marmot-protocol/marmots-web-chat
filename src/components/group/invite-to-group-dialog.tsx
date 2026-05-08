@@ -15,7 +15,7 @@ import { use$ } from "applesauce-react/hooks";
 import { Loader2, Plus, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import type { CiphersuiteId } from "ts-mls";
+import type { CiphersuiteId } from "@internet-privacy/marmot-ts/mls";
 
 import { RelayListCreator } from "@/components/form/relay-list-creator";
 import { UserAvatar, UserName } from "@/components/nostr-user";
@@ -134,8 +134,8 @@ function KeyPackageSelectionStep({
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Select which key package to use for the invite. {latestKeyPackages.length}{" "}
-        package
+        Select which key package to use for the invite.{" "}
+        {latestKeyPackages.length} package
         {latestKeyPackages.length === 1 ? "" : "s"} available.
       </p>
 

@@ -16,7 +16,7 @@ import { use$ } from "applesauce-react/hooks";
 import { Loader2, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { map } from "rxjs/operators";
-import type { CiphersuiteId } from "ts-mls";
+import type { CiphersuiteId } from "@internet-privacy/marmot-ts/mls";
 
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { Alert, AlertDescription } from "@/components/ui/alert";
