@@ -1,14 +1,15 @@
-import { useMemo, useRef, useState, useEffect } from "react";
-import { hierarchy, tree } from "d3-hierarchy";
 import { getCredentialPubkey } from "@internet-privacy/marmot-ts";
 import {
   defaultCredentialTypes,
   nodeTypes,
 } from "@internet-privacy/marmot-ts/mls";
+import { hierarchy, tree } from "d3-hierarchy";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   ClientState,
   LeafNode,
+  Node,
   ParentNode,
 } from "@internet-privacy/marmot-ts/mls";
 
@@ -84,7 +85,7 @@ function bytesToHex(bytes: Uint8Array): string {
  * Uses the correct MLS bit-level child index formulas from ts-mls/treemath.
  */
 function buildTreeNode(
-  flatTree: (import("ts-mls").Node | undefined)[],
+  flatTree: (Node | undefined)[],
   nodeIndex: number,
 ): TreeNode {
   const rawNode = flatTree[nodeIndex];
@@ -136,13 +137,13 @@ function buildTreeNode(
 /**
  * Find the root index of the flat ratchet tree using the MLS spec formula.
  */
-function findRoot(flatTree: (import("ts-mls").Node | undefined)[]): number {
+function findRoot(flatTree: (Node | undefined)[]): number {
   if (flatTree.length <= 1) return 0;
   return rootFromNodeWidth(flatTree.length);
 }
 
 function buildRatchetTreeHierarchy(
-  flatTree: (import("ts-mls").Node | undefined)[],
+  flatTree: (Node | undefined)[],
 ): TreeNode | null {
   if (flatTree.length === 0) return null;
   const rootIndex = findRoot(flatTree);
