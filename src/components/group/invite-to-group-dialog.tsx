@@ -1,5 +1,4 @@
 import {
-  ADDRESSABLE_KEY_PACKAGE_KIND,
   getGroupMembers,
   getKeyPackageCipherSuiteId,
   getKeyPackageClient,
@@ -33,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { user$ } from "@/lib/accounts";
+import { KEY_PACKAGE_EVENT_KINDS } from "@/lib/key-package-kinds";
 import { liveGroups$, marmotClient$ } from "@/lib/marmot-client";
 import { eventStore, pool } from "@/lib/nostr";
 import { extraRelays$, lookupRelays$ } from "@/lib/settings";
@@ -72,7 +72,7 @@ function KeyPackageSelectionStep({
 
   const keyPackageFilter = useMemo(
     () => ({
-      kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
+      kinds: KEY_PACKAGE_EVENT_KINDS,
       authors: [pubkey],
     }),
     [pubkey],

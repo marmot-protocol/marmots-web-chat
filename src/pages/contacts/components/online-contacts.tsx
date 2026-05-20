@@ -1,12 +1,12 @@
-import { ADDRESSABLE_KEY_PACKAGE_KIND } from "@internet-privacy/marmot-ts";
 import { mapEventsToStore } from "applesauce-core";
 import type { NostrEvent } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
+import { useMemo } from "react";
 import { map } from "rxjs";
 
+import { KEY_PACKAGE_EVENT_KINDS } from "@/lib/key-package-kinds";
 import { eventStore, pool } from "@/lib/nostr";
 import { extraRelays$ } from "@/lib/settings";
-import { useMemo } from "react";
 import { user$ } from "../../../lib/accounts";
 
 export { StartChatDialog, useStartChat } from "./start-chat-dialog";
@@ -42,7 +42,7 @@ export function useOnlineContactsKeyPackages(): NostrEvent[] | undefined {
       if (!extraRelays?.length || !contacts?.length) return;
       return pool
         .request(extraRelays, {
-          kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
+          kinds: KEY_PACKAGE_EVENT_KINDS,
           authors: contactPubkeys,
           since: onlineThreshold(),
         })
@@ -57,7 +57,7 @@ export function useOnlineContactsKeyPackages(): NostrEvent[] | undefined {
     () =>
       eventStore
         .timeline({
-          kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
+          kinds: KEY_PACKAGE_EVENT_KINDS,
           authors: contactPubkeys,
           since: onlineThreshold(),
         })

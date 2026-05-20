@@ -181,6 +181,24 @@ type StorageInterfaces = {
   inviteStore: GenericKeyValueStore<StoredInviteEntry>;
 };
 
+type LegacyStoredKeyPackage = StoredKeyPackage & { d?: string };
+
+/** Migrates pre-0.5.1 key package entries that stored the slot under `d`. */
+async function migrateKeyPackageIdentifiers(
+  store: GenericKeyValueStore<StoredKeyPackage>,
+): Promise<void> {
+  const keys = await store.keys();
+  for (const key of keys) {
+    const entry = (await store.getItem(key)) as LegacyStoredKeyPackage | null;
+    if (!entry || entry.identifier !== undefined || entry.d === undefined) {
+      continue;
+    }
+
+    const { d, ...rest } = entry;
+    await store.setItem(key, { ...rest, identifier: d } as StoredKeyPackage);
+  }
+}
+
 /** A singleton class that manages databases for  */
 export class MultiAccountDatabaseBroker {
   private customDatabases: Map<
@@ -231,6 +249,7 @@ export class MultiAccountDatabaseBroker {
       name: databaseKey,
       storeName: "keyPackages",
     });
+    await migrateKeyPackageIdentifiers(keyPackageStore);
 
     const rumorDatabase = await this.getCustomDatabaseForAccount(pubkey);
     const historyFactory = (groupId: Uint8Array) =>

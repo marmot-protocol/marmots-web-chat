@@ -1,5 +1,4 @@
 import {
-  ADDRESSABLE_KEY_PACKAGE_KIND,
   getKeyPackageRelayList,
   KEY_PACKAGE_RELAY_LIST_KIND,
   unixNow,
@@ -20,6 +19,7 @@ import {
 } from "rxjs";
 
 import accounts, { user$ } from "./accounts";
+import { KEY_PACKAGE_EVENT_KINDS } from "./key-package-kinds";
 import { marmotClient$ } from "./marmot-client";
 import { eventStore, pool } from "./nostr";
 import { extraRelays$ } from "./settings";
@@ -57,7 +57,7 @@ export const publishedKeyPackages$ = combineLatest([user$, marmotClient$]).pipe(
 
     return pool
       .subscription(relays$, {
-        kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
+        kinds: KEY_PACKAGE_EVENT_KINDS,
         authors: [user.pubkey],
       })
       .pipe(

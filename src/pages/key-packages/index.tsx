@@ -1,5 +1,4 @@
 import {
-  ADDRESSABLE_KEY_PACKAGE_KIND,
   getKeyPackageClient,
   isLastResortExtension,
   ListedKeyPackage,
@@ -34,8 +33,8 @@ function MobileCurrentKeyPackageCard({
     isLastResortExtension,
   );
 
-  const event = keyPackage.published?.find(
-    (event) => event.kind === ADDRESSABLE_KEY_PACKAGE_KIND,
+  const event = keyPackage.published?.reduce((latest, event) =>
+    event.created_at > latest.created_at ? event : latest,
   );
   const client = event ? getKeyPackageClient(event) : undefined;
   const timeAgo = event ? formatTimeAgo(event.created_at) : "Unpublished";
@@ -117,8 +116,8 @@ function MobileKeyPackageRow({ keyPackage }: { keyPackage: ListedKeyPackage }) {
     isLastResortExtension,
   );
 
-  const event = keyPackage.published?.find(
-    (event) => event.kind === ADDRESSABLE_KEY_PACKAGE_KIND,
+  const event = keyPackage.published?.reduce((latest, event) =>
+    event.created_at > latest.created_at ? event : latest,
   );
   const client = event ? getKeyPackageClient(event) : undefined;
   const timeAgo = event ? formatTimeAgo(event.created_at) : "Unpublished";

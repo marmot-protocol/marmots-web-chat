@@ -1,7 +1,4 @@
-import {
-  ADDRESSABLE_KEY_PACKAGE_KIND,
-  createKeyPackageRelayListEvent,
-} from "@internet-privacy/marmot-ts";
+import { createKeyPackageRelayListEvent } from "@internet-privacy/marmot-ts";
 import {
   AddDirectMessageRelay,
   RemoveDirectMessageRelay,
@@ -43,11 +40,9 @@ function ClientKeyPackageSection() {
   }, [clientId, keyPackages]);
 
   const latestEvent = useMemo(() => {
-    const addressableEvents = matchingKeyPackage?.published?.filter(
-      (event) => event.kind === ADDRESSABLE_KEY_PACKAGE_KIND,
-    );
-    if (!addressableEvents || addressableEvents.length === 0) return undefined;
-    return addressableEvents.reduce((latest, event) =>
+    const events = matchingKeyPackage?.published;
+    if (!events || events.length === 0) return undefined;
+    return events.reduce((latest, event) =>
       event.created_at > latest.created_at ? event : latest,
     );
   }, [matchingKeyPackage]);

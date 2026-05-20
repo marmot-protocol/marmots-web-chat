@@ -3,7 +3,6 @@ import { type NostrEvent } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
 import { onlyEvents } from "applesauce-relay";
 import {
-  ADDRESSABLE_KEY_PACKAGE_KIND,
   getKeyPackageCipherSuiteId,
   getKeyPackageClient,
   getKeyPackageIdentifier,
@@ -19,6 +18,7 @@ import { PageBody } from "@/components/page-body";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { KEY_PACKAGE_EVENT_KINDS } from "@/lib/key-package-kinds";
 import { pool } from "@/lib/nostr";
 import { relayConfig$ } from "@/lib/settings";
 import { formatTimeAgo } from "@/lib/time";
@@ -128,7 +128,7 @@ export default function KeyPackageFeedPage() {
     return pool
       .relay(selectedRelay)
       .subscription({
-        kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
+        kinds: KEY_PACKAGE_EVENT_KINDS,
         limit: 50,
       })
       .pipe(

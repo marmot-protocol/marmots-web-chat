@@ -1,5 +1,4 @@
 import {
-  ADDRESSABLE_KEY_PACKAGE_KIND,
   getGroupMembers,
   getKeyPackage,
   getKeyPackageCipherSuiteId,
@@ -53,6 +52,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import accountManager from "@/lib/accounts";
+import { KEY_PACKAGE_EVENT_KINDS } from "@/lib/key-package-kinds";
 import { liveGroups$ } from "@/lib/marmot-client";
 import { eventStore, pool } from "@/lib/nostr";
 import { extraRelays$, lookupRelays$ } from "@/lib/settings";
@@ -315,7 +315,7 @@ function ContactDetailContent({ user }: { user: User }) {
 
     return pool
       .request(relays, {
-        kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
+        kinds: KEY_PACKAGE_EVENT_KINDS,
         authors: [user.pubkey],
         limit: 20,
       })

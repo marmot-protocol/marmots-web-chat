@@ -1,6 +1,5 @@
 import type { AppGroup } from "@/lib/marmot-client";
 import {
-  ADDRESSABLE_KEY_PACKAGE_KIND,
   getKeyPackageCipherSuiteId,
   getKeyPackageClient,
   getKeyPackageIdentifier,
@@ -33,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
 import { user$ } from "@/lib/accounts";
+import { KEY_PACKAGE_EVENT_KINDS } from "@/lib/key-package-kinds";
 import { eventStore, pool } from "@/lib/nostr";
 import { profileSearch } from "@/lib/search";
 import { formatTimeAgo } from "@/lib/time";
@@ -190,7 +190,7 @@ function KeyPackageSelectionStep({
 
     return pool
       .request(keyPackageRelays, {
-        kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
+        kinds: KEY_PACKAGE_EVENT_KINDS,
         authors: [selectedPubkey],
         limit: 50,
       })
@@ -359,7 +359,7 @@ export function InviteMemberDialog({
     if (!selectedPubkey || !keyPackageRelays) return;
     return pool
       .request(keyPackageRelays, {
-        kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
+        kinds: KEY_PACKAGE_EVENT_KINDS,
         authors: [selectedPubkey],
         limit: 50,
       })

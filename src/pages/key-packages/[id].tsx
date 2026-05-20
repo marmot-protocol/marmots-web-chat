@@ -1,8 +1,4 @@
-import {
-  ADDRESSABLE_KEY_PACKAGE_KIND,
-  getKeyPackageClient,
-  StoredKeyPackage,
-} from "@internet-privacy/marmot-ts";
+import { getKeyPackageClient, StoredKeyPackage } from "@internet-privacy/marmot-ts";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { watchEventUpdates } from "applesauce-core";
 import { getSeenRelays, NostrEvent } from "applesauce-core/helpers";
@@ -266,10 +262,9 @@ function KeyPackageDetailBody({
     [keyPackage.keyPackageRef],
   );
 
-  const addressableEvents = keyPackage.published?.filter(
-    (event) => event.kind === ADDRESSABLE_KEY_PACKAGE_KIND,
+  const event = keyPackage.published?.reduce((latest, event) =>
+    event.created_at > latest.created_at ? event : latest,
   );
-  const event = addressableEvents?.[addressableEvents.length - 1];
   const cipherSuiteId = keyPackage.publicPackage.cipherSuite as CiphersuiteId;
   const clientInfo = event ? getKeyPackageClient(event) : undefined;
   const timeAgo = event ? formatTimeAgo(event.created_at) : "Unpublished";

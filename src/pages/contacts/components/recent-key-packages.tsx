@@ -1,21 +1,19 @@
-import {
-  ADDRESSABLE_KEY_PACKAGE_KIND,
-  getKeyPackageClient,
-} from "@internet-privacy/marmot-ts";
+import { getKeyPackageClient } from "@internet-privacy/marmot-ts";
 import { castUser } from "applesauce-common/casts/user";
 import { mapEventsToStore } from "applesauce-core";
 import type { NostrEvent } from "applesauce-core/helpers";
 import { use$ } from "applesauce-react/hooks";
+import { useMemo } from "react";
 import { Link } from "react-router";
 import { map } from "rxjs";
 
 import { UserAvatar, UserName } from "@/components/nostr-user";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import accounts, { user$ } from "@/lib/accounts";
+import { KEY_PACKAGE_EVENT_KINDS } from "@/lib/key-package-kinds";
 import { eventStore, pool } from "@/lib/nostr";
 import { extraRelays$ } from "@/lib/settings";
 import { formatTimeAgo } from "@/lib/time";
-import { useMemo } from "react";
 
 /** Maximum number of recent key packages to show. */
 const FEED_LIMIT = 20;
@@ -95,7 +93,7 @@ export function RecentKeyPackagesFeed() {
       if (!extraRelays || extraRelays.length === 0) return;
       return pool
         .request(extraRelays, {
-          kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
+          kinds: KEY_PACKAGE_EVENT_KINDS,
           since: onlineThreshold(),
           limit: FEED_LIMIT * 5,
         })
@@ -110,7 +108,7 @@ export function RecentKeyPackagesFeed() {
     () =>
       eventStore
         .timeline({
-          kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
+          kinds: KEY_PACKAGE_EVENT_KINDS,
           since: onlineThreshold(),
         })
         .pipe(
