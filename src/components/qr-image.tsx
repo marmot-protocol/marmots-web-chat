@@ -3,14 +3,18 @@ import { useMemo } from "react";
 
 import { cn } from "@/lib/utils";
 
-/** Renders `data` as a scannable QR code (SVG, embedded as a data URI). */
+/**
+ * Renders `data` as a scannable QR code (SVG, embedded as a data URI).
+ *
+ * Sizing is driven entirely by `className` (default: fill the container).
+ * `aspect-square` keeps it square, so a width constraint like
+ * `w-[min(280px,70vw,55dvh)]` makes it responsive without overflowing.
+ */
 export function QRImage({
   data,
-  size = 256,
   className,
 }: {
   data: string;
-  size?: number;
   className?: string;
 }) {
   const src = useMemo(() => {
@@ -18,14 +22,11 @@ export function QRImage({
     return `data:image/svg+xml;base64,${btoa(svg)}`;
   }, [data]);
 
-  // Scale to the container width (responsive on small screens) but never exceed
-  // `size`. The QR SVG is square, so `aspect-square` keeps it square.
   return (
     <img
       src={src}
       alt="QR code"
-      className={cn("h-auto w-full aspect-square rounded-lg bg-white p-3", className)}
-      style={{ maxWidth: size }}
+      className={cn("aspect-square w-full rounded-lg bg-white p-3", className)}
     />
   );
 }
