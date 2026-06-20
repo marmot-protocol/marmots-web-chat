@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 import { SmilePlus, Reply } from "lucide-react";
 
@@ -26,7 +26,7 @@ function formatTime(seconds: number): string {
   });
 }
 
-export function MessageItem({
+export const MessageItem = memo(function MessageItem({
   groupId,
   message,
   mine,
@@ -145,4 +145,4 @@ export function MessageItem({
       </div>
     </div>
   );
-}
+});
