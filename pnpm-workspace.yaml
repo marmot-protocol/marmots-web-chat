@@ -1,2 +1,3 @@
-overrides:
-  '@internet-privacy/marmot-ts': link:../marmot-ts
+packages:
+  - .
+  - marmot-ts
