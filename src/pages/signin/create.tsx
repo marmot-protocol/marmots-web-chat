@@ -4,9 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { IconRefresh } from "@tabler/icons-react";
 import { PrivateKeyAccount } from "applesauce-accounts/accounts";
-import { buildEvent } from "applesauce-core";
+import { ProfileFactory } from "applesauce-core/factories";
 import { relaySet } from "applesauce-core/helpers";
-import { setProfile } from "applesauce-core/operations/profile";
 import { use$ } from "applesauce-react/hooks";
 import { createKeyPackageRelayListEvent } from "@internet-privacy/marmot-ts";
 import { useCallback, useEffect, useState } from "react";
@@ -75,16 +74,12 @@ export default function CreateUserPage() {
 
       // Optionally publish a profile event with the name and robohash picture
       try {
-        const profile = await account.signEvent(
-          await buildEvent(
-            { kind: 0 },
-            {},
-            setProfile({
-              name: name,
-              picture: `https://robohash.org/${account.pubkey}.png`,
-            }),
-          ),
-        );
+        const profile = await ProfileFactory.create()
+          .override({
+            name: name,
+            picture: `https://robohash.org/${account.pubkey}.png`,
+          })
+          .sign(account);
         await pool.publish(relaySet(lookupRelays, extraRelays), profile);
 
         // Create key package relay list event

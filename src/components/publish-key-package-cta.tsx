@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { accounts, actions, user$ } from "@/lib/accounts";
+import { accounts, actions, publish, user$ } from "@/lib/accounts";
 import { keyPackageRelays$ } from "@/lib/lifecycle";
 import { liveKeyPackages$, marmotClient$ } from "@/lib/marmot-client";
 import { extraRelays$, lookupRelays$ } from "@/lib/settings";
@@ -80,7 +80,7 @@ export function PublishKeyPackageCta() {
         const signedEvent = await account.signEvent(unsignedEvent);
 
         const publishingRelays = relaySet(defaults, lookupRelays);
-        await actions.publish(signedEvent, publishingRelays);
+        await publish(signedEvent, publishingRelays);
 
         kpRelays = defaults;
       }

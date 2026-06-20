@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { accounts, actions, user$ } from "@/lib/accounts";
+import { accounts, actions, publish, user$ } from "@/lib/accounts";
 import { keyPackageRelays$, publishedKeyPackages$ } from "@/lib/lifecycle";
 import { marmotClient$ } from "@/lib/marmot-client";
 import { extraRelays$, lookupRelays$ } from "@/lib/settings";
@@ -241,7 +241,7 @@ function KeyPackageRelaysSection() {
       }
 
       // Publish to all publishing relays in parallel
-      await actions.publish(signedEvent, allPublishingRelays);
+      await publish(signedEvent, allPublishingRelays);
 
       setPublishSuccess(true);
       // Clear success message after 3 seconds

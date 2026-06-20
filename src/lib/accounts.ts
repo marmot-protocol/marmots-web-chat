@@ -3,7 +3,6 @@ import { registerCommonAccountTypes } from "applesauce-accounts/accounts";
 import { ActionRunner } from "applesauce-actions";
 import { castUser } from "applesauce-common/casts/user";
 import { chainable } from "applesauce-common/observable/chainable";
-import { EventFactory } from "applesauce-core";
 import {
   kinds,
   NostrEvent,
@@ -88,8 +87,7 @@ export async function publish(event: NostrEvent, relays?: string[]) {
   await pool.publish(relays, event);
 }
 
-// Create an event factory for the current active account
-export const factory = new EventFactory({ signer: accounts.signer });
-export const actions = new ActionRunner(eventStore, factory, publish);
+// Create an action runner for the current active account
+export const actions = new ActionRunner(eventStore, accounts.signer, publish);
 
 export default accounts;
