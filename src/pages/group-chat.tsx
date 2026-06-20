@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, Settings2, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, UserPlus, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Jdenticon } from "@/components/jdenticon";
 import { ChatView } from "@/components/chat/chat-view";
 import { InviteDialog } from "@/components/marmot/invite-dialog";
 import { MembersDialog } from "@/components/marmot/members-dialog";
-import { GroupSettingsDialog } from "@/components/marmot/group-settings-dialog";
+import { GroupInfoDialog } from "@/components/marmot/group-info-dialog";
 import { useChat, useController } from "@/hooks/use-marmot";
 
 export function GroupChatPage() {
@@ -18,7 +18,7 @@ export function GroupChatPage() {
   useChat();
   const [invite, setInvite] = useState(false);
   const [members, setMembers] = useState(false);
-  const [settings, setSettings] = useState(false);
+  const [info, setInfo] = useState(false);
 
   if (!id) return null;
   const group = controller?.getGroup(id);
@@ -42,27 +42,31 @@ export function GroupChatPage() {
         >
           <ArrowLeft className="size-4" />
         </Button>
-        <span className="size-8 shrink-0 overflow-hidden rounded-md bg-muted">
-          <Jdenticon value={group.idStr} size={32} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold">
-            {group.groupData?.name || group.idStr.slice(0, 8)}
-          </div>
-          {group.groupData?.description && (
-            <div className="truncate text-xs text-muted-foreground">
-              {group.groupData.description}
+        <button
+          type="button"
+          onClick={() => setInfo(true)}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left hover:bg-accent/50"
+          title="Group info"
+        >
+          <span className="size-8 shrink-0 overflow-hidden rounded-md bg-muted">
+            <Jdenticon value={group.idStr} size={32} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-semibold">
+              {group.groupData?.name || group.idStr.slice(0, 8)}
             </div>
-          )}
-        </div>
+            {group.groupData?.description && (
+              <div className="truncate text-xs text-muted-foreground">
+                {group.groupData.description}
+              </div>
+            )}
+          </div>
+        </button>
         <Button size="icon" variant="ghost" onClick={() => setInvite(true)}>
           <UserPlus className="size-4" />
         </Button>
         <Button size="icon" variant="ghost" onClick={() => setMembers(true)}>
           <Users className="size-4" />
-        </Button>
-        <Button size="icon" variant="ghost" onClick={() => setSettings(true)}>
-          <Settings2 className="size-4" />
         </Button>
       </header>
 
@@ -72,7 +76,7 @@ export function GroupChatPage() {
 
       <InviteDialog groupId={id} open={invite} onOpenChange={setInvite} />
       <MembersDialog groupId={id} open={members} onOpenChange={setMembers} />
-      <GroupSettingsDialog groupId={id} open={settings} onOpenChange={setSettings} />
+      <GroupInfoDialog groupId={id} open={info} onOpenChange={setInfo} />
     </div>
   );
 }
