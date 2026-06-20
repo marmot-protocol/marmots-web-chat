@@ -1,5 +1,5 @@
 import * as React from "react";
-import { updateSvg } from "jdenticon";
+import jdenticon from "jdenticon";
 
 export interface JdenticonProps extends Omit<
   React.SVGProps<SVGSVGElement>,
@@ -29,7 +29,7 @@ export function Jdenticon({ value, size = 64, ...svgProps }: JdenticonProps) {
 
   React.useEffect(() => {
     if (svgRef.current) {
-      updateSvg(svgRef.current, value, size);
+      jdenticon.updateSvg(svgRef.current, value, size);
     }
   }, [value, size]);
 

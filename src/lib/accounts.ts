@@ -1,93 +1,122 @@
 import { AccountManager, type SerializedAccount } from "applesauce-accounts";
-import { registerCommonAccountTypes } from "applesauce-accounts/accounts";
-import { ActionRunner } from "applesauce-actions";
+import {
+  PrivateKeyAccount,
+  registerCommonAccountTypes,
+} from "applesauce-accounts/accounts";
 import { castUser } from "applesauce-common/casts/user";
 import { chainable } from "applesauce-common/observable/chainable";
-import {
-  kinds,
-  NostrEvent,
-  relaySet,
-  safeParse,
-} from "applesauce-core/helpers";
-import { NostrConnectSigner } from "applesauce-signers";
-import { KEY_PACKAGE_RELAY_LIST_KIND } from "@internet-privacy/marmot-ts";
-import { map } from "rxjs";
-import { eventStore, pool } from "./nostr";
-import { extraRelays$, lookupRelays$ } from "./settings";
+import { safeParse } from "applesauce-core/helpers";
+import { map, Observable, of, switchMap } from "rxjs";
 
-// create an account manager instance
+import { eventStore } from "./nostr";
+import { createController, type NewAccountSetup } from "./marmot/setup";
+import type { MarmotController } from "./marmot/controller";
+
+/** Account manager — this build only supports local private-key accounts. */
 export const accounts = new AccountManager();
-
-// register common account types
 registerCommonAccountTypes(accounts);
 
-// Setup nostr connect signer
-NostrConnectSigner.pool = pool;
-
-// first load all accounts from localStorage
-const json = safeParse<SerializedAccount[]>(
+// Load persisted accounts.
+const json = safeParse<SerializedAccount<unknown, unknown>[]>(
   localStorage.getItem("accounts") ?? "[]",
 );
 if (json) accounts.fromJSON(json, true);
 
-// next, subscribe to any accounts added or removed
 accounts.accounts$.subscribe(() => {
-  // save all the accounts into the "accounts" field
   localStorage.setItem("accounts", JSON.stringify(accounts.toJSON()));
 });
 
-// load active account from storage
 const active = localStorage.getItem("active");
 if (active) {
   try {
     accounts.setActive(active);
-  } catch (error) {}
+  } catch {}
 }
 
-// subscribe to active changes
 accounts.active$.subscribe((account) => {
   if (account) localStorage.setItem("active", account.id);
   else localStorage.removeItem("active");
 });
 
-/** An observable of the current active user */
+/**
+ * One-shot setup details for accounts created in this session, consumed by the
+ * controller factory so a freshly-created account publishes its initial profile
+ * and relay lists. Keyed by pubkey.
+ */
+const pendingNewAccounts = new Map<string, NewAccountSetup>();
+
+/** Create, persist, and activate a brand-new local-key account. */
+export function createNewAccount(
+  setup: NewAccountSetup & { secret?: Uint8Array | string },
+): PrivateKeyAccount<unknown> {
+  const account = setup.secret
+    ? PrivateKeyAccount.fromKey<unknown>(setup.secret)
+    : PrivateKeyAccount.generateNew<unknown>();
+  pendingNewAccounts.set(account.pubkey, {
+    name: setup.name,
+    relays: setup.relays,
+  });
+  accounts.addAccount(account);
+  accounts.setActive(account.id);
+  return account;
+}
+
+/** Import an existing local-key account from a raw secret (hex or nsec). */
+export function importAccount(
+  secret: Uint8Array | string,
+): PrivateKeyAccount<unknown> {
+  const account = PrivateKeyAccount.fromKey<unknown>(secret);
+  const existing = accounts.getAccountForPubkey(account.pubkey);
+  if (existing) {
+    accounts.setActive(existing.id);
+    return existing as PrivateKeyAccount<unknown>;
+  }
+  accounts.addAccount(account);
+  accounts.setActive(account.id);
+  return account;
+}
+
+/** An observable of the current active user (applesauce cast). */
 export const user$ = chainable(
   accounts.active$.pipe(
     map((account) => account && castUser(account.pubkey, eventStore)),
   ),
 );
 
-/** General publish method for all outgoing events */
-export async function publish(event: NostrEvent, relays?: string[]) {
-  const outboxes = await castUser(event.pubkey, eventStore).outboxes$.$first(
-    1_000,
-    undefined,
+/**
+ * The live {@link MarmotController} for the active account. Building one is
+ * async (load stores, ensure key package); the observable emits null while
+ * starting, then the started controller. Switching accounts stops the previous
+ * controller.
+ */
+export const marmotController$: Observable<MarmotController | null> =
+  accounts.active$.pipe(
+    switchMap((account) => {
+      if (!account || !(account instanceof PrivateKeyAccount)) return of(null);
+      return new Observable<MarmotController | null>((subscriber) => {
+        let controller: MarmotController | null = null;
+        let cancelled = false;
+        const setup = pendingNewAccounts.get(account.pubkey);
+        pendingNewAccounts.delete(account.pubkey);
+        subscriber.next(null);
+        createController(account as PrivateKeyAccount<unknown>, setup)
+          .then(async (c) => {
+            if (cancelled) {
+              c.stop();
+              return;
+            }
+            controller = c;
+            subscriber.next(c);
+            await c.start();
+          })
+          .catch((err) => {
+            console.error("[marmot] failed to start controller", err);
+            if (!cancelled) subscriber.next(null);
+          });
+        return () => {
+          cancelled = true;
+          controller?.stop();
+        };
+      });
+    }),
   );
-
-  // add outboxes to relays
-  relays = relaySet(relays, outboxes, extraRelays$.value);
-
-  // Add lookup relays if profile or relay list
-  if (
-    [
-      kinds.Metadata,
-      kinds.RelayList,
-      kinds.Contacts,
-      kinds.BlossomServerList,
-      KEY_PACKAGE_RELAY_LIST_KIND,
-    ].includes(event.kind)
-  ) {
-    relays = relaySet(relays, lookupRelays$.value);
-  }
-
-  // Optimiztially add event to the store
-  eventStore.add(event);
-
-  // Publish event to all relays
-  await pool.publish(relays, event);
-}
-
-// Create an action runner for the current active account
-export const actions = new ActionRunner(eventStore, accounts.signer, publish);
-
-export default accounts;
