@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "skills": {
+    "applesauce": {
+      "source": "applesauce.build",
+      "sourceType": "well-known",
+      "computedHash": "30c66628e130febe9e6dfe9d77e627d8adf4aaf18a1991cccd11ffc211f8e15e"
+    },
+    "shadcn": {
+      "source": "shadcn/ui",
+      "sourceType": "github",
+      "skillPath": "skills/shadcn/SKILL.md",
+      "computedHash": "ac9d0d69caac7de1d1e5647f3db3bcd2f13af355d6b3a78780fbf7fc80e8dca0"
+    }
+  }
+}
