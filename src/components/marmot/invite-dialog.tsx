@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useController } from "@/hooks/use-marmot";
 import type { InviteCandidates } from "@/lib/marmot/controller";
+import { formatTimeAgo } from "@/lib/time";
 
 export function InviteDialog({
   groupId,
@@ -29,16 +30,19 @@ export function InviteDialog({
   const [inviting, setInviting] = useState(false);
   const [result, setResult] = useState<InviteCandidates | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
     setInput("");
     setResult(null);
     setSelected(new Set());
+    setError(null);
   };
 
   const search = async () => {
     if (!controller || !input.trim()) return;
     setLoading(true);
+    setError(null);
     setResult(null);
     const candidates = await controller.loadInviteCandidates(groupId, input.trim());
     setLoading(false);
@@ -53,6 +57,7 @@ export function InviteDialog({
   const invite = async () => {
     if (!controller || !result || inviting) return;
     setInviting(true);
+    setError(null);
     try {
       const events = result.candidates
         .filter((c) => selected.has(c.id))
@@ -60,6 +65,8 @@ export function InviteDialog({
       await controller.inviteKeyPackages(groupId, events);
       reset();
       onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send invite");
     } finally {
       setInviting(false);
     }
@@ -131,11 +138,21 @@ export function InviteDialog({
                       : c.invitable
                         ? "invitable"
                         : c.reasons.join(", ") || "not invitable"}
+                    {" · "}
+                    <span title={new Date(c.createdAt * 1000).toLocaleString()}>
+                      published {formatTimeAgo(c.createdAt)}
+                    </span>
                   </div>
                 </div>
               </label>
             ))}
           </div>
+        )}
+
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
         )}
 
         <DialogFooter>

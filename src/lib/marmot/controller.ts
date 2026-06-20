@@ -429,7 +429,13 @@ export class MarmotController {
   }
 
   async inviteKeyPackages(groupId: string, events: NostrEvent[]): Promise<void> {
-    await this.#withBusy(async () => {
+    // Note: this does NOT go through #withBusy — that helper swallows errors and
+    // no-ops when the client has stopped, which would let the invite dialog
+    // close as if the send succeeded. Callers need failures to propagate.
+    if (this.#watchAbort) throw new Error("client is not running");
+    this.#busy = true;
+    this.#publish();
+    try {
       const group = this.#groups.get(groupId);
       if (!group) throw new Error("group is not loaded");
       if (!events.length) throw new Error("no key packages selected");
@@ -446,7 +452,13 @@ export class MarmotController {
       this.log(
         `invited ${events.length} key package(s) to "${groupName(group)}"`,
       );
-    });
+    } catch (err) {
+      this.logError(err);
+      throw err;
+    } finally {
+      this.#busy = false;
+      this.#publish();
+    }
   }
 
   #describeCandidate(group: MarmotGroup, event: NostrEvent): InviteCandidate {
