@@ -13,8 +13,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { QrCode } from "lucide-react";
+
 import { UserAvatar } from "@/components/user";
 import { KeyPackagesCard } from "@/components/marmot/key-packages-card";
+import { MyQrDialog } from "@/components/marmot/my-qr-dialog";
 import { accounts } from "@/lib/accounts";
 import { useChat, useController } from "@/hooks/use-marmot";
 import { useProfile } from "@/hooks/use-profile";
@@ -31,6 +34,7 @@ export function SettingsPage() {
   const [picture, setPicture] = useState("");
   const [outbox, setOutbox] = useState("");
   const [inbox, setInbox] = useState("");
+  const [showQr, setShowQr] = useState(false);
 
   useEffect(() => {
     setName(profile?.name ?? "");
@@ -78,6 +82,9 @@ export function SettingsPage() {
           <CardContent className="space-y-3">
             <div className="flex items-center gap-3">
               <UserAvatar pubkey={snapshot.me.pubkey} size={48} />
+              <Button variant="outline" size="sm" onClick={() => setShowQr(true)}>
+                <QrCode className="size-4" /> Show invite QR
+              </Button>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="p-name">Name</Label>
@@ -159,6 +166,8 @@ export function SettingsPage() {
             </Button>
           </CardContent>
         </Card>
+
+        <MyQrDialog npub={snapshot.me.npub} open={showQr} onOpenChange={setShowQr} />
       </div>
     </div>
   );

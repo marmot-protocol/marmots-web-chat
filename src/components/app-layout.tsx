@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
-import { Plus, Settings } from "lucide-react";
+import { Plus, QrCode, Settings } from "lucide-react";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { MyQrDialog } from "@/components/marmot/my-qr-dialog";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,7 @@ export function AppLayout() {
   const isMobile = useIsMobile();
   const location = useLocation();
   const [newGroup, setNewGroup] = useState(false);
+  const [showQr, setShowQr] = useState(false);
 
   // On mobile, show the sidebar OR the detail pane, never both. The list lives
   // at /groups; everything else (a group chat, settings) is a detail view.
@@ -99,6 +101,14 @@ export function AppLayout() {
               </div>
             </>
           )}
+          <Button
+            size="icon"
+            variant="ghost"
+            title="Show my invite QR"
+            onClick={() => setShowQr(true)}
+          >
+            <QrCode className="size-4" />
+          </Button>
           <Button size="icon" variant="ghost" onClick={() => navigate("/settings")}>
             <Settings className="size-4" />
           </Button>
@@ -110,6 +120,13 @@ export function AppLayout() {
       </main>
 
       <NewGroupDialog open={newGroup} onOpenChange={setNewGroup} />
+      {snapshot && (
+        <MyQrDialog
+          npub={snapshot.me.npub}
+          open={showQr}
+          onOpenChange={setShowQr}
+        />
+      )}
     </div>
   );
 }

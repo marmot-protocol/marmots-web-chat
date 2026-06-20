@@ -23,6 +23,10 @@ export function useGroupMessages(groupId: string | undefined): NostrEvent[] {
 
 /** The id of the message a chat rumor replies to (NIP-C7), if any. */
 export function getReplyToId(message: NostrEvent): string | null {
+  // NIP-C7 quotes the parent with a `q` tag.
+  const q = message.tags.find((t) => t[0] === "q" && t[1]);
+  if (q) return q[1];
+  // Fallback for legacy messages that used NIP-10 `e`/marker tags.
   const tags = message.tags.filter((t) => t[0] === "e" && t[1]);
   if (tags.length === 0) return null;
   const reply = tags.find((t) => t[3] === "reply");

@@ -578,12 +578,7 @@ export class MarmotController {
   ): Promise<void> {
     const group = this.#requireGroup(groupId);
     const pubkey = await group.signer.getPublicKey();
-    const tags = replyTo
-      ? [
-          ["e", replyTo.id, "", "reply"],
-          ["p", replyTo.pubkey],
-        ]
-      : undefined;
+    const tags = replyTo ? [["q", replyTo.id, "", replyTo.pubkey]] : undefined;
     const rumor = createChatRumor({ pubkey, content: text, tags });
     await this.#client.groups.send(group.id, createApplicationMessageIntent(rumor));
   }
