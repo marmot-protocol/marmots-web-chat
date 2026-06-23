@@ -1,0 +1,17 @@
+{
+  "bunkerPubkey": "266815e0c9210dfa324c6cba3573b14bee49da4209a9456f9484e5106cd408a5",
+  "relays": [
+    "wss://relay.primal.net",
+    "wss://relay.damus.io",
+    "wss://nsite.run",
+    "wss://relay.nsite.lol"
+  ],
+  "servers": [
+    "https://cdn.hzrd149.com",
+    "https://blssm.us",
+    "https://nostr.download"
+  ],
+  "id": "marmots-chat",
+  "title": "Marmot Web Chat",
+  "description": "A reference implementation of marmot-ts"
+}
