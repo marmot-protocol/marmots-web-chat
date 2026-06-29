@@ -12,13 +12,20 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { QrCode } from "lucide-react";
+import { QrCode, Upload } from "lucide-react";
+import { use$ } from "applesauce-react/hooks";
 
 import { UserAvatar } from "@/components/user";
 import { KeyPackagesCard } from "@/components/marmot/key-packages-card";
 import { MyQrDialog } from "@/components/marmot/my-qr-dialog";
 import { accounts } from "@/lib/accounts";
+import {
+  auditEnabled$,
+  auditUploadEndpoint$,
+  auditUploadToken$,
+} from "@/lib/settings";
 import { useChat, useController } from "@/hooks/use-marmot";
 import { useProfile } from "@/hooks/use-profile";
 
@@ -36,6 +43,10 @@ export function SettingsPage() {
   const [inbox, setInbox] = useState("");
   const [showQr, setShowQr] = useState(false);
 
+  const auditEnabled = use$(auditEnabled$) ?? false;
+  const auditEndpoint = use$(auditUploadEndpoint$) ?? "";
+  const auditToken = use$(auditUploadToken$) ?? "";
+
   useEffect(() => {
     setName(profile?.name ?? "");
     setAbout(profile?.about ?? "");
@@ -50,7 +61,10 @@ export function SettingsPage() {
   }, [snapshot?.outboxRelays, snapshot?.inboxRelays]);
 
   const parseRelays = (value: string) =>
-    value.split(/[\s,]+/).map((r) => r.trim()).filter(Boolean);
+    value
+      .split(/[\s,]+/)
+      .map((r) => r.trim())
+      .filter(Boolean);
 
   const signOut = () => {
     accounts.clearActive();
@@ -82,13 +96,21 @@ export function SettingsPage() {
           <CardContent className="space-y-3">
             <div className="flex items-center gap-3">
               <UserAvatar pubkey={snapshot.me.pubkey} size={48} />
-              <Button variant="outline" size="sm" onClick={() => setShowQr(true)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowQr(true)}
+              >
                 <QrCode className="size-4" /> Show invite QR
               </Button>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="p-name">Name</Label>
-              <Input id="p-name" value={name} onChange={(e) => setName(e.target.value)} />
+              <Input
+                id="p-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="p-picture">Picture URL</Label>
@@ -120,8 +142,8 @@ export function SettingsPage() {
           <CardHeader>
             <CardTitle>Relays</CardTitle>
             <CardDescription>
-              Outbox (NIP-65) is where your key packages live; inbox (kind 10050)
-              is where invites are delivered. One relay per line.
+              Outbox (NIP-65) is where your key packages live; inbox (kind
+              10050) is where invites are delivered. One relay per line.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -145,7 +167,10 @@ export function SettingsPage() {
             </div>
             <Button
               onClick={() =>
-                controller?.saveRelayLists(parseRelays(outbox), parseRelays(inbox))
+                controller?.saveRelayLists(
+                  parseRelays(outbox),
+                  parseRelays(inbox),
+                )
               }
               disabled={!controller || snapshot.busy}
             >
@@ -158,6 +183,62 @@ export function SettingsPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Audit log</CardTitle>
+            <CardDescription>
+              Opt-in forensic logging of MLS and transport events for this
+              account. Identity is hashed; you can upload the log to a Goggles
+              tracker to help diagnose protocol issues. Toggling takes effect
+              after you sign in again or reload.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="a-enabled">Record audit log</Label>
+              <Switch
+                id="a-enabled"
+                checked={auditEnabled}
+                onCheckedChange={(v) => auditEnabled$.next(v)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="a-endpoint">Tracker endpoint</Label>
+              <Input
+                id="a-endpoint"
+                value={auditEndpoint}
+                onChange={(e) => auditUploadEndpoint$.next(e.target.value)}
+                placeholder="https://goggles.ipf.dev/"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="a-token">Bearer token</Label>
+              <Input
+                id="a-token"
+                type="password"
+                value={auditToken}
+                onChange={(e) => auditUploadToken$.next(e.target.value)}
+                placeholder="required for non-loopback trackers"
+              />
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => controller?.uploadAuditLog()}
+              disabled={!snapshot.canUploadAudit || snapshot.busy}
+            >
+              <Upload className="size-4" />
+              {snapshot.busy ? "Working…" : "Upload audit log"}
+            </Button>
+            {!snapshot.canUploadAudit && (
+              <p className="text-xs text-muted-foreground">
+                {auditEnabled
+                  ? "Reload to start recording, then upload becomes available."
+                  : "Enable recording (and set an endpoint) to upload."}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Account</CardTitle>
           </CardHeader>
           <CardContent>
@@ -167,7 +248,11 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
-        <MyQrDialog npub={snapshot.me.npub} open={showQr} onOpenChange={setShowQr} />
+        <MyQrDialog
+          npub={snapshot.me.npub}
+          open={showQr}
+          onOpenChange={setShowQr}
+        />
       </div>
     </div>
   );

@@ -48,6 +48,11 @@ import {
 
 import type { Directory } from "./discovery";
 import type { MarmotNetwork } from "./network";
+import {
+  uploadAuditLog,
+  type AuditUploadSource,
+  type BrowserAuditRecorder,
+} from "./audit";
 
 /** Kinds projected into the per-group timeline: chat (9) + reactions (7). */
 const TIMELINE_KINDS = [9, 7];
@@ -134,6 +139,21 @@ function createRumor(options: {
   return rumor;
 }
 
+/**
+ * Where (and how) to upload this device's audit JSONL. Set when audit logging is
+ * enabled with an endpoint; absent leaves {@link MarmotController.uploadAuditLog}
+ * a no-op. Account identity is NOT sent here — it lives in the JSONL rows; only
+ * the non-identifying client labels travel as `X-Goggles-*` headers.
+ */
+export interface AuditUploadConfig {
+  /** Goggles tracker endpoint (https, or loopback http for local testing). */
+  endpoint: string;
+  /** Bearer token; required for non-loopback endpoints. */
+  bearerToken?: string;
+  /** Non-identifying client labels sent as `X-Goggles-*` headers. */
+  source?: AuditUploadSource;
+}
+
 export interface MarmotControllerOptions {
   client: MarmotClient;
   network: MarmotNetwork;
@@ -148,6 +168,10 @@ export interface MarmotControllerOptions {
   fresh: boolean;
   /** This device's key-package slot (`d` tag / clientId). */
   clientId: string;
+  /** Forensic audit recorder when opt-in audit logging is enabled. */
+  audit?: BrowserAuditRecorder;
+  /** Goggles upload target for the audit JSONL; absent disables uploading. */
+  auditUpload?: AuditUploadConfig;
   /** Display name to publish as the kind 0 profile on first start (fresh only). */
   initialProfileName?: string;
 }
@@ -216,6 +240,8 @@ export interface ChatSnapshot {
   pagination: Record<string, PaginationState>;
   status: StatusLine[];
   busy: boolean;
+  /** True when audit logging is active AND an upload target is configured. */
+  canUploadAudit: boolean;
 }
 
 type Listener = () => void;
@@ -237,6 +263,8 @@ export class MarmotController {
   readonly #relays: string[];
   readonly #fresh: boolean;
   readonly #clientId: string;
+  readonly #audit?: BrowserAuditRecorder;
+  readonly #auditUpload?: AuditUploadConfig;
   readonly #initialProfileName?: string;
 
   /** Adapts the account signer to the function-shaped signer Blossom expects. */
@@ -287,6 +315,8 @@ export class MarmotController {
     this.#relays = options.relays;
     this.#fresh = options.fresh;
     this.#clientId = options.clientId;
+    this.#audit = options.audit;
+    this.#auditUpload = options.auditUpload;
     this.#initialProfileName = options.initialProfileName;
     this.#outboxRelays = this.#fresh ? this.#relays : [];
     this.#inboxRelays = this.#fresh ? this.#relays : [];
@@ -371,6 +401,9 @@ export class MarmotController {
     for (const gen of this.#historySubs.values()) void gen.return(undefined);
     this.#historySubs.clear();
     this.#network.close();
+    // Flush the in-memory audit buffer to its OPFS file so the log survives the
+    // teardown; best-effort, never blocks stop().
+    void this.#audit?.close();
   }
 
   // --- actions ---------------------------------------------------------------
@@ -931,6 +964,35 @@ export class MarmotController {
     this.log(err instanceof Error ? err.message : String(err), "error");
   }
 
+  /** True when an audit log is being recorded *and* an upload target is set. */
+  get canUploadAudit(): boolean {
+    return Boolean(this.#audit && this.#auditUpload);
+  }
+
+  /**
+   * Upload this device's audit JSONL to the configured Goggles tracker. A no-op
+   * (returns null) when auditing or an upload endpoint isn't configured. The
+   * recorder keeps the full log in memory, so this is safe to call repeatedly
+   * while the app runs. Best-effort: any failure is logged and swallowed.
+   */
+  async uploadAuditLog(): Promise<void> {
+    if (!this.#audit || !this.#auditUpload) return;
+    await this.#withBusy(async () => {
+      this.log(`uploading audit log to ${this.#auditUpload!.endpoint}…`);
+      const result = await uploadAuditLog(
+        this.#audit!.readNdjson(),
+        this.#auditUpload!.endpoint,
+        {
+          bearerToken: this.#auditUpload!.bearerToken,
+          source: this.#auditUpload!.source,
+        },
+      );
+      this.log(
+        `uploaded audit log — ${result.bytesSent} bytes, HTTP ${result.status}`,
+      );
+    });
+  }
+
   // --- internals -------------------------------------------------------------
 
   async #withBusy(fn: () => Promise<void>): Promise<void> {
@@ -1207,6 +1269,7 @@ export class MarmotController {
       pagination,
       status: this.#status,
       busy: this.#busy,
+      canUploadAudit: this.canUploadAudit,
     };
   }
 }

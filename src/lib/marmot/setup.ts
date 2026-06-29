@@ -9,17 +9,35 @@ import {
   MarmotClient,
   type StoredMedia,
 } from "@internet-privacy/marmot-ts";
+import {
+  AuditEmitter,
+  deriveAccountRef,
+  deriveEngineId,
+  type AuditContextOptions,
+} from "@internet-privacy/marmot-ts/audit";
 import { KeyValueRumorHistoryBackend } from "@internet-privacy/marmot-ts/extra";
 
 import { eventStore, pool } from "@/lib/nostr";
-import { extraRelays$, DEFAULT_NEW_ACCOUNT_RELAY } from "@/lib/settings";
+import {
+  extraRelays$,
+  DEFAULT_NEW_ACCOUNT_RELAY,
+  auditEnabled$,
+  auditUploadEndpoint$,
+  auditUploadToken$,
+} from "@/lib/settings";
 
 import { resolveAccountProofSigner } from "./account-proof";
+import {
+  APP_VERSION,
+  BrowserAuditRecorder,
+  auditFileName,
+  getDeviceId,
+} from "./audit";
 import { Directory } from "./discovery";
 import { MarmotNetwork } from "./network";
 import { PrefixedKeyValueStore } from "./prefixed-store";
 import { makeStore } from "./stores";
-import { MarmotController } from "./controller";
+import { MarmotController, type AuditUploadConfig } from "./controller";
 
 /** This device's key-package slot (`d` tag). One web client per account. */
 const CLIENT_ID = "marmot-web";
@@ -100,10 +118,56 @@ export async function createController(
       new PrefixedKeyValueStore(mediaStore, bytesToHex(groupId) + ":"),
     );
 
+  // Opt-in forensic audit logging. When enabled, a per-account+device JSONL
+  // recorder is wired into the marmot client; the source-context row carries the
+  // (hashed) account ref. The recorder is also handed to the controller so the
+  // user can upload it to a Goggles tracker on demand. Disabled accounts pass no
+  // sink, so the library never records.
+  let audit: BrowserAuditRecorder | undefined;
+  let auditContext: AuditContextOptions | undefined;
+  let auditUpload: AuditUploadConfig | undefined;
+  if (auditEnabled$.value) {
+    const deviceId = getDeviceId();
+    const engineId = deriveEngineId(pubkey, deviceId);
+    audit = await BrowserAuditRecorder.open(auditFileName(engineId));
+    auditContext = {
+      engineId,
+      accountRef: deriveAccountRef(pubkey),
+      recorderSessionId: crypto.randomUUID(),
+      dataMode: "obfuscated_sensitive_data",
+      source: {
+        device_id: deviceId,
+        platform: "web",
+        app_version: APP_VERSION,
+        upload_trigger: "marmot_web",
+      },
+    };
+    const emitter = new AuditEmitter({ ...auditContext, sink: audit });
+    emitter.emit({ type: "recorder_started", recorder: "marmot-web" });
+    emitter.emit({ type: "source_context", source: auditContext.source! });
+
+    const endpoint = auditUploadEndpoint$.value.trim();
+    if (endpoint) {
+      auditUpload = {
+        endpoint,
+        // Only non-identifying client labels become headers; the account ref
+        // stays inside the JSONL rows.
+        bearerToken: auditUploadToken$.value.trim() || undefined,
+        source: {
+          deviceLabel: "marmot-web",
+          platform: "web",
+          appVersion: APP_VERSION,
+        },
+      };
+    }
+  }
+
   const client = new MarmotClient({
     signer: account.signer,
     accountProofSigner: proofSigner,
     network,
+    audit,
+    auditContext,
     groupStateStore: makeStore(pubkey, "groups"),
     keyPackageStore: makeStore(pubkey, "keypackages"),
     inviteStore: makeStore(pubkey, "invites"),
@@ -122,6 +186,8 @@ export async function createController(
     relays: bootstrapRelays,
     fresh,
     clientId: CLIENT_ID,
+    audit,
+    auditUpload,
     initialProfileName: newAccount?.name?.trim() || undefined,
   });
 }

@@ -1,6 +1,8 @@
 import { relaySet } from "applesauce-core/helpers";
 import { BehaviorSubject } from "rxjs";
 
+import { DEFAULT_GOGGLES_ENDPOINT } from "./marmot/audit";
+
 /** Persist a BehaviorSubject to localStorage under `key`. */
 export function persist<T>(key: string, subject: BehaviorSubject<T>) {
   try {
@@ -40,3 +42,22 @@ persist("lookup-relays", lookupRelays$);
 /** Automatically publish a key package on startup if none exists. */
 export const autoCreateKeyPackage$ = new BehaviorSubject<boolean>(true);
 persist("auto-create-key-package", autoCreateKeyPackage$);
+
+/**
+ * Opt-in forensic audit logging. When enabled, the controller records a
+ * MLS/transport audit JSONL for the active account (off by default). Toggling
+ * takes effect the next time a controller starts (sign in / reload), because the
+ * audit sink is wired into the marmot client at construction.
+ */
+export const auditEnabled$ = new BehaviorSubject<boolean>(false);
+persist("audit-enabled", auditEnabled$);
+
+/** Goggles tracker the audit log uploads to. */
+export const auditUploadEndpoint$ = new BehaviorSubject<string>(
+  DEFAULT_GOGGLES_ENDPOINT,
+);
+persist("audit-upload-endpoint", auditUploadEndpoint$);
+
+/** Bearer token for the tracker (required for non-loopback endpoints). */
+export const auditUploadToken$ = new BehaviorSubject<string>("");
+persist("audit-upload-token", auditUploadToken$);
