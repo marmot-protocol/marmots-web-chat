@@ -44,6 +44,18 @@ export const autoCreateKeyPackage$ = new BehaviorSubject<boolean>(true);
 persist("auto-create-key-package", autoCreateKeyPackage$);
 
 /**
+ * Developer debug mode. When enabled, the marmot engine is configured to retain
+ * and process *everything* — the full per-group fork-history tree is persisted
+ * (so it survives reloads) and undecryptable events are kept indefinitely for
+ * retry — and each group exposes a debug view (fork graph + pending events).
+ * Off by default; like the audit toggle it takes effect the next time a
+ * controller starts (sign in / reload), because the retention config is wired
+ * into the marmot client at construction.
+ */
+export const debugMode$ = new BehaviorSubject<boolean>(false);
+persist("debug-mode", debugMode$);
+
+/**
  * Opt-in forensic audit logging. When enabled, the controller records a
  * MLS/transport audit JSONL for the active account (off by default). Toggling
  * takes effect the next time a controller starts (sign in / reload), because the

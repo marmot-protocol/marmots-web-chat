@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, GitFork, UserPlus, Users } from "lucide-react";
+import { use$ } from "applesauce-react/hooks";
 
 import { Button } from "@/components/ui/button";
 import { Jdenticon } from "@/components/jdenticon";
@@ -9,11 +10,13 @@ import { InviteDialog } from "@/components/marmot/invite-dialog";
 import { MembersDialog } from "@/components/marmot/members-dialog";
 import { GroupInfoDialog } from "@/components/marmot/group-info-dialog";
 import { useChat, useController } from "@/hooks/use-marmot";
+import { debugMode$ } from "@/lib/settings";
 
 export function GroupChatPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const controller = useController();
+  const debugEnabled = use$(debugMode$) ?? false;
   // Re-render on group state changes (rename, membership).
   useChat();
   const [invite, setInvite] = useState(false);
@@ -68,6 +71,16 @@ export function GroupChatPage() {
         <Button size="icon" variant="ghost" onClick={() => setMembers(true)}>
           <Users className="size-4" />
         </Button>
+        {debugEnabled && (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => navigate(`/groups/${id}/debug`)}
+            title="Debug: fork graph & pending events"
+          >
+            <GitFork className="size-4" />
+          </Button>
+        )}
       </header>
 
       <div className="min-h-0 flex-1">

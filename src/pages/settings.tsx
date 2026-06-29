@@ -25,6 +25,7 @@ import {
   auditEnabled$,
   auditUploadEndpoint$,
   auditUploadToken$,
+  debugMode$,
 } from "@/lib/settings";
 import { useChat, useController } from "@/hooks/use-marmot";
 import { useProfile } from "@/hooks/use-profile";
@@ -46,6 +47,7 @@ export function SettingsPage() {
   const auditEnabled = use$(auditEnabled$) ?? false;
   const auditEndpoint = use$(auditUploadEndpoint$) ?? "";
   const auditToken = use$(auditUploadToken$) ?? "";
+  const debugMode = use$(debugMode$) ?? false;
 
   useEffect(() => {
     setName(profile?.name ?? "");
@@ -234,6 +236,31 @@ export function SettingsPage() {
                   : "Enable recording (and set an endpoint) to upload."}
               </p>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Developer</CardTitle>
+            <CardDescription>
+              Debug mode configures the marmot engine to retain and process{" "}
+              <em>everything</em>: the full per-group fork-history tree is
+              persisted (so it survives reloads) and undecryptable events are
+              kept for retry. Each group then gets a debug view with a fork
+              graph and pending-events list, so you can see at a glance when a
+              fork happens and which branch your client is following. Takes
+              effect after you sign in again or reload.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="d-enabled">Enable debug mode</Label>
+              <Switch
+                id="d-enabled"
+                checked={debugMode}
+                onCheckedChange={(v) => debugMode$.next(v)}
+              />
+            </div>
           </CardContent>
         </Card>
 

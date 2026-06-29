@@ -42,7 +42,10 @@ export class LocalForageStore<T> implements GenericKeyValueStore<T> {
 }
 
 /** Build a per-account KV store for one logical table (groups, keypackages, …). */
-export function makeStore<T>(pubkey: string, table: string): LocalForageStore<T> {
+export function makeStore<T>(
+  pubkey: string,
+  table: string,
+): LocalForageStore<T> {
   return new LocalForageStore<T>(`marmot:${pubkey}`, table);
 }
 
@@ -54,6 +57,7 @@ export async function purgeAccountStores(pubkey: string): Promise<void> {
     "invites",
     "messages",
     "media",
+    "rewind",
   ]) {
     await new LocalForageStore(pubkey, table).clear();
   }

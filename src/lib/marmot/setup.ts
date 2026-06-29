@@ -4,6 +4,7 @@ import { normalizeRelayUrl } from "applesauce-core/helpers";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 
 import {
+  DEFAULT_CONVERGENCE_POLICY,
   GroupMediaStore,
   GroupRumorHistory,
   MarmotClient,
@@ -24,6 +25,7 @@ import {
   auditEnabled$,
   auditUploadEndpoint$,
   auditUploadToken$,
+  debugMode$,
 } from "@/lib/settings";
 
 import { resolveAccountProofSigner } from "./account-proof";
@@ -162,6 +164,26 @@ export async function createController(
     }
   }
 
+  // Developer debug mode: configure the engine to retain and process
+  // EVERYTHING, the same way the `marmot-tunnels` debugger does. A dedicated
+  // `rewind` store persists each group's full fork-history tree so it survives a
+  // reload; the convergence policy keeps forks of any age eligible and never
+  // expires an app-payload witness; and the ingestion pool holds undecryptable
+  // events indefinitely for retry. Disabled accounts use the library defaults
+  // (bounded retention, in-memory fork history rebuilt from the current tip).
+  const debug = debugMode$.value;
+  const debugRetention = debug
+    ? {
+        rewindStore: makeStore<Uint8Array>(pubkey, "rewind"),
+        convergencePolicy: {
+          ...DEFAULT_CONVERGENCE_POLICY,
+          maxRewindCommits: Infinity,
+          appPayloadPastEpochLimit: Infinity,
+        },
+        ingestionPool: { maxSize: Infinity, maxEpochAge: Infinity },
+      }
+    : {};
+
   const client = new MarmotClient({
     signer: account.signer,
     accountProofSigner: proofSigner,
@@ -174,6 +196,7 @@ export async function createController(
     historyFactory,
     mediaFactory,
     clientId: CLIENT_ID,
+    ...debugRetention,
   });
 
   return new MarmotController({
