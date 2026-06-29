@@ -27,12 +27,24 @@ import {
 } from "@internet-privacy/marmot-ts/client";
 import {
   ADDRESSABLE_KEY_PACKAGE_KIND,
+  BLOSSOM_LOCATOR_KIND,
   createInboxRelayListEvent,
   createNip65RelayListEvent,
+  encodeMediaImetaTag,
+  encryptedMediaBlossomDefault,
   getKeyPackageIdentifier,
   getKeyPackageReference,
+  resolveMediaFetchUrls,
+  type EncryptedMediaPolicyV1,
+  type MediaAttachment,
 } from "@internet-privacy/marmot-ts";
 import type { Proposal } from "@internet-privacy/marmot-ts/mls";
+import {
+  Actions,
+  createUploadAuth,
+  type SignedEvent,
+  type Signer as BlossomSigner,
+} from "blossom-client-sdk";
 
 import type { Directory } from "./discovery";
 import type { MarmotNetwork } from "./network";
@@ -44,6 +56,22 @@ const REACTION_KIND = 7;
 
 /** How many of the newest messages the live history window holds per group. */
 const HISTORY_WINDOW = 50;
+
+/** Suggested Blossom servers when enabling encrypted media on a group. */
+export const DEFAULT_BLOSSOM_SERVERS = ["https://blossom.primal.net"];
+
+/** Best-effort `<width>x<height>` render hint for an image file. */
+async function imageDimensions(file: File): Promise<string | undefined> {
+  if (!file.type.startsWith("image/")) return undefined;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const dim = `${bitmap.width}x${bitmap.height}`;
+    bitmap.close();
+    return dim;
+  } catch {
+    return undefined;
+  }
+}
 
 /** Minimal signer shape (applesauce `EventSigner`) the controller needs. */
 type Signer = {
@@ -211,6 +239,10 @@ export class MarmotController {
   readonly #clientId: string;
   readonly #initialProfileName?: string;
 
+  /** Adapts the account signer to the function-shaped signer Blossom expects. */
+  readonly #blossomSigner: BlossomSigner = async (draft) =>
+    (await this.#signer.signEvent(draft)) as unknown as SignedEvent;
+
   readonly #groups = new Map<string, MarmotGroup>();
   readonly #bound = new Set<string>();
   /** Per-group rumor timeline store (kind 9 + 7), the source of the rendered chat. */
@@ -291,6 +323,15 @@ export class MarmotController {
     return this.#groups.get(idStr);
   }
 
+  /**
+   * The group's encrypted-media policy (component `0x8008`), or null when media
+   * is not enabled. Read during render alongside {@link useChat} — group
+   * `stateChanged` bumps the snapshot, so callers re-render when it changes.
+   */
+  getGroupMediaPolicy(idStr: string): EncryptedMediaPolicyV1 | null {
+    return this.#groups.get(idStr)?.groupData?.encryptedMedia ?? null;
+  }
+
   // --- lifecycle -------------------------------------------------------------
 
   async start(): Promise<void> {
@@ -346,8 +387,11 @@ export class MarmotController {
   ): Promise<string | null> {
     let createdId: string | null = null;
     await this.#withBusy(async () => {
-      const groupRelays = normalizeRelays(options?.relays ?? this.#outboxRelays);
-      if (!groupRelays.length) throw new Error("group needs at least one relay");
+      const groupRelays = normalizeRelays(
+        options?.relays ?? this.#outboxRelays,
+      );
+      if (!groupRelays.length)
+        throw new Error("group needs at least one relay");
       const group = await this.#client.groups.create(name, {
         description: options?.description,
         relays: groupRelays,
@@ -377,7 +421,10 @@ export class MarmotController {
       // packages live — and search THOSE specifically. Unioning with the
       // bootstrap relays surfaces stale key packages lingering on big public
       // relays; only fall back to bootstrap when no outbox can be found.
-      const discovered = await this.#directory.outboxes(pubkeyHex, this.#relays);
+      const discovered = await this.#directory.outboxes(
+        pubkeyHex,
+        this.#relays,
+      );
       const searchRelays = discovered.length
         ? relaySet(discovered)
         : relaySet(this.#relays);
@@ -403,7 +450,8 @@ export class MarmotController {
       for (const event of kps) {
         const slot = getKeyPackageIdentifier(event) ?? event.id;
         const prev = bySlot.get(slot);
-        if (!prev || event.created_at > prev.created_at) bySlot.set(slot, event);
+        if (!prev || event.created_at > prev.created_at)
+          bySlot.set(slot, event);
       }
       const candidates = [...bySlot.values()]
         .sort((a, b) => b.created_at - a.created_at)
@@ -428,7 +476,10 @@ export class MarmotController {
     }
   }
 
-  async inviteKeyPackages(groupId: string, events: NostrEvent[]): Promise<void> {
+  async inviteKeyPackages(
+    groupId: string,
+    events: NostrEvent[],
+  ): Promise<void> {
     // Note: this does NOT go through #withBusy — that helper swallows errors and
     // no-ops when the client has stopped, which would let the invite dialog
     // close as if the send succeeded. Callers need failures to propagate.
@@ -446,7 +497,9 @@ export class MarmotController {
         keyPackageEvent: event,
       }));
       await this.#client.groups.commit(group.id, {
-        extraProposals: events.map((event) => Proposals.proposeInviteUser(event)),
+        extraProposals: events.map((event) =>
+          Proposals.proposeInviteUser(event),
+        ),
         welcomeRecipients: recipients,
       });
       this.log(
@@ -533,7 +586,9 @@ export class MarmotController {
         group.session.proposalContext(),
       );
       if (!proposal) return;
-      await this.#client.groups.commit(group.id, { extraProposals: [proposal] });
+      await this.#client.groups.commit(group.id, {
+        extraProposals: [proposal],
+      });
       this.log(`updated group info`);
     });
   }
@@ -555,7 +610,9 @@ export class MarmotController {
         adminPubkeys: next,
       })(group.session.proposalContext());
       if (!proposal) return;
-      await this.#client.groups.commit(group.id, { extraProposals: [proposal] });
+      await this.#client.groups.commit(group.id, {
+        extraProposals: [proposal],
+      });
       this.log(`${makeAdmin ? "promoted" : "demoted"} ${npubShort(pubkey)}`);
     });
   }
@@ -592,7 +649,135 @@ export class MarmotController {
     const pubkey = await group.signer.getPublicKey();
     const tags = replyTo ? [["q", replyTo.id, "", replyTo.pubkey]] : undefined;
     const rumor = createChatRumor({ pubkey, content: text, tags });
-    await this.#client.groups.send(group.id, createApplicationMessageIntent(rumor));
+    await this.#client.groups.send(
+      group.id,
+      createApplicationMessageIntent(rumor),
+    );
+  }
+
+  /**
+   * Encrypt a file with the group's per-epoch media key, upload the ciphertext
+   * to a Blossom server from the group's media policy, then send a kind 9
+   * message carrying the attachment's `imeta` tag (optionally as a reply, with
+   * an optional caption). Throws if the group has no encrypted-media policy.
+   */
+  async sendMedia(
+    groupId: string,
+    file: File,
+    caption?: string,
+    replyTo?: { id: string; pubkey: string },
+  ): Promise<void> {
+    const group = this.#requireGroup(groupId);
+    const policy = group.groupData?.encryptedMedia;
+    if (!policy) throw new Error("media is not enabled for this group");
+    const servers = policy.defaultBlobEndpoints
+      .filter((e) => e.locatorKind === BLOSSOM_LOCATOR_KIND)
+      .map((e) => e.baseUrl);
+    if (!servers.length) {
+      throw new Error("this group's media policy has no Blossom server");
+    }
+
+    const dim = await imageDimensions(file);
+    const { encrypted, attachment } = await group.encryptMedia(file, {
+      filename: file.name,
+      type: file.type || undefined,
+      dim,
+    });
+
+    // The ciphertext's SHA-256 is its Blossom content id, so the auth event is
+    // bound to attachment.ciphertextSha256 and the same blob bytes are uploaded.
+    const blob = new Blob([encrypted as BlobPart]);
+    const auth = await createUploadAuth(
+      this.#blossomSigner,
+      attachment.ciphertextSha256,
+      { message: `Upload ${file.name}` },
+    );
+    let url: string | undefined;
+    let lastErr: unknown;
+    for (const server of servers) {
+      try {
+        const descriptor = await Actions.uploadBlob(server, blob, { auth });
+        url = descriptor.url;
+        break;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    if (!url) {
+      throw new Error(
+        `failed to upload media: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
+      );
+    }
+    attachment.locators.push({ kind: BLOSSOM_LOCATOR_KIND, value: url });
+
+    const pubkey = await group.signer.getPublicKey();
+    const tags: string[][] = [encodeMediaImetaTag(attachment)];
+    if (replyTo) tags.push(["q", replyTo.id, "", replyTo.pubkey]);
+    const rumor = createChatRumor({ pubkey, content: caption ?? "", tags });
+    await this.#client.groups.send(
+      group.id,
+      createApplicationMessageIntent(rumor),
+    );
+  }
+
+  /**
+   * Download an attachment from a policy-allowed locator and decrypt it,
+   * verifying the ciphertext and plaintext hashes. Decrypted bytes are cached
+   * by the library, so repeated calls for the same attachment are cheap.
+   */
+  async fetchAndDecryptMedia(
+    groupId: string,
+    attachment: MediaAttachment,
+  ): Promise<{ data: Uint8Array; mediaType: string }> {
+    const group = this.#requireGroup(groupId);
+    const policy = group.groupData?.encryptedMedia;
+    const urls = policy
+      ? resolveMediaFetchUrls(attachment, policy)
+      : attachment.locators
+          .filter((l) => l.kind === BLOSSOM_LOCATOR_KIND)
+          .map((l) => l.value);
+    if (!urls.length)
+      throw new Error("no fetchable locator for this attachment");
+
+    let lastErr: unknown;
+    for (const url of urls) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const encrypted = new Uint8Array(await res.arrayBuffer());
+        const stored = await group.decryptMedia(encrypted, attachment);
+        return { data: stored.data, mediaType: stored.attachment.mediaType };
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    throw new Error(
+      `failed to load media: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
+    );
+  }
+
+  /**
+   * Enable or update encrypted media for a group (admin only) by writing its
+   * encrypted-media policy (component `0x8008`) with the given Blossom servers.
+   */
+  async setGroupMediaPolicy(
+    groupId: string,
+    baseUrls: string[],
+  ): Promise<void> {
+    await this.#withBusy(async () => {
+      const group = this.#requireAdmin(groupId);
+      const urls = baseUrls.map((u) => u.trim()).filter(Boolean);
+      if (!urls.length)
+        throw new Error("provide at least one Blossom server URL");
+      const [proposal] = await Proposals.proposeUpdateMetadata({
+        encryptedMedia: encryptedMediaBlossomDefault(urls),
+      })(group.session.proposalContext());
+      if (!proposal) return;
+      await this.#client.groups.commit(group.id, {
+        extraProposals: [proposal],
+      });
+      this.log(`updated media settings for "${groupName(group)}"`);
+    });
   }
 
   /** React to a message with an emoji (kind 7). */
@@ -612,7 +797,10 @@ export class MarmotController {
         ["p", target.pubkey],
       ],
     });
-    await this.#client.groups.send(group.id, createApplicationMessageIntent(rumor));
+    await this.#client.groups.send(
+      group.id,
+      createApplicationMessageIntent(rumor),
+    );
   }
 
   async loadOlder(groupId: string): Promise<void> {
@@ -691,7 +879,9 @@ export class MarmotController {
       if (!nextOutbox.length)
         throw new Error("outbox (NIP-65) list needs at least one valid relay");
       if (!nextInbox.length)
-        throw new Error("inbox (kind 10050) list needs at least one valid relay");
+        throw new Error(
+          "inbox (kind 10050) list needs at least one valid relay",
+        );
       const announce = relaySet(nextOutbox, this.#outboxRelays);
       await this.#publishOutboxList(nextOutbox, announce);
       await this.#publishInboxList(nextInbox, announce);
@@ -714,7 +904,8 @@ export class MarmotController {
       };
       for (const [key, value] of Object.entries(fields)) {
         const text = typeof value === "string" ? value.trim() : value;
-        if (text === "" || text == null) delete (merged as Record<string, unknown>)[key];
+        if (text === "" || text == null)
+          delete (merged as Record<string, unknown>)[key];
         else (merged as Record<string, unknown>)[key] = text;
       }
       const event = await this.#signer.signEvent({
@@ -944,7 +1135,10 @@ export class MarmotController {
     const history = group.history as unknown as GroupRumorHistory | undefined;
     const store = this.#groupStores.get(id);
     if (!history || !store || this.#historySubs.has(id)) return;
-    const gen = history.subscribe({ kinds: TIMELINE_KINDS, limit: HISTORY_WINDOW });
+    const gen = history.subscribe({
+      kinds: TIMELINE_KINDS,
+      limit: HISTORY_WINDOW,
+    });
     this.#historySubs.set(id, gen);
     void this.#consumeHistory(id, store, gen);
   }

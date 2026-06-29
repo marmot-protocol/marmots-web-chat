@@ -38,16 +38,30 @@ export function GroupInfoDialog({
   const me = snapshot?.me.pubkey;
   const busy = snapshot?.busy ?? false;
   const group = controller?.getGroup(groupId);
-  const isAdmin = me ? (group?.groupData?.adminPubkeys ?? []).includes(me) : false;
+  const isAdmin = me
+    ? (group?.groupData?.adminPubkeys ?? []).includes(me)
+    : false;
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [mediaServers, setMediaServers] = useState("");
+
+  const mediaPolicy = group?.groupData?.encryptedMedia;
+  const mediaEndpoints = useMemo(
+    () =>
+      (mediaPolicy?.defaultBlobEndpoints ?? [])
+        .filter((e) => e.locatorKind === "blossom-v1")
+        .map((e) => e.baseUrl),
+    [mediaPolicy],
+  );
 
   useEffect(() => {
     if (open && group) {
       setName(group.groupData?.name ?? "");
       setDescription(group.groupData?.description ?? "");
+      setMediaServers(mediaEndpoints.join("\n"));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, group]);
 
   // Re-derived whenever the snapshot bumps (stateChanged).
@@ -73,6 +87,15 @@ export function GroupInfoDialog({
     navigate("/groups");
   };
 
+  const saveMedia = async () => {
+    if (!controller) return;
+    const urls = mediaServers
+      .split(/[\n,]/)
+      .map((u) => u.trim())
+      .filter(Boolean);
+    await controller.setGroupMediaPolicy(groupId, urls);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto">
@@ -95,7 +118,8 @@ export function GroupInfoDialog({
                 {group.groupData?.name || group.idStr.slice(0, 8)}
               </div>
               <div className="text-xs text-muted-foreground">
-                epoch {epoch} · {memberCount} member{memberCount === 1 ? "" : "s"}
+                epoch {epoch} · {memberCount} member
+                {memberCount === 1 ? "" : "s"}
               </div>
             </div>
           </div>
@@ -103,7 +127,9 @@ export function GroupInfoDialog({
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Group ID</Label>
             <div className="flex items-center gap-2 rounded-md bg-muted p-2">
-              <code className="min-w-0 flex-1 truncate text-xs">{group.idStr}</code>
+              <code className="min-w-0 flex-1 truncate text-xs">
+                {group.idStr}
+              </code>
               <CopyButton text={group.idStr} variant="ghost" size="icon" />
             </div>
           </div>
@@ -127,10 +153,46 @@ export function GroupInfoDialog({
               rows={2}
             />
           </div>
+
+          <div className="space-y-1.5 border-t pt-4">
+            <Label htmlFor="gi-media">Encrypted media (Blossom servers)</Label>
+            <p className="text-xs text-muted-foreground">
+              {mediaPolicy
+                ? "Members upload encrypted attachments to these servers, one per line."
+                : isAdmin
+                  ? "Add a Blossom server (one per line) to enable encrypted media for this group."
+                  : "Media is not enabled for this group."}
+            </p>
+            {(mediaPolicy || isAdmin) && (
+              <Textarea
+                id="gi-media"
+                value={mediaServers}
+                disabled={!isAdmin}
+                onChange={(e) => setMediaServers(e.target.value)}
+                placeholder="https://blossom.example.com"
+                rows={2}
+                className="font-mono text-xs"
+              />
+            )}
+            {isAdmin && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy}
+                onClick={() => void saveMedia()}
+              >
+                {mediaPolicy ? "Update media servers" : "Enable media"}
+              </Button>
+            )}
+          </div>
         </div>
 
         <DialogFooter className="justify-between sm:justify-between">
-          <Button variant="destructive" disabled={busy} onClick={() => void leave()}>
+          <Button
+            variant="destructive"
+            disabled={busy}
+            onClick={() => void leave()}
+          >
             {busy ? "Working…" : "Leave group"}
           </Button>
           {isAdmin && (

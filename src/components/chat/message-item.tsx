@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
 import type { NostrEvent } from "applesauce-core/helpers/event";
+import { getMediaAttachments } from "@internet-privacy/marmot-ts";
 
 import { cn } from "@/lib/utils";
 import { UserAvatar, UserName } from "@/components/user";
@@ -9,6 +10,7 @@ import {
   useGroupEvent,
   useMessageReactions,
 } from "@/hooks/use-group-chat";
+import { MediaAttachmentView } from "./media-attachment-view";
 import { MessageActionsMenu } from "./message-actions-menu";
 import type { ReplyTarget } from "./types";
 
@@ -43,6 +45,11 @@ export const MessageItem = memo(function MessageItem({
     }
     return [...map.entries()];
   }, [reactions]);
+
+  const attachments = useMemo(
+    () => getMediaAttachments(message.tags),
+    [message.tags],
+  );
 
   const react = (emoji: string) =>
     controller?.sendReaction(
@@ -104,6 +111,18 @@ export const MessageItem = memo(function MessageItem({
                     replying to an earlier message…
                   </span>
                 )}
+              </div>
+            )}
+            {attachments.length > 0 && (
+              <div className="flex flex-col gap-1.5 py-0.5">
+                {attachments.map((attachment) => (
+                  <MediaAttachmentView
+                    key={attachment.ciphertextSha256}
+                    groupId={groupId}
+                    attachment={attachment}
+                    mine={mine}
+                  />
+                ))}
               </div>
             )}
             {message.content}
