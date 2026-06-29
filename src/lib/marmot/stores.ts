@@ -48,7 +48,13 @@ export function makeStore<T>(pubkey: string, table: string): LocalForageStore<T>
 
 /** Delete every persisted table for an account (logout / reset). */
 export async function purgeAccountStores(pubkey: string): Promise<void> {
-  for (const table of ["groups", "keypackages", "invites", "messages"]) {
+  for (const table of [
+    "groups",
+    "keypackages",
+    "invites",
+    "messages",
+    "media",
+  ]) {
     await new LocalForageStore(pubkey, table).clear();
   }
 }

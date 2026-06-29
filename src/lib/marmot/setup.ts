@@ -3,7 +3,12 @@ import { relaySet } from "applesauce-core/helpers";
 import { normalizeRelayUrl } from "applesauce-core/helpers";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 
-import { GroupRumorHistory, MarmotClient } from "@internet-privacy/marmot-ts";
+import {
+  GroupMediaStore,
+  GroupRumorHistory,
+  MarmotClient,
+  type StoredMedia,
+} from "@internet-privacy/marmot-ts";
 import { KeyValueRumorHistoryBackend } from "@internet-privacy/marmot-ts/extra";
 
 import { eventStore, pool } from "@/lib/nostr";
@@ -86,6 +91,15 @@ export async function createController(
       ),
   );
 
+  // One shared media store; each group scoped to `${groupHex}:`. Decrypted
+  // plaintext is cached by ciphertext SHA-256 so re-rendering or reloading a
+  // message never re-downloads the ciphertext or re-derives its key.
+  const mediaStore = makeStore<StoredMedia>(pubkey, "media");
+  const mediaFactory = (groupId: Uint8Array) =>
+    new GroupMediaStore(
+      new PrefixedKeyValueStore(mediaStore, bytesToHex(groupId) + ":"),
+    );
+
   const client = new MarmotClient({
     signer: account.signer,
     accountProofSigner: proofSigner,
@@ -94,6 +108,7 @@ export async function createController(
     keyPackageStore: makeStore(pubkey, "keypackages"),
     inviteStore: makeStore(pubkey, "invites"),
     historyFactory,
+    mediaFactory,
     clientId: CLIENT_ID,
   });
 
