@@ -6,13 +6,6 @@ import type { ListedKeyPackage } from "@internet-privacy/marmot-ts/client";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { useChat, useController, useKeyPackages } from "@/hooks/use-marmot";
 
 function hex(bytes: Uint8Array): string {
@@ -41,7 +34,7 @@ function KeyPackageRow({
   const refHex = hex(pkg.keyPackageRef);
 
   return (
-    <div className="border p-3 text-sm">
+    <div className="py-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">{pkg.identifier ?? "(no slot)"}</span>
         {isCurrent && <Badge>this client</Badge>}
@@ -103,15 +96,15 @@ export function KeyPackagesCard() {
   });
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Key packages</CardTitle>
-        <CardDescription>
+    <section className="flex flex-col gap-4">
+      <header className="flex flex-col gap-1">
+        <h2 className="text-sm font-medium">Key packages</h2>
+        <p className="text-xs text-muted-foreground">
           Key packages let others invite you. Your current client publishes
           under slot <span className="font-mono">{clientId ?? "…"}</span>.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+        </p>
+      </header>
+      <div className="flex flex-col gap-3">
         {legacyCount > 0 && (
           <Alert>
             <AlertTitle>Legacy key packages</AlertTitle>
@@ -172,7 +165,7 @@ export function KeyPackagesCard() {
         {sorted.length === 0 ? (
           <p className="text-sm text-muted-foreground">No key packages yet.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             {sorted.map((pkg) => (
               <KeyPackageRow
                 key={hex(pkg.keyPackageRef)}
@@ -182,7 +175,7 @@ export function KeyPackagesCard() {
             ))}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

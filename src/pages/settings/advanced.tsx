@@ -1,12 +1,5 @@
 import { use$ } from "applesauce-react/hooks";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { debugMode$ } from "@/lib/settings";
@@ -15,10 +8,10 @@ import { debugMode$ } from "@/lib/settings";
 export function AdvancedSettings() {
   const debugMode = use$(debugMode$) ?? false;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Advanced</CardTitle>
-        <CardDescription>
+    <section className="flex flex-col gap-4">
+      <header className="flex flex-col gap-1">
+        <h2 className="text-sm font-medium">Advanced</h2>
+        <p className="text-xs text-muted-foreground">
           Debug mode configures the marmot engine to retain and process{" "}
           <em>everything</em>: the full per-group fork-history tree is persisted
           (so it survives reloads) and undecryptable events are kept for retry.
@@ -26,9 +19,9 @@ export function AdvancedSettings() {
           list, so you can see at a glance when a fork happens and which branch
           your client is following. Takes effect after you sign in again or
           reload.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </p>
+      </header>
+      <div>
         <FieldGroup>
           <Field orientation="horizontal">
             <FieldLabel htmlFor="d-enabled">Enable debug mode</FieldLabel>
@@ -39,7 +32,7 @@ export function AdvancedSettings() {
             />
           </Field>
         </FieldGroup>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

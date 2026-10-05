@@ -2,13 +2,6 @@ import { use$ } from "applesauce-react/hooks";
 import { IconUpload } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
@@ -26,17 +19,17 @@ export function AuditLogSettings() {
   const auditEndpoint = use$(auditUploadEndpoint$) ?? "";
   const auditToken = use$(auditUploadToken$) ?? "";
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Audit log</CardTitle>
-        <CardDescription>
+    <section className="flex flex-col gap-4">
+      <header className="flex flex-col gap-1">
+        <h2 className="text-sm font-medium">Audit log</h2>
+        <p className="text-xs text-muted-foreground">
           Opt-in forensic logging of MLS and transport events for this account.
           Identity is hashed; you can upload the log to a Goggles tracker to
           help diagnose protocol issues. Toggling takes effect after you sign in
           again or reload.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </p>
+      </header>
+      <div>
         <FieldGroup>
           <Field orientation="horizontal">
             <FieldLabel htmlFor="a-enabled">Record audit log</FieldLabel>
@@ -81,7 +74,7 @@ export function AuditLogSettings() {
             </p>
           )}
         </FieldGroup>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

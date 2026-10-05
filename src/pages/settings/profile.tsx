@@ -3,13 +3,6 @@ import { useNavigate } from "react-router";
 import { IconQrcode } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,14 +31,14 @@ export function ProfileSettings() {
   };
   return (
     <div className="flex flex-col gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription className="break-all font-mono text-xs">
+      <section className="flex flex-col gap-4">
+        <header className="flex flex-col gap-1">
+          <h2 className="text-sm font-medium">Profile</h2>
+          <p className="break-all font-mono text-xs text-muted-foreground">
             {snapshot.me.npub}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </p>
+        </header>
+        <div>
           <FieldGroup>
             <div className="flex items-center gap-3">
               <UserAvatar pubkey={snapshot.me.pubkey} size={48} />
@@ -89,18 +82,18 @@ export function ProfileSettings() {
               {snapshot.busy ? "Working…" : "Save profile"}
             </Button>
           </FieldGroup>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Account</CardTitle>
-        </CardHeader>
-        <CardContent>
+        </div>
+      </section>
+      <section className="flex flex-col gap-4">
+        <header className="flex flex-col gap-1">
+          <h2 className="text-sm font-medium">Account</h2>
+        </header>
+        <div>
           <Button variant="destructive" onClick={signOut}>
             Sign out
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
       <MyQrDialog
         npub={snapshot.me.npub}
         open={showQr}

@@ -1,11 +1,4 @@
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,15 +14,15 @@ export function RelaySettings() {
       .map((r) => r.trim())
       .filter(Boolean);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Relays</CardTitle>
-        <CardDescription>
+    <section className="flex flex-col gap-4">
+      <header className="flex flex-col gap-1">
+        <h2 className="text-sm font-medium">Relays</h2>
+        <p className="text-xs text-muted-foreground">
           Outbox (NIP-65) is where your key packages live; inbox (kind 10050) is
           where invites are delivered. One relay per line.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </p>
+      </header>
+      <div>
         <FieldGroup>
           {(!snapshot.outboxRelays.length || !snapshot.inboxRelays.length) && (
             <Alert>
@@ -77,7 +70,7 @@ export function RelaySettings() {
             {snapshot.busy ? "Working…" : "Publish relay lists"}
           </Button>
         </FieldGroup>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

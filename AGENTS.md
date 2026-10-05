@@ -639,6 +639,12 @@ The `md` breakpoint matches `MOBILE_BREAKPOINT = 768` from `useIsMobile` — thi
 
 ---
 
+### Flat UI
+
+Prefer flat content with a shared maximum width and spacing between sections.
+Avoid decorative card borders and borders inside bordered containers. Keep borders
+only where they serve a clear purpose, such as inputs and navigation separators.
+
 ### Layout Gotchas
 
 | Gotcha                         | Detail                                                                                                                                                                 |

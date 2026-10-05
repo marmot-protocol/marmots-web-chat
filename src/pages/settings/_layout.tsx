@@ -98,7 +98,7 @@ export function SettingsLayout() {
             className="min-h-0 overflow-y-auto"
           >
             {activeTab === tab.value && (
-              <div className="mx-auto w-full max-w-2xl p-4">
+              <div className="mx-auto w-full min-w-0 max-w-2xl p-4 sm:p-6">
                 <Outlet context={context} />
               </div>
             )}
