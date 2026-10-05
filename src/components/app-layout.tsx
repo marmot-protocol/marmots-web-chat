@@ -118,22 +118,24 @@ export function AppLayout() {
           </div>
 
           <div className="flex-1 space-y-4 overflow-y-auto p-2">
-            <NavLink
-              to="/invites"
-              aria-label={`Invites, ${invites.length} unread`}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2 px-2 py-2 text-sm",
-                  isActive ? "bg-accent" : "hover:bg-accent/50",
-                )
-              }
-            >
-              <Inbox className="size-4" />
-              <span className="flex-1">Invites</span>
-              <Badge variant={invites.length ? "default" : "secondary"}>
-                {invites.length}
-              </Badge>
-            </NavLink>
+            {invites.length > 0 && (
+              <NavLink
+                to="/invites"
+                aria-label={`Invites, ${invites.length} unread`}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-2 px-2 py-2 text-sm",
+                    isActive ? "bg-accent" : "hover:bg-accent/50",
+                  )
+                }
+              >
+                <Inbox className="size-4" />
+                <span className="flex-1">Invites</span>
+                <Badge variant={invites.length ? "default" : "secondary"}>
+                  {invites.length}
+                </Badge>
+              </NavLink>
+            )}
             <GroupList />
           </div>
 
