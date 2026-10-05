@@ -1,9 +1,7 @@
+import type { AppGroup as MarmotGroup } from "@/lib/marmot/types";
 import { useEffect, useMemo, useState } from "react";
 
-import type {
-  ForkTreeView,
-  MarmotGroup,
-} from "@internet-privacy/marmot-ts/client";
+import type { ForkTreeView } from "@internet-privacy/marmot-ts/client";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 
 export interface GroupDebugSnapshot {

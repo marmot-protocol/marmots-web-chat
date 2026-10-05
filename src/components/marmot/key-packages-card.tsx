@@ -1,6 +1,9 @@
+import { useState } from "react";
+
 import { getKeyPackageRelays } from "@internet-privacy/marmot-ts";
 import type { ListedKeyPackage } from "@internet-privacy/marmot-ts/client";
 
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,10 +41,11 @@ function KeyPackageRow({
   const refHex = hex(pkg.keyPackageRef);
 
   return (
-    <div className="rounded-md border p-3 text-sm">
+    <div className="border p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">{pkg.identifier ?? "(no slot)"}</span>
         {isCurrent && <Badge>this client</Badge>}
+        {pkg.nonCurrent && <Badge variant="destructive">legacy proof</Badge>}
         {pkg.used ? (
           <Badge variant="secondary">used</Badge>
         ) : (
@@ -80,10 +84,13 @@ function KeyPackageRow({
   );
 }
 
+/** Manage this device's packages and explicitly retire incompatible legacy keys. */
 export function KeyPackagesCard() {
   const controller = useController();
   const snapshot = useChat();
   const packages = useKeyPackages();
+  const [confirmPurge, setConfirmPurge] = useState(false);
+  const legacyCount = packages.filter((pkg) => pkg.nonCurrent).length;
   const clientId = snapshot?.clientId;
   const busy = snapshot?.busy ?? false;
 
@@ -100,11 +107,52 @@ export function KeyPackagesCard() {
       <CardHeader>
         <CardTitle>Key packages</CardTitle>
         <CardDescription>
-          Key packages let others invite you. Your current client publishes under
-          slot <span className="font-mono">{clientId ?? "…"}</span>.
+          Key packages let others invite you. Your current client publishes
+          under slot <span className="font-mono">{clientId ?? "…"}</span>.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="flex flex-col gap-3">
+        {legacyCount > 0 && (
+          <Alert>
+            <AlertTitle>Legacy key packages</AlertTitle>
+            <AlertDescription className="flex flex-col gap-2">
+              <p>
+                {legacyCount} package(s) use an older proof and cannot be used
+                for new invites. Retiring them deletes their private keys and
+                published events; pending older invites may no longer be
+                joinable.
+              </p>
+              {confirmPurge ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="destructive"
+                    disabled={busy}
+                    onClick={() => {
+                      setConfirmPurge(false);
+                      void controller?.purgeLegacyKeyPackages();
+                    }}
+                  >
+                    Confirm retirement
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setConfirmPurge(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  disabled={!controller || busy}
+                  onClick={() => setConfirmPurge(true)}
+                >
+                  Retire legacy packages
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="flex gap-2">
           <Button
             variant="outline"

@@ -12,15 +12,33 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { createNewAccount, importAccount } from "@/lib/accounts";
+import {
+  connectExtensionAccount,
+  createNewAccount,
+  importAccount,
+} from "@/lib/accounts";
 import { DEFAULT_NEW_ACCOUNT_RELAY } from "@/lib/settings";
 
 export function SignInPage() {
   const navigate = useNavigate();
+  const [connecting, setConnecting] = useState(false);
   const [name, setName] = useState("");
   const [relay, setRelay] = useState(DEFAULT_NEW_ACCOUNT_RELAY);
   const [secret, setSecret] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const connect = async () => {
+    setConnecting(true);
+    setError(null);
+    try {
+      await connectExtensionAccount();
+      navigate("/groups");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setConnecting(false);
+    }
+  };
 
   const create = () => {
     setError(null);
@@ -51,8 +69,8 @@ export function SignInPage() {
         <CardHeader>
           <CardTitle>Marmot Chat</CardTitle>
           <CardDescription>
-            End-to-end encrypted group chat over Nostr (MLS). This build uses a
-            local private key — needed to sign darkmatter key packages.
+            End-to-end encrypted group chat over Nostr (MLS). Use a local
+            identity or connect your browser extension.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -96,11 +114,23 @@ export function SignInPage() {
                   placeholder="nsec1…"
                 />
               </div>
-              <Button className="w-full" onClick={importKey} disabled={!secret.trim()}>
+              <Button
+                className="w-full"
+                onClick={importKey}
+                disabled={!secret.trim()}
+              >
                 Import
               </Button>
             </TabsContent>
           </Tabs>
+          <Button
+            className="mt-3 w-full"
+            variant="outline"
+            disabled={connecting}
+            onClick={() => void connect()}
+          >
+            {connecting ? "Connecting…" : "Connect Nostr extension"}
+          </Button>
           {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>

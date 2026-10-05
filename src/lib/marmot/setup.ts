@@ -1,4 +1,4 @@
-import type { PrivateKeyAccount } from "applesauce-accounts/accounts";
+import type { IAccount } from "applesauce-accounts";
 import { relaySet } from "applesauce-core/helpers";
 import { normalizeRelayUrl } from "applesauce-core/helpers";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
@@ -28,7 +28,6 @@ import {
   debugMode$,
 } from "@/lib/settings";
 
-import { resolveAccountProofSigner } from "./account-proof";
 import {
   APP_VERSION,
   BrowserAuditRecorder,
@@ -41,8 +40,8 @@ import { PrefixedKeyValueStore } from "./prefixed-store";
 import { makeStore } from "./stores";
 import { MarmotController, type AuditUploadConfig } from "./controller";
 
-/** This device's key-package slot (`d` tag). One web client per account. */
-const CLIENT_ID = "marmot-web";
+/** Stable per-browser slot so devices do not replace each other's packages. */
+const CLIENT_ID = `marmot-web-${getDeviceId()}`;
 
 function bytesToHex(bytes: Uint8Array): string {
   let hex = "";
@@ -75,18 +74,11 @@ export interface NewAccountSetup {
  * discovery from the configured extra relays, then adopts its published lists.
  */
 export async function createController(
-  account: PrivateKeyAccount<unknown>,
+  account: IAccount,
   newAccount?: NewAccountSetup,
 ): Promise<MarmotController> {
   const fresh = Boolean(newAccount);
   const pubkey = await account.signer.getPublicKey();
-
-  const proofSigner = resolveAccountProofSigner(account);
-  if (!proofSigner) {
-    throw new Error(
-      "this account cannot publish darkmatter key packages (no raw key access)",
-    );
-  }
 
   const chosenRelays = fresh
     ? normalizeRelayList(
@@ -100,7 +92,12 @@ export async function createController(
     : relaySet(extraRelays$.value);
 
   const directory = new Directory(eventStore);
-  const network = new MarmotNetwork(pool, bootstrapRelays, directory);
+  const network = new MarmotNetwork(
+    pool,
+    bootstrapRelays,
+    directory,
+    account.signer,
+  );
 
   // One shared messages store; each group scoped to `${groupHex}:`.
   const messagesStore = makeStore<Rumor>(pubkey, "messages");
@@ -186,7 +183,6 @@ export async function createController(
 
   const client = new MarmotClient({
     signer: account.signer,
-    accountProofSigner: proofSigner,
     network,
     audit,
     auditContext,

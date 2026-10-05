@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { ArrowLeft } from "lucide-react";
 
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -149,6 +150,23 @@ export function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            {(!snapshot.outboxRelays.length ||
+              !snapshot.inboxRelays.length) && (
+              <Alert>
+                <AlertTitle>Finish relay setup</AlertTitle>
+                <AlertDescription>
+                  Set both lists so others can find your key package and deliver
+                  invites.
+                </AlertDescription>
+              </Alert>
+            )}
+            <Button
+              variant="outline"
+              disabled={snapshot.busy}
+              onClick={() => void controller?.refreshRelayLists()}
+            >
+              Retry relay discovery
+            </Button>
             <div className="space-y-1.5">
               <Label htmlFor="r-outbox">Outbox relays</Label>
               <Textarea

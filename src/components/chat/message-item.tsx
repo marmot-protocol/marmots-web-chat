@@ -26,11 +26,13 @@ export const MessageItem = memo(function MessageItem({
   message,
   mine,
   onReply,
+  readOnly = false,
 }: {
   groupId: string;
   message: NostrEvent;
   mine: boolean;
-  onReply: (target: ReplyTarget) => void;
+  onReply?: (target: ReplyTarget) => void;
+  readOnly?: boolean;
 }) {
   const controller = useController();
   const reactions = useMessageReactions(groupId, message.id);
@@ -82,6 +84,7 @@ export const MessageItem = memo(function MessageItem({
           groupId={groupId}
           message={message}
           onReply={onReply}
+          readOnly={readOnly}
         >
           <div
             className={cn(
@@ -138,6 +141,7 @@ export const MessageItem = memo(function MessageItem({
             {grouped.map(([emoji, count]) => (
               <button
                 key={emoji}
+                disabled={readOnly}
                 onClick={() => react(emoji)}
                 className="rounded-full border bg-background px-1.5 py-0.5 text-xs hover:bg-accent"
               >

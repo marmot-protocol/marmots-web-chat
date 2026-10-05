@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { Plus, QrCode, Settings } from "lucide-react";
 
@@ -6,6 +6,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { MyQrDialog } from "@/components/marmot/my-qr-dialog";
 
 import { cn } from "@/lib/utils";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Jdenticon } from "@/components/jdenticon";
 import { UserAvatar, UserName } from "@/components/user";
@@ -57,7 +58,12 @@ export function AppLayout() {
   const isMobile = useIsMobile();
   const location = useLocation();
   const [newGroup, setNewGroup] = useState(false);
+  const [dismissedStatus, setDismissedStatus] = useState(-1);
+  const notice = (snapshot ? [...snapshot.status].reverse() : []).find(
+    (line) => line.level !== "info" && line.id > dismissedStatus,
+  );
   const [showQr, setShowQr] = useState(false);
+  useEffect(() => setDismissedStatus(-1), [snapshot?.me.pubkey]);
 
   // On mobile, show the sidebar OR the detail pane, never both. The list lives
   // at /groups; everything else (a group chat, settings) is a detail view.
@@ -66,67 +72,97 @@ export function AppLayout() {
   const showMain = !isMobile || !onListRoute;
 
   return (
-    <div className="flex h-dvh">
-      <aside
-        className={cn(
-          "flex shrink-0 flex-col border-r",
-          isMobile ? "w-full" : "w-80",
-          !showSidebar && "hidden",
-        )}
-      >
-        <div className="flex items-center justify-between border-b p-3">
-          <span className="font-semibold">Marmot Chat</span>
-          <Button size="icon" variant="ghost" onClick={() => setNewGroup(true)}>
-            <Plus className="size-4" />
-          </Button>
-        </div>
-
-        <div className="flex-1 space-y-4 overflow-y-auto p-2">
-          <InvitesPanel />
-          <GroupList />
-        </div>
-
-        <div className="flex items-center gap-2 border-t p-2">
-          {snapshot && (
-            <>
-              <UserAvatar pubkey={snapshot.me.pubkey} size={32} />
-              <div className="min-w-0 flex-1">
-                <UserName
-                  pubkey={snapshot.me.pubkey}
-                  className="block truncate text-sm font-medium"
-                />
-                <span className="text-xs text-muted-foreground">
-                  {snapshot.keyPackages.unused} key package(s)
-                </span>
-              </div>
-            </>
-          )}
-          <Button
-            size="icon"
-            variant="ghost"
-            title="Show my invite QR"
-            onClick={() => setShowQr(true)}
-          >
-            <QrCode className="size-4" />
-          </Button>
-          <Button size="icon" variant="ghost" onClick={() => navigate("/settings")}>
-            <Settings className="size-4" />
-          </Button>
-        </div>
-      </aside>
-
-      <main className={cn("flex-1 overflow-hidden", !showMain && "hidden")}>
-        <Outlet />
-      </main>
-
-      <NewGroupDialog open={newGroup} onOpenChange={setNewGroup} />
-      {snapshot && (
-        <MyQrDialog
-          npub={snapshot.me.npub}
-          open={showQr}
-          onOpenChange={setShowQr}
-        />
+    <div className="flex h-dvh flex-col">
+      {notice && (
+        <Alert
+          className="max-h-40 shrink-0 overflow-y-auto"
+          variant={notice.level === "error" ? "destructive" : "default"}
+        >
+          <AlertTitle>
+            {notice.level === "error" ? "Action failed" : "Needs attention"}
+          </AlertTitle>
+          <AlertDescription className="flex items-center gap-2">
+            <span className="min-w-0 flex-1">{notice.text}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDismissedStatus(notice.id)}
+            >
+              Dismiss
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
+      <div className="flex min-h-0 flex-1">
+        <aside
+          className={cn(
+            "flex shrink-0 flex-col border-r",
+            isMobile ? "w-full" : "w-80",
+            !showSidebar && "hidden",
+          )}
+        >
+          <div className="flex items-center justify-between border-b p-3">
+            <span className="font-semibold">Marmot Chat</span>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setNewGroup(true)}
+            >
+              <Plus className="size-4" />
+            </Button>
+          </div>
+
+          <div className="flex-1 space-y-4 overflow-y-auto p-2">
+            <InvitesPanel />
+            <GroupList />
+          </div>
+
+          <div className="flex items-center gap-2 border-t p-2">
+            {snapshot && (
+              <>
+                <UserAvatar pubkey={snapshot.me.pubkey} size={32} />
+                <div className="min-w-0 flex-1">
+                  <UserName
+                    pubkey={snapshot.me.pubkey}
+                    className="block truncate text-sm font-medium"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {snapshot.keyPackages.unused} key package(s)
+                  </span>
+                </div>
+              </>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              title="Show my invite QR"
+              onClick={() => setShowQr(true)}
+            >
+              <QrCode className="size-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => navigate("/settings")}
+            >
+              <Settings className="size-4" />
+            </Button>
+          </div>
+        </aside>
+
+        <main className={cn("flex-1 overflow-hidden", !showMain && "hidden")}>
+          <Outlet />
+        </main>
+
+        <NewGroupDialog open={newGroup} onOpenChange={setNewGroup} />
+        {snapshot && (
+          <MyQrDialog
+            npub={snapshot.me.npub}
+            open={showQr}
+            onOpenChange={setShowQr}
+          />
+        )}
+      </div>
     </div>
   );
 }

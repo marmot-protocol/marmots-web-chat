@@ -1,6 +1,7 @@
 packages:
   - .
   - marmot-ts
+  - marmot-ts/ts-mls
 allowBuilds:
   esbuild: true
   msw: true

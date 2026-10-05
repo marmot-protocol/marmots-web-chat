@@ -1,12 +1,10 @@
+import type { AppGroup as MarmotGroup } from "@/lib/marmot/types";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ArrowLeft, GitFork } from "lucide-react";
 import { use$ } from "applesauce-react/hooks";
 
-import type {
-  ForkTreeNodeView,
-  MarmotGroup,
-} from "@internet-privacy/marmot-ts/client";
+import type { ForkTreeNodeView } from "@internet-privacy/marmot-ts/client";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

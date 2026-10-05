@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ArrowLeft, GitFork, UserPlus, Users } from "lucide-react";
 
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { MessageList } from "@/components/chat/message-list";
 import { Button } from "@/components/ui/button";
 import { Jdenticon } from "@/components/jdenticon";
 import { ChatView } from "@/components/chat/chat-view";
@@ -30,6 +32,9 @@ export function GroupChatPage() {
       </div>
     );
   }
+
+  const supported = group.profileSupport.kind === "supported";
+  const canChat = supported && group.status === "active";
 
   return (
     <div className="flex h-full flex-col">
@@ -62,7 +67,12 @@ export function GroupChatPage() {
             )}
           </div>
         </button>
-        <Button size="icon" variant="ghost" onClick={() => setInvite(true)}>
+        <Button
+          size="icon"
+          variant="ghost"
+          disabled={!canChat}
+          onClick={() => setInvite(true)}
+        >
           <UserPlus className="size-4" />
         </Button>
         <Button size="icon" variant="ghost" onClick={() => setMembers(true)}>
@@ -78,8 +88,62 @@ export function GroupChatPage() {
         </Button>
       </header>
 
+      {group.pendingWelcomes.length > 0 && (
+        <Alert>
+          <AlertTitle>Some founding invites were not delivered</AlertTitle>
+          <AlertDescription className="flex flex-col gap-2">
+            <p>
+              These members were added, but their invites need another delivery
+              attempt. Retry before reloading; after a reload, remove the
+              unreachable members and invite them again with fresh key packages.
+            </p>
+            {group.pendingWelcomes.map((outcome) => (
+              <div
+                key={outcome.recipient.keyPackageEventId}
+                className="flex items-center gap-2"
+              >
+                <span className="min-w-0 flex-1 truncate">
+                  {outcome.recipient.pubkey.slice(0, 12)}…{" "}
+                  {outcome.kind === "failed" && outcome.error}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={controller?.getSnapshot().busy}
+                  onClick={() =>
+                    void controller?.retryFoundingWelcome(
+                      id,
+                      outcome.recipient.pubkey,
+                    )
+                  }
+                >
+                  Retry delivery
+                </Button>
+              </div>
+            ))}
+          </AlertDescription>
+        </Alert>
+      )}
+      {!canChat && (
+        <Alert>
+          <AlertTitle>
+            {supported ? `Group ${group.status}` : "Older group profile"}
+          </AlertTitle>
+          <AlertDescription>
+            {supported
+              ? "This group is read-only."
+              : "This group cannot send or receive new messages after the upgrade. Your saved messages remain readable. Create a new group and invite the members again. You can remove this group's local data from Group info."}
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="min-h-0 flex-1">
-        <ChatView groupId={id} />
+        {canChat ? (
+          <ChatView key={id} groupId={id} />
+        ) : (
+          <div className="flex h-full flex-col">
+            <MessageList groupId={id} readOnly />
+          </div>
+        )}
       </div>
 
       <InviteDialog groupId={id} open={invite} onOpenChange={setInvite} />

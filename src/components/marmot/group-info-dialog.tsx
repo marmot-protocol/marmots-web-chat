@@ -38,10 +38,13 @@ export function GroupInfoDialog({
   const me = snapshot?.me.pubkey;
   const busy = snapshot?.busy ?? false;
   const group = controller?.getGroup(groupId);
-  const isAdmin = me
-    ? (group?.groupData?.adminPubkeys ?? []).includes(me)
-    : false;
+  const supported = group?.profileSupport.kind === "supported";
+  const isAdmin =
+    me && supported
+      ? (group?.groupData?.adminPubkeys ?? []).includes(me)
+      : false;
 
+  const [confirmRemoval, setConfirmRemoval] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [mediaServers, setMediaServers] = useState("");
@@ -57,6 +60,7 @@ export function GroupInfoDialog({
 
   useEffect(() => {
     if (open && group) {
+      setConfirmRemoval(false);
       setName(group.groupData?.name ?? "");
       setDescription(group.groupData?.description ?? "");
       setMediaServers(mediaEndpoints.join("\n"));
@@ -82,7 +86,13 @@ export function GroupInfoDialog({
 
   const leave = async () => {
     if (!controller) return;
-    await controller.leave(groupId);
+    if (!supported) {
+      if (!confirmRemoval) {
+        setConfirmRemoval(true);
+        return;
+      }
+      if (!(await controller.removeLegacyGroup(groupId))) return;
+    } else await controller.leave(groupId);
     onOpenChange(false);
     navigate("/groups");
   };
@@ -187,13 +197,25 @@ export function GroupInfoDialog({
           </div>
         </div>
 
+        {!supported && (
+          <p className="text-sm text-muted-foreground">
+            This older group must be recreated. Removing it deletes its local
+            state and cached media from this device.
+          </p>
+        )}
         <DialogFooter className="justify-between sm:justify-between">
           <Button
             variant="destructive"
             disabled={busy}
             onClick={() => void leave()}
           >
-            {busy ? "Working…" : "Leave group"}
+            {busy
+              ? "Working…"
+              : supported
+                ? "Leave group"
+                : confirmRemoval
+                  ? "Confirm delete local group data"
+                  : "Remove local group data"}
           </Button>
           {isAdmin && (
             <Button disabled={busy} onClick={() => void save()}>

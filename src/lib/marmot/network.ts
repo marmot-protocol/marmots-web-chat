@@ -8,6 +8,10 @@ import type {
   Subscribable,
 } from "@internet-privacy/marmot-ts/client";
 
+import type { AuthSigner, GroupReqOptions } from "applesauce-relay/types";
+import { Subscription } from "rxjs";
+
+import { autoAuthenticateRelays } from "./relay-auth";
 import type { Directory } from "./discovery";
 
 function resolveRelays(relays: string[], fallback: string[]): string[] {
@@ -28,11 +32,19 @@ export class MarmotNetwork implements NostrNetworkInterface {
   readonly #pool: AsRelayPool;
   readonly #directory: Directory;
   #closed = false;
+  readonly #requests = new Subscription();
+  readonly #auth: { unsubscribe(): void };
 
-  constructor(pool: AsRelayPool, defaultRelays: string[], directory: Directory) {
+  constructor(
+    pool: AsRelayPool,
+    defaultRelays: string[],
+    directory: Directory,
+    signer: AuthSigner,
+  ) {
     this.#pool = pool;
     this.defaultRelays = defaultRelays;
     this.#directory = directory;
+    this.#auth = autoAuthenticateRelays(pool, signer);
   }
 
   async publish(
@@ -42,6 +54,8 @@ export class MarmotNetwork implements NostrNetworkInterface {
     if (this.#closed) return {};
     const targets = resolveRelays(relays, this.defaultRelays);
     const responses = await this.#pool.publish(targets, event);
+    if (!responses.some((response) => response.ok))
+      throw new Error("No relay acknowledged the published event");
     const results: Record<string, PublishResponse> = {};
     for (const response of responses) results[response.from] = response;
     return results;
@@ -50,16 +64,21 @@ export class MarmotNetwork implements NostrNetworkInterface {
   async request(
     relays: string[],
     filters: Filter | Filter[],
+    options?: GroupReqOptions,
   ): Promise<NostrEvent[]> {
     if (this.#closed) return [];
     const targets = resolveRelays(relays, this.defaultRelays);
     const collected: NostrEvent[] = [];
     await new Promise<void>((resolve, reject) => {
-      this.#pool.request(targets, filters).subscribe({
-        next: (event) => collected.push(event),
+      const request = this.#pool.request(targets, filters, options).subscribe({
+        next: (event) => {
+          if (this.#directory.add(event)) collected.push(event);
+        },
         error: reject,
         complete: () => resolve(),
       });
+      request.add(resolve);
+      this.#requests.add(request);
     });
     return collected;
   }
@@ -81,23 +100,30 @@ export class MarmotNetwork implements NostrNetworkInterface {
   }
 
   async getUserInboxRelays(pubkey: string): Promise<string[]> {
-    if (this.#closed) return this.defaultRelays;
+    if (this.#closed) return [];
     const relays = await this.#directory.welcomeInboxes(
       pubkey,
       this.defaultRelays,
     );
-    return relays.length ? relays : this.defaultRelays;
+    // A Welcome must reach the recipient's advertised inbox, not our bootstrap relays.
+    return relays;
   }
 
   get relayCount(): number {
     return this.#pool.relays.size;
   }
 
-  /** Web build keeps the shared pool open across account switches; only the
-   * Directory is torn down so discovery stops. */
+  /** Stop requests and authentication, reconnect account-bound sockets, and
+   * detach discovery while preserving other shared pool connections. */
   close(): void {
     if (this.#closed) return;
     this.#closed = true;
+    this.#auth.unsubscribe();
+    this.#requests.unsubscribe();
+    // AUTH state belongs to an account; reconnect before another account uses it.
+    for (const relay of this.#pool.relays.values()) {
+      if (relay.authenticated || relay.challenge) this.#pool.remove(relay);
+    }
     this.#directory.close();
   }
 }

@@ -1,3 +1,4 @@
+import type { AppGroup as MarmotGroup } from "@/lib/marmot/types";
 import {
   createContext,
   useContext,
@@ -6,10 +7,7 @@ import {
 } from "react";
 import { use$ } from "applesauce-react/hooks";
 
-import type {
-  ListedKeyPackage,
-  MarmotGroup,
-} from "@internet-privacy/marmot-ts/client";
+import type { ListedKeyPackage } from "@internet-privacy/marmot-ts/client";
 
 import { marmotController$ } from "@/lib/accounts";
 import type {
@@ -56,9 +54,7 @@ export function useWatchedGroups(): MarmotGroup[] {
   const controller = useController();
   return useAsyncIterable<MarmotGroup[]>(
     () =>
-      controller
-        ? controller.client.groups.watch()
-        : (async function* () {})(),
+      controller ? controller.client.groups.watch() : (async function* () {})(),
     [],
     [controller],
   );

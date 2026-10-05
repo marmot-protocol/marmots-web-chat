@@ -1,18 +1,20 @@
 import { AccountManager, type SerializedAccount } from "applesauce-accounts";
 import {
+  ExtensionAccount,
+  ReadonlyAccount,
   PrivateKeyAccount,
   registerCommonAccountTypes,
 } from "applesauce-accounts/accounts";
 import { castUser } from "applesauce-common/casts/user";
 import { chainable } from "applesauce-common/observable/chainable";
 import { safeParse } from "applesauce-core/helpers";
-import { map, Observable, of, switchMap } from "rxjs";
+import { map, Observable, of, shareReplay, switchMap } from "rxjs";
 
 import { eventStore } from "./nostr";
 import { createController, type NewAccountSetup } from "./marmot/setup";
 import type { MarmotController } from "./marmot/controller";
 
-/** Account manager — this build only supports local private-key accounts. */
+/** Account manager for local and NIP-07 extension identities. */
 export const accounts = new AccountManager();
 registerCommonAccountTypes(accounts);
 
@@ -76,6 +78,21 @@ export function importAccount(
   return account;
 }
 
+/** Connect and persist the browser's NIP-07 signer.
+ * @returns The activated extension account.
+ */
+export async function connectExtensionAccount(): Promise<ExtensionAccount> {
+  const account = await ExtensionAccount.fromExtension();
+  const existing = accounts.getAccountForPubkey(account.pubkey);
+  if (existing instanceof ExtensionAccount) {
+    accounts.setActive(existing.id);
+    return existing;
+  }
+  accounts.addAccount(account);
+  accounts.setActive(account.id);
+  return account;
+}
+
 /** An observable of the current active user (applesauce cast). */
 export const user$ = chainable(
   accounts.active$.pipe(
@@ -92,14 +109,14 @@ export const user$ = chainable(
 export const marmotController$: Observable<MarmotController | null> =
   accounts.active$.pipe(
     switchMap((account) => {
-      if (!account || !(account instanceof PrivateKeyAccount)) return of(null);
+      if (!account || account instanceof ReadonlyAccount) return of(null);
       return new Observable<MarmotController | null>((subscriber) => {
         let controller: MarmotController | null = null;
         let cancelled = false;
         const setup = pendingNewAccounts.get(account.pubkey);
         pendingNewAccounts.delete(account.pubkey);
         subscriber.next(null);
-        createController(account as PrivateKeyAccount<unknown>, setup)
+        createController(account, setup)
           .then(async (c) => {
             if (cancelled) {
               c.stop();
@@ -111,7 +128,10 @@ export const marmotController$: Observable<MarmotController | null> =
           })
           .catch((err) => {
             console.error("[marmot] failed to start controller", err);
-            if (!cancelled) subscriber.next(null);
+            if (!cancelled) {
+              if (controller) controller.logError(err);
+              else subscriber.next(null);
+            }
           });
         return () => {
           cancelled = true;
@@ -119,4 +139,5 @@ export const marmotController$: Observable<MarmotController | null> =
         };
       });
     }),
+    shareReplay({ bufferSize: 1, refCount: true }),
   );

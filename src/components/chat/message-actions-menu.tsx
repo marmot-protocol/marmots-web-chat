@@ -32,11 +32,13 @@ export function MessageActionsMenu({
   groupId,
   message,
   onReply,
+  readOnly = false,
   children,
 }: {
   groupId: string;
   message: NostrEvent;
-  onReply: (target: ReplyTarget) => void;
+  onReply?: (target: ReplyTarget) => void;
+  readOnly?: boolean;
   children: ReactNode;
 }) {
   const controller = useController();
@@ -52,7 +54,7 @@ export function MessageActionsMenu({
     );
 
   const reply = () =>
-    onReply({
+    onReply?.({
       id: message.id,
       pubkey: message.pubkey,
       content: message.content,
@@ -75,6 +77,7 @@ export function MessageActionsMenu({
               {QUICK_EMOJI.map((emoji) => (
                 <button
                   key={emoji}
+                  disabled={readOnly}
                   onClick={() => {
                     react(emoji);
                     setOpen(false);
@@ -87,6 +90,7 @@ export function MessageActionsMenu({
             </div>
             <div className="flex flex-col px-2 pb-6">
               <button
+                disabled={readOnly || !onReply}
                 onClick={() => {
                   reply();
                   setOpen(false);
@@ -119,6 +123,7 @@ export function MessageActionsMenu({
           {QUICK_EMOJI.map((emoji) => (
             <ContextMenuItem
               key={emoji}
+              disabled={readOnly}
               onSelect={() => react(emoji)}
               className="justify-center p-1.5 text-base"
             >
@@ -127,7 +132,7 @@ export function MessageActionsMenu({
           ))}
         </div>
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={reply}>
+        <ContextMenuItem disabled={readOnly || !onReply} onSelect={reply}>
           <Reply className="size-4" /> Reply
         </ContextMenuItem>
         <ContextMenuItem onSelect={copy}>

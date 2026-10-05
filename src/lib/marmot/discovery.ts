@@ -1,3 +1,5 @@
+import { IdentityStatus } from "applesauce-loaders/helpers";
+import { DnsIdentityLoader } from "applesauce-loaders/loaders";
 import { castUser } from "applesauce-common/casts";
 import type { EventStore } from "applesauce-core/event-store";
 import type { NostrEvent } from "applesauce-core/helpers/event";
@@ -25,10 +27,18 @@ const METADATA_KIND = 0;
  */
 export class Directory {
   readonly #store: EventStore;
+  readonly #dnsIdentities = new DnsIdentityLoader();
   #closed = false;
 
   constructor(store: EventStore) {
     this.#store = store;
+  }
+
+  /** Cache a verified public event fetched through the network adapter. */
+  add(event: NostrEvent): boolean {
+    if (this.#closed || this.#store.verifyEvent?.(event) === false)
+      return false;
+    return this.#store.add(event)?.id === event.id;
   }
 
   close(): void {
@@ -47,6 +57,30 @@ export class Directory {
       .$first(10_000, undefined);
     if (this.#closed) return undefined;
     return event ?? undefined;
+  }
+
+  /** Resolve a NIP-05 identifier, including relay hints for discovery.
+   * @param identifier - A name@domain identifier.
+   * @returns The public key and advertised relay hints.
+   */
+  async resolveNip05(
+    identifier: string,
+  ): Promise<{ pubkey: string; relays: string[] }> {
+    const match = /^([a-z0-9._-]+)@([^@\s/]+)$/i.exec(identifier.trim());
+    if (!match) throw new Error(`Invalid NIP-05 identifier: ${identifier}`);
+    const identity = await this.#dnsIdentities.requestIdentity(
+      match[1].toLowerCase(),
+      match[2].toLowerCase(),
+    );
+    if (identity.status !== IdentityStatus.Found) {
+      throw new Error(`NIP-05 lookup failed for ${identifier}`);
+    }
+    if (!/^[0-9a-f]{64}$/i.test(identity.pubkey))
+      throw new Error("NIP-05 returned an invalid public key");
+    return {
+      pubkey: identity.pubkey.toLowerCase(),
+      relays: identity.relays ?? [],
+    };
   }
 
   /** The account's NIP-65 (kind 10002) outbox relays. */

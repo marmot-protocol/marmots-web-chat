@@ -9,6 +9,7 @@ React + TypeScript + Vite reference implementation of marmot-ts (MLS group chat 
 pnpm dev              # Start development server (Vite)
 pnpm build            # Type check + production build (tsc -b && vite build)
 pnpm preview          # Preview production build
+pnpm test             # Vitest migration, transport, and protocol integration tests
 
 # Code Quality
 pnpm format           # Format all files with Prettier
@@ -19,7 +20,7 @@ pnpm install          # Install dependencies (also builds marmot-ts submodule vi
 pnpm prepare          # Build marmot-ts submodule (cd marmot-ts && pnpm build)
 ```
 
-**No test suite exists yet.** If tests are added, use `.test.ts` / `.test.tsx` extensions.
+Tests use Vitest and `.test.ts` / `.test.tsx` extensions. Run `pnpm test` for the app suite; the marmot-ts submodule maintains its own tests.
 The canonical pre-commit check is `tsc -b` — the build must pass with zero errors.
 
 ## Project Structure

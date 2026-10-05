@@ -14,9 +14,11 @@ import type { ReplyTarget } from "./types";
 export const MessageList = memo(function MessageList({
   groupId,
   onReply,
+  readOnly = false,
 }: {
   groupId: string;
-  onReply: (target: ReplyTarget) => void;
+  onReply?: (target: ReplyTarget) => void;
+  readOnly?: boolean;
 }) {
   const controller = useController();
   const snapshot = useChat();
@@ -56,6 +58,7 @@ export const MessageList = memo(function MessageList({
           message={message}
           mine={message.pubkey === me}
           onReply={onReply}
+          readOnly={readOnly}
         />
       ))}
       <div ref={bottomRef} />
