@@ -2,6 +2,9 @@ import { memo, useMemo } from "react";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 import { getMediaAttachments } from "@internet-privacy/marmot-ts";
 
+import { IconCheck, IconLoader2 } from "@tabler/icons-react";
+import { Button } from "@/components/ui/button";
+import type { OutgoingMessage } from "@/lib/marmot/message-outbox";
 import { cn } from "@/lib/utils";
 import { UserAvatar, UserName } from "@/components/user";
 import { useController } from "@/hooks/use-marmot";
@@ -27,12 +30,14 @@ export const MessageItem = memo(function MessageItem({
   mine,
   onReply,
   readOnly = false,
+  delivery,
 }: {
   groupId: string;
   message: NostrEvent;
   mine: boolean;
   onReply?: (target: ReplyTarget) => void;
   readOnly?: boolean;
+  delivery?: OutgoingMessage;
 }) {
   const controller = useController();
   const reactions = useMessageReactions(groupId, message.id);
@@ -128,9 +133,42 @@ export const MessageItem = memo(function MessageItem({
                 ))}
               </div>
             )}
+            {delivery?.fileName && (
+              <div className="mb-1 text-xs">
+                Attachment: {delivery.fileName}
+              </div>
+            )}
             {message.content}
           </div>
         </MessageActionsMenu>
+        {delivery && (
+          <div
+            role={delivery.status === "failed" ? "alert" : "status"}
+            className={cn(
+              "mt-1 flex items-center justify-end gap-1 text-xs text-muted-foreground",
+              delivery.status === "failed" && "text-destructive",
+            )}
+          >
+            {delivery.status === "sending" && (
+              <>
+                <IconLoader2 className="size-3 animate-spin" /> Sending…
+              </>
+            )}
+            {delivery.status === "sent" && (
+              <>
+                <IconCheck className="size-3" /> Sent · confirmed by relay
+              </>
+            )}
+            {delivery.status === "failed" && (
+              <>
+                <span>Send failed: {delivery.error}</span>
+                <Button size="sm" variant="outline" onClick={delivery.retry}>
+                  Retry
+                </Button>
+              </>
+            )}
+          </div>
+        )}
         {grouped.length > 0 && (
           <div
             className={cn(

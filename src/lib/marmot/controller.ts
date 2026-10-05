@@ -810,15 +810,16 @@ export class MarmotController {
     groupId: string,
     text: string,
     replyTo?: { id: string; pubkey: string },
+    onPrepared?: (rumor: Rumor) => void,
   ): Promise<void> {
     const group = this.#requireGroup(groupId);
     const pubkey = await group.signer.getPublicKey();
-    const tags = replyTo ? [["q", replyTo.id, "", replyTo.pubkey]] : undefined;
+    // Identical messages sent within one second still need distinct rumor IDs.
+    const tags = [["client_nonce", crypto.randomUUID()]];
+    if (replyTo) tags.push(["q", replyTo.id, "", replyTo.pubkey]);
     const rumor = createChatRumor({ pubkey, content: text, tags });
-    await this.#client.groups.send(
-      group.id,
-      createApplicationMessageIntent(rumor),
-    );
+    onPrepared?.(rumor);
+    await this.sendPreparedMessage(groupId, rumor);
   }
 
   /**
@@ -832,6 +833,7 @@ export class MarmotController {
     file: File,
     caption?: string,
     replyTo?: { id: string; pubkey: string },
+    onPrepared?: (rumor: Rumor) => void,
   ): Promise<void> {
     const group = this.#requireGroup(groupId);
     const policy = group.groupData?.encryptedMedia;
@@ -880,6 +882,13 @@ export class MarmotController {
     const tags: string[][] = [encodeMediaImetaTag(attachment)];
     if (replyTo) tags.push(["q", replyTo.id, "", replyTo.pubkey]);
     const rumor = createChatRumor({ pubkey, content: caption ?? "", tags });
+    onPrepared?.(rumor);
+    await this.sendPreparedMessage(groupId, rumor);
+  }
+
+  /** Publish an already prepared chat rumor, preserving its identity on retry. */
+  async sendPreparedMessage(groupId: string, rumor: Rumor): Promise<void> {
+    const group = this.#requireGroup(groupId);
     await this.#client.groups.send(
       group.id,
       createApplicationMessageIntent(rumor),

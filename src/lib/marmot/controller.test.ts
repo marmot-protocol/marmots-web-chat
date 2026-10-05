@@ -1,6 +1,7 @@
 import { EventStore } from "applesauce-core";
 import { getEventHash } from "applesauce-core/helpers";
 import type { NostrEvent } from "applesauce-core/helpers";
+import type { Rumor } from "applesauce-common/helpers/gift-wrap";
 import type { ListedKeyPackage } from "@internet-privacy/marmot-ts/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -125,6 +126,29 @@ function group(unsupported = false): AppGroup {
 }
 
 describe("dependency migration", () => {
+  it("gives identical concurrent text messages distinct identities", async () => {
+    const saved = {
+      ...group(),
+      signer: { getPublicKey: () => PUBKEY },
+    } as AppGroup;
+    const { controller } = fixture({ groups: [saved], packages: [pkg()] });
+    await controller.start();
+    const prepared: Rumor[] = [];
+    await Promise.all([
+      controller.sendText(saved.idStr, "same message", undefined, (rumor) =>
+        prepared.push(rumor),
+      ),
+      controller.sendText(saved.idStr, "same message", undefined, (rumor) =>
+        prepared.push(rumor),
+      ),
+    ]);
+    expect(prepared).toHaveLength(2);
+    expect(prepared[0].id).not.toBe(prepared[1].id);
+    expect(prepared.every((rumor) => rumor.content === "same message")).toBe(
+      true,
+    );
+  });
+
   it("publishes a current per-device package despite legacy unused packages, preserving old keys", async () => {
     const legacy = pkg("marmot-web", true);
     const { controller, client } = fixture({ packages: [legacy] });

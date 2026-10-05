@@ -1,8 +1,10 @@
-import { memo, useEffect, useRef } from "react";
+import { use$ } from "applesauce-react/hooks";
+import { memo, useEffect, useMemo, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useChat, useController } from "@/hooks/use-marmot";
 import { useGroupMessages } from "@/hooks/use-group-chat";
+import { getMessageOutbox } from "@/lib/marmot/message-outbox";
 import { MessageItem } from "./message-item";
 import type { ReplyTarget } from "./types";
 
@@ -23,6 +25,30 @@ export const MessageList = memo(function MessageList({
   const controller = useController();
   const snapshot = useChat();
   const messages = useGroupMessages(groupId);
+  const outgoing = use$(
+    () => (controller ? getMessageOutbox(controller).messages$ : undefined),
+    [controller],
+  );
+  const rows = useMemo(() => {
+    const local = (outgoing ?? []).filter((entry) => entry.groupId === groupId);
+    const localIds = new Set(local.map((entry) => entry.message.id));
+    return [
+      ...messages
+        .filter((message) => !localIds.has(message.id))
+        .map((message) => ({
+          key: message.id,
+          message,
+          delivery: undefined as (typeof local)[number] | undefined,
+          time: message.created_at,
+        })),
+      ...local.map((entry) => ({
+        key: entry.key,
+        message: entry.message,
+        delivery: entry,
+        time: entry.submittedAt,
+      })),
+    ].sort((a, b) => a.time - b.time);
+  }, [messages, outgoing, groupId]);
   const me = snapshot?.me.pubkey;
   const pagination = snapshot?.pagination[groupId];
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -30,7 +56,7 @@ export const MessageList = memo(function MessageList({
   // Stick to bottom on new messages.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, groupId]);
+  }, [rows.length, groupId]);
 
   return (
     <div className="flex-1 overflow-y-auto py-2">
@@ -46,19 +72,20 @@ export const MessageList = memo(function MessageList({
           </Button>
         </div>
       )}
-      {messages.length === 0 && (
+      {rows.length === 0 && (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
           No messages yet — say hello.
         </div>
       )}
-      {messages.map((message) => (
+      {rows.map(({ key, message, delivery }) => (
         <MessageItem
-          key={message.id}
+          key={key}
           groupId={groupId}
           message={message}
           mine={message.pubkey === me}
           onReply={onReply}
-          readOnly={readOnly}
+          readOnly={readOnly || (!!delivery && delivery.status !== "sent")}
+          delivery={delivery}
         />
       ))}
       <div ref={bottomRef} />

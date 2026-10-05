@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { LoaderCircle, Paperclip, SendHorizonal, X } from "lucide-react";
+import { Paperclip, SendHorizonal, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { UserName } from "@/components/user";
 import { DEFAULT_BLOSSOM_SERVERS } from "@/lib/marmot/controller";
 import { useChat, useController } from "@/hooks/use-marmot";
+import { getMessageOutbox } from "@/lib/marmot/message-outbox";
 import { cn } from "@/lib/utils";
 import type { ReplyTarget } from "./types";
 
@@ -62,12 +63,13 @@ export function MessageComposer({
   const snapshot = useChat();
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-  const sendInFlight = useRef(false);
-  const [error, setError] = useState<string | null>(null);
+  const draftSubmitted = useRef(false);
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    draftSubmitted.current = false;
+  }, [text, files]);
 
   const me = snapshot?.me.pubkey;
   const mediaEnabled = controller
@@ -80,52 +82,30 @@ export function MessageComposer({
     : false;
 
   const addFiles = (incoming: FileList | File[] | null) => {
-    if (sendInFlight.current) return;
     const list = incoming ? [...incoming] : [];
     if (list.length) {
       setFiles((prev) => [...prev, ...list]);
-      setError(null);
     }
   };
 
-  const send = async () => {
-    if (!controller || sendInFlight.current) return;
+  const send = () => {
+    if (!controller || !me || draftSubmitted.current) return;
     const value = text.trim();
     if (!value && files.length === 0) return;
+    // Guard repeated submission of this render's draft, without blocking later drafts.
+    draftSubmitted.current = true;
     const replyTo = reply ? { id: reply.id, pubkey: reply.pubkey } : undefined;
-    sendInFlight.current = true;
-    setSending(true);
-    setSent(false);
-    setError(null);
+    const outbox = getMessageOutbox(controller);
+    if (files.length) {
+      files.forEach((file, index) =>
+        outbox.send(groupId, me, index === 0 ? value : "", replyTo, file),
+      );
+    } else {
+      outbox.send(groupId, me, value, replyTo);
+    }
     setText("");
     setFiles([]);
-    let completedFiles = 0;
-    try {
-      if (files.length > 0) {
-        // The caption (if any) rides along with the first attachment only.
-        for (let i = 0; i < files.length; i++) {
-          await controller.sendMedia(
-            groupId,
-            files[i],
-            i === 0 ? value || undefined : undefined,
-            replyTo,
-          );
-          completedFiles++;
-        }
-      } else {
-        await controller.sendText(groupId, value, replyTo);
-      }
-      setSent(true);
-      onClearReply();
-    } catch (err) {
-      // Keep only unsent attachments: retrying must not duplicate successful uploads.
-      setFiles(files.slice(completedFiles));
-      setText(completedFiles === 0 ? text : "");
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      sendInFlight.current = false;
-      setSending(false);
-    }
+    onClearReply();
   };
 
   const onAttachClick = () => {
@@ -136,8 +116,7 @@ export function MessageComposer({
     }
   };
 
-  const canSend =
-    !!controller && !sending && (!!text.trim() || files.length > 0);
+  const canSend = !!controller && !!me && (!!text.trim() || files.length > 0);
 
   return (
     <div
@@ -169,7 +148,6 @@ export function MessageComposer({
             size="icon"
             className="size-5"
             onClick={onClearReply}
-            disabled={sending}
           >
             <X className="size-3" />
           </Button>
@@ -190,26 +168,6 @@ export function MessageComposer({
         </div>
       )}
 
-      {sending && (
-        <div
-          role="status"
-          className="mb-2 flex items-center gap-2 text-xs text-muted-foreground"
-        >
-          <LoaderCircle className="size-3 animate-spin" />
-          Sending… Waiting for relay confirmation.
-        </div>
-      )}
-      {sent && !sending && (
-        <div role="status" className="mb-2 text-xs text-muted-foreground">
-          Sent · confirmed by relay
-        </div>
-      )}
-      {error && (
-        <div role="alert" className="mb-2 text-xs text-destructive">
-          Send failed: {error}. Your unsent draft has been restored.
-        </div>
-      )}
-
       <div className="flex items-end gap-2">
         <input
           ref={fileInput}
@@ -225,7 +183,7 @@ export function MessageComposer({
           size="icon"
           variant="ghost"
           onClick={onAttachClick}
-          disabled={sending || (!mediaEnabled && !isAdmin)}
+          disabled={!mediaEnabled && !isAdmin}
           title={
             mediaEnabled
               ? "Attach files"
@@ -238,11 +196,9 @@ export function MessageComposer({
         </Button>
         <Textarea
           value={text}
-          disabled={sending}
           aria-label="Message"
           onChange={(e) => {
             setText(e.target.value);
-            setSent(false);
           }}
           onPaste={(e) => {
             if (!mediaEnabled) return;
@@ -268,15 +224,11 @@ export function MessageComposer({
         />
         <Button
           size="icon"
-          aria-label={sending ? "Sending message" : "Send message"}
+          aria-label="Send message"
           onClick={() => void send()}
           disabled={!canSend}
         >
-          {sending ? (
-            <LoaderCircle className="size-4 animate-spin" />
-          ) : (
-            <SendHorizonal className="size-4" />
-          )}
+          <SendHorizonal className="size-4" />
         </Button>
       </div>
     </div>
