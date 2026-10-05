@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
-import { Plus, QrCode, Settings } from "lucide-react";
+import { Inbox, Plus, QrCode, Settings } from "lucide-react";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MyQrDialog } from "@/components/marmot/my-qr-dialog";
@@ -10,9 +10,13 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Jdenticon } from "@/components/jdenticon";
 import { UserAvatar, UserName } from "@/components/user";
-import { useChat, useWatchedGroups } from "@/hooks/use-marmot";
+import {
+  useChat,
+  useWatchedGroups,
+  useWatchedInvites,
+} from "@/hooks/use-marmot";
 import { NewGroupDialog } from "@/components/marmot/new-group-dialog";
-import { InvitesPanel } from "@/components/marmot/invites-panel";
+import { Badge } from "@/components/ui/badge";
 
 function GroupList() {
   const groups = useWatchedGroups();
@@ -54,6 +58,7 @@ function GroupList() {
 
 export function AppLayout() {
   const snapshot = useChat();
+  const invites = useWatchedInvites().filter((entry) => entry.joinable);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const location = useLocation();
@@ -113,7 +118,22 @@ export function AppLayout() {
           </div>
 
           <div className="flex-1 space-y-4 overflow-y-auto p-2">
-            <InvitesPanel />
+            <NavLink
+              to="/invites"
+              aria-label={`Invites, ${invites.length} unread`}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-2 px-2 py-2 text-sm",
+                  isActive ? "bg-accent" : "hover:bg-accent/50",
+                )
+              }
+            >
+              <Inbox className="size-4" />
+              <span className="flex-1">Invites</span>
+              <Badge variant={invites.length ? "default" : "secondary"}>
+                {invites.length}
+              </Badge>
+            </NavLink>
             <GroupList />
           </div>
 

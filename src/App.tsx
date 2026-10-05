@@ -7,6 +7,7 @@ import { SignInPage } from "@/pages/signin";
 import { GroupsIndexPage } from "@/pages/groups-index";
 import { GroupChatPage } from "@/pages/group-chat";
 import { GroupDebugPage } from "@/pages/group-debug";
+import { InvitesPage } from "@/pages/invites";
 import { SettingsPage } from "@/pages/settings";
 
 export function App() {
@@ -21,6 +22,7 @@ export function App() {
           <Route path="/groups" element={<GroupsIndexPage />} />
           <Route path="/groups/:id" element={<GroupChatPage />} />
           <Route path="/groups/:id/debug" element={<GroupDebugPage />} />
+          <Route path="/invites" element={<InvitesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/groups" replace />} />
         </Route>
