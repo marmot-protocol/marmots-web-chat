@@ -8,7 +8,12 @@ import { GroupsIndexPage } from "@/pages/groups-index";
 import { GroupChatPage } from "@/pages/group-chat";
 import { GroupDebugPage } from "@/pages/group-debug";
 import { InvitesPage } from "@/pages/invites";
-import { SettingsPage } from "@/pages/settings";
+import { SettingsLayout } from "@/pages/settings/_layout";
+import { ProfileSettings } from "@/pages/settings/profile";
+import { RelaySettings } from "@/pages/settings/relays";
+import { KeyPackageSettings } from "@/pages/settings/key-packages";
+import { AuditLogSettings } from "@/pages/settings/audit-log";
+import { AdvancedSettings } from "@/pages/settings/advanced";
 
 export function App() {
   const account = use$(accounts.active$);
@@ -23,7 +28,18 @@ export function App() {
           <Route path="/groups/:id" element={<GroupChatPage />} />
           <Route path="/groups/:id/debug" element={<GroupDebugPage />} />
           <Route path="/invites" element={<InvitesPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings" element={<SettingsLayout />}>
+            <Route index element={<Navigate to="profile" replace />} />
+            <Route path="profile" element={<ProfileSettings />} />
+            <Route path="relays" element={<RelaySettings />} />
+            <Route path="key-packages" element={<KeyPackageSettings />} />
+            <Route path="audit-log" element={<AuditLogSettings />} />
+            <Route path="advanced" element={<AdvancedSettings />} />
+            <Route
+              path="*"
+              element={<Navigate to="/settings/profile" replace />}
+            />
+          </Route>
           <Route path="*" element={<Navigate to="/groups" replace />} />
         </Route>
       ) : (
