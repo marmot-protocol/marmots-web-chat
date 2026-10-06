@@ -2,7 +2,7 @@ import { memo, useMemo } from "react";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 import { getMediaAttachments } from "@internet-privacy/marmot-ts";
 
-import { IconCheck, IconLoader2 } from "@tabler/icons-react";
+import { IconLoader2 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import type { OutgoingMessage } from "@/lib/marmot/message-outbox";
 import { cn } from "@/lib/utils";
@@ -81,8 +81,17 @@ export const MessageItem = memo(function MessageItem({
             pubkey={message.pubkey}
             className="text-xs font-medium text-muted-foreground"
           />
-          <span className="text-[10px] text-muted-foreground/70">
+          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70">
             {formatTime(message.created_at)}
+            {delivery?.status === "sending" && (
+              <span role="status" className="inline-flex items-center gap-1">
+                <IconLoader2
+                  aria-hidden="true"
+                  className="size-3 animate-spin"
+                />
+                Sending…
+              </span>
+            )}
           </span>
         </div>
         <MessageActionsMenu
@@ -141,32 +150,15 @@ export const MessageItem = memo(function MessageItem({
             {message.content}
           </div>
         </MessageActionsMenu>
-        {delivery && (
+        {delivery?.status === "failed" && (
           <div
-            role={delivery.status === "failed" ? "alert" : "status"}
-            className={cn(
-              "mt-1 flex items-center justify-end gap-1 text-xs text-muted-foreground",
-              delivery.status === "failed" && "text-destructive",
-            )}
+            role="alert"
+            className="mt-1 flex items-center justify-end gap-1 text-xs text-destructive"
           >
-            {delivery.status === "sending" && (
-              <>
-                <IconLoader2 className="size-3 animate-spin" /> Sending…
-              </>
-            )}
-            {delivery.status === "sent" && (
-              <>
-                <IconCheck className="size-3" /> Sent · confirmed by relay
-              </>
-            )}
-            {delivery.status === "failed" && (
-              <>
-                <span>Send failed: {delivery.error}</span>
-                <Button size="sm" variant="outline" onClick={delivery.retry}>
-                  Retry
-                </Button>
-              </>
-            )}
+            <span>Send failed: {delivery.error}</span>
+            <Button size="sm" variant="outline" onClick={delivery.retry}>
+              Retry
+            </Button>
           </div>
         )}
         {grouped.length > 0 && (
