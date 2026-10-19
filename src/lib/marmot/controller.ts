@@ -60,6 +60,7 @@ import {
   type AuditUploadSource,
   type BrowserAuditRecorder,
 } from "./audit";
+import { hasLegacySlot, isLegacyKeyPackage } from "./key-package-slot";
 
 /** Kinds projected into the per-group timeline: chat (9) + reactions (7). */
 const TIMELINE_KINDS = [9, 7];
@@ -1032,14 +1033,16 @@ export class MarmotController {
       if (
         !packages.some(
           (pkg) =>
-            !pkg.used && !pkg.nonCurrent && pkg.identifier === this.#clientId,
+            !pkg.used &&
+            !isLegacyKeyPackage(pkg) &&
+            pkg.identifier === this.#clientId,
         )
       ) {
         throw new Error(
           "Publish a current key package before retiring legacy packages",
         );
       }
-      const legacy = packages.filter((pkg) => pkg.nonCurrent);
+      const legacy = packages.filter(isLegacyKeyPackage);
       if (legacy.length)
         await this.#client.keyPackages.purge(
           legacy.map((pkg) => pkg.keyPackageRef),
@@ -1081,15 +1084,19 @@ export class MarmotController {
       const list = await this.#client.keyPackages.list();
       const current =
         list.find(
-          (p) => !p.used && !p.nonCurrent && p.identifier === this.#clientId,
+          (p) =>
+            !p.used &&
+            !isLegacyKeyPackage(p) &&
+            p.identifier === this.#clientId,
         ) ??
-        list.find((p) => !p.used && !p.nonCurrent) ??
+        list.find((p) => !p.used && !isLegacyKeyPackage(p)) ??
         list[0];
       if (!current) throw new Error("no KeyPackage to rotate");
       const relays = await this.#requireKeyPackageRelays();
       const rotated = await this.#client.keyPackages.rotate(
         current.keyPackageRef,
-        { relays },
+        // Pin the slot so rotating a legacy device-label package migrates it.
+        { relays, d: this.#clientId },
       );
       await this.#refreshKeyPackageSummary();
       this.log(
@@ -1288,12 +1295,13 @@ export class MarmotController {
       existing.some(
         (pkg) =>
           !pkg.used &&
-          !pkg.nonCurrent &&
+          !isLegacyKeyPackage(pkg) &&
           pkg.identifier === this.#clientId &&
           pkg.published?.length,
       )
     ) {
       this.#setKeyPackageSummary(existing);
+      await this.#retireLegacySlotKeyPackages(existing);
       return;
     }
     await this.#ensureRelayListsLoaded();
@@ -1312,6 +1320,38 @@ export class MarmotController {
     if (this.#watchAbort) return;
     await this.#refreshKeyPackageSummary();
     this.log(`published a fresh KeyPackage so others can invite you`);
+    await this.#retireLegacySlotKeyPackages(
+      await this.#client.keyPackages.list(),
+    );
+  }
+
+  /** Delete packages left under pre-0.7 device-label slots once this device
+   * has published under its random slot. Each is purged on its own so one
+   * without stored relay routes stays listed for manual retirement.
+   * @param packages - Current local KeyPackage list.
+   */
+  async #retireLegacySlotKeyPackages(
+    packages: ListedKeyPackage[],
+  ): Promise<void> {
+    const legacy = packages.filter(
+      (pkg) => hasLegacySlot(pkg) && !pkg.nonCurrent,
+    );
+    if (!legacy.length || this.#watchAbort) return;
+    let retired = 0;
+    for (const pkg of legacy) {
+      try {
+        await this.#client.keyPackages.purge(pkg.keyPackageRef);
+        retired++;
+      } catch (err) {
+        this.log(
+          `could not retire KeyPackage under old slot ${pkg.identifier}: ${err instanceof Error ? err.message : String(err)}`,
+          "warn",
+        );
+      }
+    }
+    if (!retired) return;
+    await this.#refreshKeyPackageSummary();
+    this.log(`retired ${retired} KeyPackage(s) under old device-label slots`);
   }
 
   async #refreshKeyPackageSummary(): Promise<void> {
@@ -1323,9 +1363,11 @@ export class MarmotController {
     const current =
       packages.find(
         (pkg) =>
-          !pkg.used && !pkg.nonCurrent && pkg.identifier === this.#clientId,
+          !pkg.used &&
+          !isLegacyKeyPackage(pkg) &&
+          pkg.identifier === this.#clientId,
       ) ??
-      packages.find((pkg) => !pkg.used && !pkg.nonCurrent) ??
+      packages.find((pkg) => !pkg.used && !isLegacyKeyPackage(pkg)) ??
       packages[0];
     const newestPublished = packages
       .flatMap((pkg) => pkg.published ?? [])
@@ -1336,8 +1378,9 @@ export class MarmotController {
       );
     this.#keyPackages = {
       total: packages.length,
-      unused: packages.filter((pkg) => !pkg.used && !pkg.nonCurrent).length,
-      legacy: packages.filter((pkg) => pkg.nonCurrent).length,
+      unused: packages.filter((pkg) => !pkg.used && !isLegacyKeyPackage(pkg))
+        .length,
+      legacy: packages.filter(isLegacyKeyPackage).length,
       slot: current?.identifier ?? null,
       newestPublishedAt: newestPublished?.created_at ?? null,
       newestPublishedId: newestPublished?.id ?? null,

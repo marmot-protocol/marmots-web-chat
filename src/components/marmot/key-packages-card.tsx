@@ -7,6 +7,7 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useChat, useController, useKeyPackages } from "@/hooks/use-marmot";
+import { isLegacyKeyPackage } from "@/lib/marmot/key-package-slot";
 
 function hex(bytes: Uint8Array): string {
   let out = "";
@@ -38,7 +39,7 @@ function KeyPackageRow({
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">{pkg.identifier ?? "(no slot)"}</span>
         {isCurrent && <Badge>this client</Badge>}
-        {pkg.nonCurrent && <Badge variant="destructive">legacy proof</Badge>}
+        {isLegacyKeyPackage(pkg) && <Badge variant="destructive">legacy</Badge>}
         {pkg.used ? (
           <Badge variant="secondary">used</Badge>
         ) : (
@@ -83,7 +84,7 @@ export function KeyPackagesCard() {
   const snapshot = useChat();
   const packages = useKeyPackages();
   const [confirmPurge, setConfirmPurge] = useState(false);
-  const legacyCount = packages.filter((pkg) => pkg.nonCurrent).length;
+  const legacyCount = packages.filter(isLegacyKeyPackage).length;
   const clientId = snapshot?.clientId;
   const busy = snapshot?.busy ?? false;
 
@@ -110,10 +111,10 @@ export function KeyPackagesCard() {
             <AlertTitle>Legacy key packages</AlertTitle>
             <AlertDescription className="flex flex-col gap-2">
               <p>
-                {legacyCount} package(s) use an older proof and cannot be used
-                for new invites. Retiring them deletes their private keys and
-                published events; pending older invites may no longer be
-                joinable.
+                {legacyCount} package(s) use an older proof or slot format and
+                cannot be used for new invites. Retiring them deletes their
+                private keys and published events; pending older invites may no
+                longer be joinable.
               </p>
               {confirmPurge ? (
                 <div className="flex flex-wrap gap-2">

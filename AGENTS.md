@@ -16,11 +16,10 @@ pnpm format           # Format all files with Prettier
 tsc -b                # Type check only (no emit); run this before committing
 
 # Dependencies
-pnpm install          # Install dependencies (also builds marmot-ts submodule via prepare)
-pnpm prepare          # Build marmot-ts submodule (cd marmot-ts && pnpm build)
+pnpm install          # Install dependencies (marmot-ts comes from npm)
 ```
 
-Tests use Vitest and `.test.ts` / `.test.tsx` extensions. Run `pnpm test` for the app suite; the marmot-ts submodule maintains its own tests.
+Tests use Vitest and `.test.ts` / `.test.tsx` extensions. Run `pnpm test` for the app suite; marmot-ts maintains its own tests upstream.
 The canonical pre-commit check is `tsc -b` — the build must pass with zero errors.
 
 ## Project Structure
@@ -37,7 +36,6 @@ src/
   pages/              Route-based page components
     groups/[id]/      Group layout + mini-app tabs (chat, members, admin, …)
   types/              Global ambient type declarations
-marmot-ts/            Git submodule — MLS group chat library (@internet-privacy/marmot-ts)
 ```
 
 Key singletons in `src/lib/`:

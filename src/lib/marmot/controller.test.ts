@@ -17,7 +17,7 @@ vi.mock("@/lib/settings", () => ({
 }));
 
 const PUBKEY = "11".repeat(32);
-const SLOT = "marmot-web-device-a";
+const SLOT = "aa".repeat(32);
 const controllers: MarmotController[] = [];
 afterEach(() => {
   controllers.splice(0).forEach((controller) => controller.stop());
@@ -53,8 +53,11 @@ function fixture(
         packages = [...packages, current];
         return current;
       }),
-      purge: vi.fn(async () => {
-        packages = packages.filter((p) => !p.nonCurrent);
+      purge: vi.fn(async (refs: Uint8Array | Uint8Array[]) => {
+        const gone = (Array.isArray(refs) ? refs : [refs]).map(String);
+        packages = packages.filter(
+          (p) => !gone.includes(String(p.keyPackageRef)),
+        );
       }),
     },
     groups: {
@@ -202,14 +205,47 @@ describe("dependency migration", () => {
 
   it("purges legacy material only through the explicit retirement action", async () => {
     const { controller, client } = fixture({
-      packages: [pkg(), pkg("old", true)],
+      packages: [
+        pkg(),
+        { ...pkg("old", true), keyPackageRef: new Uint8Array([2]) },
+      ],
     });
     await controller.start();
+    expect(client.keyPackages.purge).not.toHaveBeenCalled();
     await controller.purgeLegacyKeyPackages();
     expect(client.keyPackages.purge).toHaveBeenCalledExactlyOnceWith([
-      new Uint8Array([1]),
+      new Uint8Array([2]),
     ]);
     expect(controller.getSnapshot().keyPackages.legacy).toBe(0);
+  });
+
+  it("auto-retires packages under pre-0.7 device-label slots after publishing under the new slot", async () => {
+    const oldSlot = {
+      ...pkg("marmot-web-0123456789abcdef"),
+      keyPackageRef: new Uint8Array([2]),
+    };
+    const { controller, client } = fixture({ packages: [oldSlot] });
+    await controller.start();
+    expect(client.keyPackages.create).toHaveBeenCalledOnce();
+    expect(client.keyPackages.purge).toHaveBeenCalledExactlyOnceWith(
+      oldSlot.keyPackageRef,
+    );
+    expect(client.keyPackages.create.mock.invocationCallOrder[0]).toBeLessThan(
+      client.keyPackages.purge.mock.invocationCallOrder[0],
+    );
+    expect(controller.getSnapshot().keyPackages.legacy).toBe(0);
+  });
+
+  it("keeps an old-slot package listed as legacy when its retirement fails", async () => {
+    const oldSlot = {
+      ...pkg("marmot-web-0123456789abcdef"),
+      keyPackageRef: new Uint8Array([2]),
+    };
+    const { controller, client } = fixture({ packages: [pkg(), oldSlot] });
+    client.keyPackages.purge.mockRejectedValueOnce(new Error("no routes"));
+    await controller.start();
+    expect(client.keyPackages.create).not.toHaveBeenCalled();
+    expect(controller.getSnapshot().keyPackages.legacy).toBe(1);
   });
 
   it("preserves unsupported groups, refuses sends, and disposes them on account teardown", async () => {

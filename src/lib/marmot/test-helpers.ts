@@ -22,7 +22,7 @@ export function makeTestClient(network: NostrNetworkInterface) {
   return new MarmotClient({
     signer,
     network,
-    clientId: "test-device",
+    clientId: "bb".repeat(32),
     groupStateStore: new InMemoryKeyValueStore(),
     keyPackageStore: new InMemoryKeyValueStore(),
     inviteStore: new InMemoryKeyValueStore(),

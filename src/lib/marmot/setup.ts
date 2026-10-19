@@ -35,13 +35,14 @@ import {
   getDeviceId,
 } from "./audit";
 import { Directory } from "./discovery";
+import { getKeyPackageSlot } from "./key-package-slot";
 import { MarmotNetwork } from "./network";
 import { PrefixedKeyValueStore } from "./prefixed-store";
 import { makeStore } from "./stores";
 import { MarmotController, type AuditUploadConfig } from "./controller";
 
 /** Stable per-browser slot so devices do not replace each other's packages. */
-const CLIENT_ID = `marmot-web-${getDeviceId()}`;
+const CLIENT_ID = getKeyPackageSlot();
 
 function bytesToHex(bytes: Uint8Array): string {
   let hex = "";

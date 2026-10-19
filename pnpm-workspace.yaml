@@ -1,7 +1,7 @@
 packages:
   - .
-  - marmot-ts
-  - marmot-ts/ts-mls
 allowBuilds:
   esbuild: true
   msw: true
+minimumReleaseAgeExclude:
+  - '@internet-privacy/marmot-ts@0.7.0'
