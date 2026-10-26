@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Download, FileWarning, ImageIcon } from "lucide-react";
-import type { MediaAttachment } from "@internet-privacy/marmot-ts";
+import type { HistoricalMediaAttachment } from "@internet-privacy/marmot-ts";
 
 import { cn } from "@/lib/utils";
 import { useGroupMedia } from "@/hooks/use-group-media";
@@ -31,13 +31,17 @@ function aspectRatio(dim?: string): string | undefined {
 export const MediaAttachmentView = memo(function MediaAttachmentView({
   groupId,
   attachment,
+  rumorId,
+  pending,
   mine,
 }: {
   groupId: string;
-  attachment: MediaAttachment;
+  attachment: HistoricalMediaAttachment;
+  rumorId: string;
+  pending?: boolean;
   mine: boolean;
 }) {
-  const media = useGroupMedia(groupId, attachment);
+  const media = useGroupMedia(groupId, attachment, rumorId, !pending);
   const isImage = attachment.mediaType.startsWith("image/");
 
   if (media.status === "loading") {

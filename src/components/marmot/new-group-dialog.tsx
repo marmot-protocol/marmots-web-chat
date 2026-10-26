@@ -22,7 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useChat, useController } from "@/hooks/use-marmot";
-import type { InviteCandidate } from "@/lib/marmot/controller";
+import type { InviteCandidate } from "@/lib/marmot/types";
 
 /** Create a solo group or include selected devices in its founding membership. */
 export function NewGroupDialog({

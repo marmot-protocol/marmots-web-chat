@@ -1,23 +1,23 @@
-import { EventStore } from "applesauce-core/event-store";
+import type { EventSigner } from "applesauce-core";
+import type { EventStore, RumorStore } from "applesauce-core/event-store";
 import type { NostrEvent } from "applesauce-core/helpers/event";
-import { getEventHash } from "applesauce-core/helpers/event";
-import { normalizeRelayUrl } from "applesauce-core/helpers";
+import { kinds } from "applesauce-core/helpers/event";
+import { ProfileFactory } from "applesauce-core/factories";
 import {
-  normalizeToPubkey,
-  npubEncode,
-} from "applesauce-core/helpers/pointers";
+  ChatMessageFactory,
+  ReactionFactory,
+} from "applesauce-common/factories";
+import { toRumor } from "applesauce-common/operations/gift-wrap";
+import { npubEncode } from "applesauce-core/helpers/pointers";
 import {
   getProfileContent,
   type ProfileContent,
 } from "applesauce-core/helpers/profile";
 import { relaySet } from "applesauce-core/helpers/relays";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
-
 import {
   createInviteIntent,
   createApplicationMessageIntent,
-  createChatRumor,
-  type GroupRumorHistory,
   type ListedKeyPackage,
   Proposals,
   type UnreadInvite,
@@ -25,97 +25,53 @@ import {
   type WelcomeRecipient,
 } from "@internet-privacy/marmot-ts/client";
 import {
-  ADDRESSABLE_KEY_PACKAGE_KIND,
-  BLOSSOM_LOCATOR_KIND,
   createInboxRelayListEvent,
   createNip65RelayListEvent,
-  encodeMediaImetaTag,
   encryptedMediaBlossomDefault,
-  getKeyPackage,
-  validateKeyPackageAccountIdentityProof,
-  getKeyPackageIdentifier,
-  getKeyPackageReference,
-  resolveMediaFetchUrls,
-  type EncryptedMediaPolicyV1,
-  type MediaAttachment,
+  type EncryptedMediaPolicyV2,
+  type HistoricalMediaAttachment,
 } from "@internet-privacy/marmot-ts";
 import type { Proposal } from "@internet-privacy/marmot-ts/mls";
-import {
-  Actions,
-  createUploadAuth,
-  type SignedEvent,
-  type Signer as BlossomSigner,
-} from "blossom-client-sdk";
 
 import type {
-  AppGroup as MarmotGroup,
-  AppMarmotClient as MarmotClient,
-} from "./types";
-import { lookupRelays$ } from "@/lib/settings";
-
-import type { Directory } from "./discovery";
-import type { MarmotNetwork } from "./network";
+  ChatSnapshot,
+  InviteCandidate,
+  InviteCandidates,
+  InviteEntry,
+  StatusLine,
+  AppGroup,
+  AppMarmotClient,
+} from "@/lib/marmot/types";
+import type { Directory } from "@/lib/marmot/discovery";
+import type { MarmotNetwork } from "@/lib/marmot/network";
 import {
   uploadAuditLog,
-  type AuditUploadSource,
+  type AuditUploadConfig,
   type BrowserAuditRecorder,
-} from "./audit";
-import { hasLegacySlot, isLegacyKeyPackage } from "./key-package-slot";
-
-/** Kinds projected into the per-group timeline: chat (9) + reactions (7). */
-const TIMELINE_KINDS = [9, 7];
-const CHAT_MESSAGE_KIND = 9;
-const REACTION_KIND = 7;
-
-/** How many of the newest messages the live history window holds per group. */
-const HISTORY_WINDOW = 50;
-
-/** Suggested Blossom servers when enabling encrypted media on a group. */
-export const DEFAULT_BLOSSOM_SERVERS = ["https://blossom.primal.net"];
-
-/** Best-effort `<width>x<height>` render hint for an image file. */
-async function imageDimensions(file: File): Promise<string | undefined> {
-  if (!file.type.startsWith("image/")) return undefined;
-  try {
-    const bitmap = await createImageBitmap(file);
-    const dim = `${bitmap.width}x${bitmap.height}`;
-    bitmap.close();
-    return dim;
-  } catch {
-    return undefined;
-  }
-}
-
-/** Minimal signer shape (applesauce `EventSigner`) the controller needs. */
-type Signer = {
-  getPublicKey(): Promise<string> | string;
-  signEvent(draft: unknown): Promise<NostrEvent> | NostrEvent;
-};
-
-function shortHex(value: Uint8Array): string {
-  let s = "";
-  for (const b of value.slice(0, 4)) s += b.toString(16).padStart(2, "0");
-  return s;
-}
+} from "@/lib/marmot/audit";
+import {
+  KeyPackageDiscovery,
+  describeInviteCandidate,
+} from "@/lib/marmot/invitations";
+import { GroupTimeline } from "@/lib/marmot/timeline";
+import { GroupMedia } from "@/lib/marmot/media";
+import {
+  isCurrentDevicePackage,
+  selectDeviceKeyPackage,
+  shortHex,
+  summarizeKeyPackages,
+} from "@/lib/marmot/key-packages";
+import {
+  hasLegacySlot,
+  isLegacyKeyPackage,
+} from "@/lib/marmot/key-package-slot";
 
 function npubShort(pubkey: string): string {
   const npub = npubEncode(pubkey);
   return `${npub.slice(0, 12)}…${npub.slice(-4)}`;
 }
 
-function normalizeRelays(relays: string[]): string[] {
-  return relaySet(
-    relays.flatMap((relay) => {
-      try {
-        return [normalizeRelayUrl(relay)];
-      } catch {
-        return [];
-      }
-    }),
-  );
-}
-
-function groupName(group: MarmotGroup): string {
+function groupName(group: AppGroup): string {
   return group.groupData?.name || shortGroupId(group.idStr);
 }
 
@@ -123,52 +79,18 @@ function shortGroupId(idStr: string): string {
   return `${idStr.slice(0, 8)}…`;
 }
 
-function groupIsAdmin(group: MarmotGroup, pubkey: string): boolean {
+function groupIsAdmin(group: AppGroup, pubkey: string): boolean {
   return (group.groupData?.adminPubkeys ?? []).includes(pubkey);
 }
 
-/** Build an unsigned rumor of any kind with its id filled in. */
-function createRumor(options: {
-  pubkey: string;
-  kind: number;
-  content: string;
-  tags?: string[][];
-  created_at?: number;
-}): Rumor {
-  const rumor: Rumor = {
-    id: "",
-    kind: options.kind,
-    pubkey: options.pubkey,
-    created_at: options.created_at ?? Math.floor(Date.now() / 1000),
-    content: options.content,
-    tags: options.tags ?? [],
-  } as Rumor;
-  rumor.id = getEventHash(rumor);
-  return rumor;
-}
-
-/**
- * Where (and how) to upload this device's audit JSONL. Set when audit logging is
- * enabled with an endpoint; absent leaves {@link MarmotController.uploadAuditLog}
- * a no-op. Account identity is NOT sent here — it lives in the JSONL rows; only
- * the non-identifying client labels travel as `X-Goggles-*` headers.
- */
-export interface AuditUploadConfig {
-  /** Goggles tracker endpoint (https, or loopback http for local testing). */
-  endpoint: string;
-  /** Bearer token; required for non-loopback endpoints. */
-  bearerToken?: string;
-  /** Non-identifying client labels sent as `X-Goggles-*` headers. */
-  source?: AuditUploadSource;
-}
-
+/** Dependencies supplied by setup.ts; this controller has no application singletons. */
 export interface MarmotControllerOptions {
-  client: MarmotClient;
+  client: AppMarmotClient;
   network: MarmotNetwork;
   directory: Directory;
   /** Shared reactive event cache (public Nostr data). */
   eventStore: EventStore;
-  signer: Signer;
+  signer: EventSigner;
   pubkey: string;
   /** Bootstrap/discovery relays — read-only, never a publish target. */
   relays: string[];
@@ -176,81 +98,14 @@ export interface MarmotControllerOptions {
   fresh: boolean;
   /** This device's key-package slot (`d` tag / clientId). */
   clientId: string;
+  /** Current lookup relays, read lazily so settings changes take effect. */
+  lookupRelays?: () => string[];
   /** Forensic audit recorder when opt-in audit logging is enabled. */
   audit?: BrowserAuditRecorder;
   /** Goggles upload target for the audit JSONL; absent disables uploading. */
   auditUpload?: AuditUploadConfig;
   /** Display name to publish as the kind 0 profile on first start (fresh only). */
   initialProfileName?: string;
-}
-
-export interface PaginationState {
-  loadingOlder: boolean;
-  exhausted: boolean;
-}
-
-export interface StatusLine {
-  id: number;
-  level: "info" | "warn" | "error";
-  text: string;
-  at: number;
-}
-
-export interface KeyPackageSummary {
-  total: number;
-  unused: number;
-  legacy: number;
-  slot: string | null;
-  newestPublishedAt: number | null;
-  newestPublishedId: string | null;
-  currentRefHex: string | null;
-}
-
-/** One of an invitee's published KeyPackages, evaluated against a group. */
-export interface InviteCandidate {
-  id: string;
-  event: NostrEvent;
-  createdAt: number;
-  deviceId: string | null;
-  refHex: string | null;
-  invitable: boolean;
-  alreadyMember: boolean;
-  reasons: string[];
-}
-
-export interface InviteCandidates {
-  pubkey: string;
-  npub: string;
-  groupId: string;
-  groupName: string;
-  candidates: InviteCandidate[];
-}
-
-export interface InviteEntry {
-  invite: UnreadInvite;
-  joinable: boolean;
-}
-
-/**
- * Immutable snapshot consumed by React via `useSyncExternalStore`. The group
- * and invite lists are NOT here — React reads those from the library's
- * `groups.watch()` / `watchInvites()` generators. Per-group message timelines
- * live in dedicated {@link EventStore}s reached via {@link getGroupStore}.
- */
-export interface ChatSnapshot {
-  me: { pubkey: string; npub: string };
-  relays: string[];
-  connectedRelayCount: number;
-  outboxRelays: string[];
-  inboxRelays: string[];
-  keyPackages: KeyPackageSummary;
-  clientId: string;
-  activeGroupId: string | null;
-  pagination: Record<string, PaginationState>;
-  status: StatusLine[];
-  busy: boolean;
-  /** True when audit logging is active AND an upload target is configured. */
-  canUploadAudit: boolean;
 }
 
 type Listener = () => void;
@@ -263,53 +118,45 @@ type Listener = () => void;
  * by the library (`groups.connectAll`, `invites.listen`).
  */
 export class MarmotController {
-  readonly #client: MarmotClient;
+  readonly #client: AppMarmotClient;
   readonly #network: MarmotNetwork;
   readonly #directory: Directory;
+  readonly #keyPackageDiscovery: KeyPackageDiscovery;
   readonly #eventStore: EventStore;
-  readonly #signer: Signer;
+  readonly #signer: EventSigner;
   readonly #pubkey: string;
   readonly #relays: string[];
   readonly #fresh: boolean;
   readonly #clientId: string;
+  readonly #lookupRelays: () => string[];
   readonly #audit?: BrowserAuditRecorder;
   readonly #auditUpload?: AuditUploadConfig;
   readonly #initialProfileName?: string;
 
-  /** Adapts the account signer to the function-shaped signer Blossom expects. */
-  readonly #blossomSigner: BlossomSigner = async (draft) =>
-    (await this.#signer.signEvent(draft)) as unknown as SignedEvent;
+  readonly #abort = new AbortController();
+  readonly #media = new GroupMedia(this.#abort.signal);
 
-  readonly #groups = new Map<string, MarmotGroup>();
-  readonly #bound = new Set<string>();
-  /** Per-group rumor timeline store (kind 9 + 7), the source of the rendered chat. */
-  readonly #groupStores = new Map<string, EventStore>();
-  readonly #historySubs = new Map<string, AsyncGenerator<Rumor[]>>();
-  readonly #pagination = new Map<string, PaginationState>();
-  readonly #oldest = new Map<string, number>();
+  readonly #groups = new Map<string, AppGroup>();
+  readonly #groupListeners = new Map<string, () => void>();
+  readonly #timelines = new Map<string, GroupTimeline>();
 
   readonly #listeners = new Set<Listener>();
 
   #status: StatusLine[] = [];
   #activeId: string | null = null;
-  #keyPackages: KeyPackageSummary = {
-    total: 0,
-    unused: 0,
-    legacy: 0,
-    slot: null,
-    newestPublishedAt: null,
-    newestPublishedId: null,
-    currentRefHex: null,
-  };
+  #keyPackages = summarizeKeyPackages([], "");
   #outboxRelays: string[];
   #inboxRelays: string[];
-  #busy = false;
+  #pendingActions = 0;
   #statusSeq = 0;
 
   #relayListsAuthoritative = false;
   #relayListsPromise?: Promise<void>;
 
-  #watchAbort = false;
+  #stopped = false;
+  #startPromise?: Promise<void>;
+  readonly #onUnreadable = () =>
+    this.log("(dropped an unreadable group event)", "warn");
   #groupsConnection?: Unsubscribable;
   #inviteConnection?: Unsubscribable;
   #inviteListenGeneration = 0;
@@ -326,11 +173,21 @@ export class MarmotController {
     this.#relays = options.relays;
     this.#fresh = options.fresh;
     this.#clientId = options.clientId;
+    this.#lookupRelays = options.lookupRelays ?? (() => []);
     this.#audit = options.audit;
     this.#auditUpload = options.auditUpload;
     this.#initialProfileName = options.initialProfileName;
     this.#outboxRelays = this.#fresh ? this.#relays : [];
     this.#inboxRelays = this.#fresh ? this.#relays : [];
+    this.#keyPackageDiscovery = new KeyPackageDiscovery({
+      directory: this.#directory,
+      network: this.#network,
+      eventStore: this.#eventStore,
+      relays: this.#relays,
+      lookupRelays: this.#lookupRelays,
+      signal: this.#abort.signal,
+      log: (text, level) => this.log(text, level),
+    });
     this.#snapshot = this.#buildSnapshot();
   }
 
@@ -343,7 +200,7 @@ export class MarmotController {
 
   getSnapshot = (): ChatSnapshot => this.#snapshot;
 
-  get client(): MarmotClient {
+  get client(): AppMarmotClient {
     return this.#client;
   }
 
@@ -356,47 +213,52 @@ export class MarmotController {
   }
 
   /** The per-group timeline store (rumors), created lazily on attach. */
-  getGroupStore(idStr: string): EventStore | undefined {
-    return this.#groupStores.get(idStr);
+  getGroupStore(idStr: string): RumorStore | undefined {
+    return this.#timelines.get(idStr)?.store;
   }
 
-  getGroup(idStr: string): MarmotGroup | undefined {
+  getGroup(idStr: string): AppGroup | undefined {
     return this.#groups.get(idStr);
   }
 
   /**
-   * The group's encrypted-media policy (component `0x8008`), or null when media
+   * The group's encrypted-media policy (component `0x800b`), or null when media
    * is not enabled. Read during render alongside {@link useChat} — group
    * `stateChanged` bumps the snapshot, so callers re-render when it changes.
    */
-  getGroupMediaPolicy(idStr: string): EncryptedMediaPolicyV1 | null {
+  getGroupMediaPolicy(idStr: string): EncryptedMediaPolicyV2 | null {
     return this.#groups.get(idStr)?.groupData?.encryptedMedia ?? null;
   }
 
   // --- lifecycle -------------------------------------------------------------
 
-  async start(): Promise<void> {
+  /** Start this account once; callers share initialization and its failure. */
+  start(): Promise<void> {
+    if (this.#stopped)
+      return Promise.reject(new Error("Controller is stopped"));
+    return (this.#startPromise ??= this.#start());
+  }
+
+  async #start(): Promise<void> {
     await this.#publishInitialIdentity();
-    if (this.#watchAbort) return;
-    try {
-      await this.#ensureKeyPackage();
-    } catch (error) {
-      this.logError(error);
-    }
-    if (this.#watchAbort) return;
+    if (this.#stopped) return;
     await this.#restoreGroups();
-    if (this.#watchAbort) return;
-    this.#client.groups.on("unreadable", () =>
-      this.log("(dropped an unreadable group event)", "warn"),
-    );
+    if (this.#stopped) return;
+    this.#client.groups.on("unreadable", this.#onUnreadable);
     this.#groupsConnection = this.#client.groups.connectAll({
       fallbackRelays: this.#relays,
     });
     this.#relistenInvites();
     void this.#watchGroups();
+    try {
+      await this.#ensureKeyPackage();
+    } catch (error) {
+      this.logError(error);
+    }
+    if (this.#stopped) return;
     this.log(`ready — you are ${npubEncode(this.#pubkey)}`);
     void this.#ensureRelayListsLoaded().catch((err) => {
-      if (!this.#watchAbort) this.logError(err);
+      if (!this.#stopped) this.logError(err);
     });
   }
 
@@ -404,17 +266,21 @@ export class MarmotController {
     const name = this.#initialProfileName;
     if (!this.#fresh) return;
     await this.saveRelayLists(this.#outboxRelays, this.#inboxRelays);
-    if (this.#watchAbort) return;
+    if (this.#stopped) return;
     if (name) await this.saveProfile({ name });
   }
 
   stop(): void {
-    if (this.#watchAbort) return;
-    this.#watchAbort = true;
+    if (this.#stopped) return;
+    this.#stopped = true;
+    this.#abort.abort();
     this.#inviteConnection?.unsubscribe();
     this.#groupsConnection?.unsubscribe();
-    for (const gen of this.#historySubs.values()) void gen.return(undefined);
-    this.#historySubs.clear();
+    this.#client.groups.off("unreadable", this.#onUnreadable);
+    for (const timeline of this.#timelines.values()) timeline.dispose();
+    this.#timelines.clear();
+    for (const unsubscribe of this.#groupListeners.values()) unsubscribe();
+    this.#groupListeners.clear();
     for (const group of this.#groups.values()) group.dispose();
     this.#network.close();
     // Flush the in-memory audit buffer to its OPFS file so the log survives the
@@ -440,9 +306,7 @@ export class MarmotController {
   ): Promise<string | null> {
     let createdId: string | null = null;
     await this.#withBusy(async () => {
-      const groupRelays = normalizeRelays(
-        options?.relays ?? this.#outboxRelays,
-      );
+      const groupRelays = relaySet(options?.relays ?? this.#outboxRelays);
       if (!groupRelays.length)
         throw new Error("group needs at least one relay");
       const group = await this.#client.groups.create(name, {
@@ -465,68 +329,6 @@ export class MarmotController {
     return createdId;
   }
 
-  async #discoverKeyPackages(
-    input: string,
-    onProgress?: (step: string) => void,
-  ): Promise<{ pubkey: string; events: NostrEvent[] }> {
-    let pubkeyHex = normalizeToPubkey(input);
-    let identityRelays: string[] = [];
-    if (!pubkeyHex) {
-      onProgress?.(`Resolving ${input}…`);
-      const identity = await this.#directory.resolveNip05(input);
-      pubkeyHex = identity.pubkey;
-      identityRelays = normalizeRelays(identity.relays);
-    }
-    onProgress?.("Finding outbox and invite inbox relays…");
-
-    // Resolve the invitee's NIP-65 outbox relays — where their current key
-    // packages live — and search THOSE specifically. Unioning with the
-    // bootstrap relays surfaces stale key packages lingering on big public
-    // relays; only fall back to bootstrap when no outbox can be found.
-    const hints = relaySet(identityRelays, this.#relays, lookupRelays$.value);
-    const [discovered] = await Promise.all([
-      this.#directory.outboxes(pubkeyHex, hints),
-      this.#directory.welcomeInboxes(pubkeyHex, hints),
-    ]);
-    const searchRelays = discovered.length
-      ? relaySet(discovered)
-      : relaySet(identityRelays, this.#relays);
-    this.log(
-      discovered.length
-        ? `searching ${npubShort(pubkeyHex)}'s outbox relays for key packages`
-        : `no outbox relays found for ${npubShort(pubkeyHex)} — using bootstrap relays`,
-      discovered.length ? "info" : "warn",
-    );
-    onProgress?.(`Fetching key packages from ${searchRelays.length} relay(s)…`);
-    const kps = await this.#network.request(
-      searchRelays,
-      {
-        kinds: [ADDRESSABLE_KEY_PACKAGE_KIND],
-        authors: [pubkeyHex],
-      },
-      { waitForAuth: false },
-    );
-    if (this.#watchAbort) throw new Error("Client is not running");
-    if (!kps.length) {
-      throw new Error(`no KeyPackage found for ${npubShort(pubkeyHex)}`);
-    }
-
-    // Keep only the newest key package per device slot (`d` tag). Relays that
-    // don't honour replaceable semantics can return superseded versions; an
-    // older one's private material is gone on the invitee's side, so inviting
-    // it would deliver an undecryptable Welcome.
-    const bySlot = new Map<string, NostrEvent>();
-    for (const event of kps) {
-      const slot = getKeyPackageIdentifier(event) ?? event.id;
-      const prev = bySlot.get(slot);
-      if (!prev || event.created_at > prev.created_at) bySlot.set(slot, event);
-    }
-    return {
-      pubkey: pubkeyHex,
-      events: [...bySlot.values()].sort((a, b) => b.created_at - a.created_at),
-    };
-  }
-
   /** Discover and validate devices to include in a new group's founding membership.
    * @param input - Public key, npub, or NIP-05 identifier.
    * @param onProgress - Receives the current discovery step.
@@ -536,29 +338,8 @@ export class MarmotController {
     input: string,
     onProgress?: (step: string) => void,
   ): Promise<InviteCandidate[]> {
-    const { events } = await this.#discoverKeyPackages(input, onProgress);
-    return events.map((event) => {
-      const reasons: string[] = [];
-      try {
-        createInviteIntent({
-          keyPackageEvent: event,
-          actorPubkey: this.#pubkey,
-        });
-        validateKeyPackageAccountIdentityProof(getKeyPackage(event), 1);
-      } catch (error) {
-        reasons.push(error instanceof Error ? error.message : String(error));
-      }
-      return {
-        id: event.id,
-        event,
-        createdAt: event.created_at,
-        deviceId: getKeyPackageIdentifier(event) ?? null,
-        refHex: getKeyPackageReference(event) ?? null,
-        invitable: !reasons.length,
-        alreadyMember: false,
-        reasons,
-      };
-    });
+    const { events } = await this.#keyPackageDiscovery.load(input, onProgress);
+    return events.map((event) => describeInviteCandidate(event, this.#pubkey));
   }
 
   async loadInviteCandidates(
@@ -566,19 +347,17 @@ export class MarmotController {
     input: string,
     onProgress?: (step: string) => void,
   ): Promise<InviteCandidates | null> {
-    if (this.#watchAbort) return null;
-    this.#busy = true;
+    if (this.#stopped) return null;
+    this.#pendingActions++;
     this.#publish();
     try {
       const group = this.#groups.get(groupId);
       if (!group) throw new Error("group is not loaded");
-      const { pubkey: pubkeyHex, events } = await this.#discoverKeyPackages(
-        input,
-        onProgress,
-      );
+      const { pubkey: pubkeyHex, events } =
+        await this.#keyPackageDiscovery.load(input, onProgress);
       const candidates = events
         .sort((a, b) => b.created_at - a.created_at)
-        .map((event) => this.#describeCandidate(group, event));
+        .map((event) => describeInviteCandidate(event, this.#pubkey, group));
       const invitable = candidates.filter((c) => c.invitable).length;
       this.log(
         `found ${candidates.length} KeyPackage(s) — ${invitable} invitable to "${groupName(group)}"`,
@@ -594,7 +373,7 @@ export class MarmotController {
       this.logError(err);
       return null;
     } finally {
-      this.#busy = false;
+      this.#pendingActions--;
       this.#publish();
     }
   }
@@ -619,8 +398,8 @@ export class MarmotController {
     // Note: this does NOT go through #withBusy — that helper swallows errors and
     // no-ops when the client has stopped, which would let the invite dialog
     // close as if the send succeeded. Callers need failures to propagate.
-    if (this.#watchAbort) throw new Error("client is not running");
-    this.#busy = true;
+    if (this.#stopped) throw new Error("client is not running");
+    this.#pendingActions++;
     this.#publish();
     try {
       const group = this.#requireAdmin(groupId);
@@ -667,33 +446,9 @@ export class MarmotController {
       this.logError(err);
       throw err;
     } finally {
-      this.#busy = false;
+      this.#pendingActions--;
       this.#publish();
     }
-  }
-
-  #describeCandidate(group: MarmotGroup, event: NostrEvent): InviteCandidate {
-    const eligibility = group.evaluateKeyPackage(event);
-    const reasons = [...eligibility.reasons];
-    try {
-      createInviteIntent({ keyPackageEvent: event, actorPubkey: this.#pubkey });
-      validateKeyPackageAccountIdentityProof(
-        getKeyPackage(event),
-        group.state.groupContext.cipherSuite,
-      );
-    } catch (error) {
-      reasons.push(error instanceof Error ? error.message : String(error));
-    }
-    return {
-      id: event.id,
-      event,
-      createdAt: event.created_at,
-      deviceId: getKeyPackageIdentifier(event) ?? null,
-      refHex: getKeyPackageReference(event) ?? null,
-      invitable: !reasons.length,
-      alreadyMember: eligibility.alreadyMember,
-      reasons,
-    };
   }
 
   async joinInvite(inviteId: string): Promise<string | null> {
@@ -731,9 +486,35 @@ export class MarmotController {
     yield* this.#client.watchInvites();
   }
 
-  async leave(groupId: string): Promise<void> {
+  /** Retry the exact pending commit without regenerating membership or metadata changes. */
+  async retryPendingChanges(groupId: string): Promise<void> {
     await this.#withBusy(async () => {
+      const count = await this.#resumePendingPublication(
+        this.#requireGroup(groupId),
+      );
+      this.log(
+        count ? "Pending changes published" : "No pending changes to publish",
+      );
+    });
+  }
+
+  /** Step down from the admin set and leave only after publication succeeds. */
+  async leave(groupId: string): Promise<boolean> {
+    return this.#withBusy(async () => {
       const group = this.#requireGroup(groupId);
+      const admins = group.groupData?.adminPubkeys ?? [];
+      if (admins.includes(this.#pubkey)) {
+        if (!admins.some((pubkey) => pubkey !== this.#pubkey)) {
+          throw new Error(
+            "Promote another member to admin before leaving this group",
+          );
+        }
+        await this.#client.groups.commit(group.id, {
+          extraProposals: await Proposals.proposeUpdateMetadata({
+            adminPubkeys: admins.filter((pubkey) => pubkey !== this.#pubkey),
+          })(group.session.proposalContext()),
+        });
+      }
       await this.#client.groups.leave(group.id);
       this.#detachGroup(group.idStr);
       if (this.#activeId === group.idStr) {
@@ -814,11 +595,13 @@ export class MarmotController {
     onPrepared?: (rumor: Rumor) => void,
   ): Promise<void> {
     const group = this.#requireGroup(groupId);
-    const pubkey = await group.signer.getPublicKey();
-    // Identical messages sent within one second still need distinct rumor IDs.
-    const tags = [["client_nonce", crypto.randomUUID()]];
-    if (replyTo) tags.push(["q", replyTo.id, "", replyTo.pubkey]);
-    const rumor = createChatRumor({ pubkey, content: text, tags });
+    let message = ChatMessageFactory.create(text).modifyPublicTags((tags) => [
+      ...tags,
+      ["client_nonce", crypto.randomUUID()],
+    ]);
+    if (replyTo)
+      message = message.replyTo({ id: replyTo.id, author: replyTo.pubkey });
+    const rumor = await message.then(toRumor(group.signer));
     onPrepared?.(rumor);
     await this.sendPreparedMessage(groupId, rumor);
   }
@@ -837,108 +620,35 @@ export class MarmotController {
     onPrepared?: (rumor: Rumor) => void,
   ): Promise<void> {
     const group = this.#requireGroup(groupId);
-    const policy = group.groupData?.encryptedMedia;
-    if (!policy) throw new Error("media is not enabled for this group");
-    const servers = policy.defaultBlobEndpoints
-      .filter((e) => e.locatorKind === BLOSSOM_LOCATOR_KIND)
-      .map((e) => e.baseUrl);
-    if (!servers.length) {
-      throw new Error("this group's media policy has no Blossom server");
-    }
-
-    const dim = await imageDimensions(file);
-    const { encrypted, attachment } = await group.encryptMedia(file, {
-      filename: file.name,
-      type: file.type || undefined,
-      dim,
-    });
-
-    // The ciphertext's SHA-256 is its Blossom content id, so the auth event is
-    // bound to attachment.ciphertextSha256 and the same blob bytes are uploaded.
-    const blob = new Blob([encrypted as BlobPart]);
-    const auth = await createUploadAuth(
-      this.#blossomSigner,
-      attachment.ciphertextSha256,
-      { message: `Upload ${file.name}` },
-    );
-    let url: string | undefined;
-    let lastErr: unknown;
-    for (const server of servers) {
-      try {
-        const descriptor = await Actions.uploadBlob(server, blob, { auth });
-        url = descriptor.url;
-        break;
-      } catch (err) {
-        lastErr = err;
-      }
-    }
-    if (!url) {
-      throw new Error(
-        `failed to upload media: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
-      );
-    }
-    attachment.locators.push({ kind: BLOSSOM_LOCATOR_KIND, value: url });
-
-    const pubkey = await group.signer.getPublicKey();
-    const tags: string[][] = [encodeMediaImetaTag(attachment)];
-    if (replyTo) tags.push(["q", replyTo.id, "", replyTo.pubkey]);
-    const rumor = createChatRumor({ pubkey, content: caption ?? "", tags });
+    const rumor = await this.#media.prepare(group, file, caption, replyTo);
     onPrepared?.(rumor);
     await this.sendPreparedMessage(groupId, rumor);
   }
 
-  /** Publish an already prepared chat rumor, preserving its identity on retry. */
+  /** Publish an already prepared message, preserving media's source-state guard. */
   async sendPreparedMessage(groupId: string, rumor: Rumor): Promise<void> {
     const group = this.#requireGroup(groupId);
-    await this.#client.groups.send(
-      group.id,
-      createApplicationMessageIntent(rumor),
-    );
+    await this.#client.groups.send(group.id, this.#media.intentFor(rumor));
   }
 
-  /**
-   * Download an attachment from a policy-allowed locator and decrypt it,
-   * verifying the ciphertext and plaintext hashes. Decrypted bytes are cached
-   * by the library, so repeated calls for the same attachment are cheap.
-   */
+  /** Download media using authenticated source evidence for its canonical rumor. */
   async fetchAndDecryptMedia(
     groupId: string,
-    attachment: MediaAttachment,
+    attachment: HistoricalMediaAttachment,
+    rumorId: string,
+    signal?: AbortSignal,
   ): Promise<{ data: Uint8Array; mediaType: string }> {
-    const group = this.#groups.get(groupId);
-    if (!group) throw new Error("Group is not loaded");
-    const cached = await group.media.getMedia(attachment.ciphertextSha256);
-    if (cached)
-      return { data: cached.data, mediaType: cached.attachment.mediaType };
-    const policy = group.groupData?.encryptedMedia;
-    const urls = policy
-      ? resolveMediaFetchUrls(attachment, policy)
-      : attachment.locators
-          .filter((l) => l.kind === BLOSSOM_LOCATOR_KIND)
-          .map((l) => l.value);
-    if (!urls.length)
-      throw new Error("no fetchable locator for this attachment");
-
-    let lastErr: unknown;
-    for (const url of urls) {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const encrypted = new Uint8Array(await res.arrayBuffer());
-        const stored = await group.decryptMedia(encrypted, attachment);
-        return { data: stored.data, mediaType: stored.attachment.mediaType };
-      } catch (err) {
-        lastErr = err;
-      }
-    }
-    throw new Error(
-      `failed to load media: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
+    return this.#media.download(
+      this.#requireGroup(groupId),
+      attachment,
+      rumorId,
+      signal,
     );
   }
 
   /**
    * Enable or update encrypted media for a group (admin only) by writing its
-   * encrypted-media policy (component `0x8008`) with the given Blossom servers.
+   * encrypted-media policy (component `0x800b`) with the given Blossom servers.
    */
   async setGroupMediaPolicy(
     groupId: string,
@@ -949,9 +659,9 @@ export class MarmotController {
       const urls = baseUrls.map((u) => u.trim()).filter(Boolean);
       if (!urls.length)
         throw new Error("provide at least one Blossom server URL");
-      const [proposal] = await Proposals.proposeUpdateMetadata({
-        encryptedMedia: encryptedMediaBlossomDefault(urls),
-      })(group.session.proposalContext());
+      const [proposal] = await Proposals.proposeSetEncryptedMediaPolicy(
+        encryptedMediaBlossomDefault(urls),
+      )(group.session.proposalContext());
       if (!proposal) return;
       await this.#client.groups.commit(group.id, {
         extraProposals: [proposal],
@@ -967,60 +677,19 @@ export class MarmotController {
     emoji: string,
   ): Promise<void> {
     const group = this.#requireGroup(groupId);
-    const pubkey = await group.signer.getPublicKey();
-    const rumor = createRumor({
-      pubkey,
-      kind: REACTION_KIND,
-      content: emoji,
-      tags: [
-        ["e", target.id],
-        ["p", target.pubkey],
-      ],
-    });
+    const rumor = await ReactionFactory.create(
+      { ...target, kind: kinds.ChatMessage },
+      emoji,
+    ).then(toRumor(group.signer));
     await this.#client.groups.send(
       group.id,
       createApplicationMessageIntent(rumor),
     );
   }
 
-  async loadOlder(groupId: string): Promise<void> {
-    const group = this.#groups.get(groupId);
-    if (!group) return;
-    const history = group.history as unknown as GroupRumorHistory | undefined;
-    const store = this.#groupStores.get(groupId);
-    if (!history || !store) return;
-    const state = this.#paginationState(groupId);
-    if (state.loadingOlder || state.exhausted) return;
-
-    const oldest = this.#oldest.get(groupId);
-    state.loadingOlder = true;
-    this.#publish();
-    try {
-      const loader = history.createPaginatedLoader({
-        kinds: TIMELINE_KINDS,
-        until: oldest !== undefined ? oldest - 1 : undefined,
-        limit: HISTORY_WINDOW,
-      });
-      const { value } = await loader.next();
-      void loader.return?.(undefined);
-      const page = (value ?? []) as Rumor[];
-      if (page.length) this.#ingestRumors(groupId, store, page);
-      if (page.length < HISTORY_WINDOW) state.exhausted = true;
-    } catch (err) {
-      this.logError(err);
-    } finally {
-      state.loadingOlder = false;
-      this.#publish();
-    }
-  }
-
-  #paginationState(id: string): PaginationState {
-    let state = this.#pagination.get(id);
-    if (!state) {
-      state = { loadingOlder: false, exhausted: false };
-      this.#pagination.set(id, state);
-    }
-    return state;
+  /** Expand the group's local history projection without making a relay request. */
+  loadOlder(groupId: string): void {
+    this.#timelines.get(groupId)?.loadOlder();
   }
 
   /** Retire legacy packages only after a current package is available.
@@ -1082,15 +751,7 @@ export class MarmotController {
   async rotateKeyPackage(): Promise<void> {
     await this.#withBusy(async () => {
       const list = await this.#client.keyPackages.list();
-      const current =
-        list.find(
-          (p) =>
-            !p.used &&
-            !isLegacyKeyPackage(p) &&
-            p.identifier === this.#clientId,
-        ) ??
-        list.find((p) => !p.used && !isLegacyKeyPackage(p)) ??
-        list[0];
+      const current = selectDeviceKeyPackage(list, this.#clientId);
       if (!current) throw new Error("no KeyPackage to rotate");
       const relays = await this.#requireKeyPackageRelays();
       const rotated = await this.#client.keyPackages.rotate(
@@ -1107,8 +768,8 @@ export class MarmotController {
 
   async saveRelayLists(outbox: string[], inbox: string[]): Promise<void> {
     await this.#withBusy(async () => {
-      const nextOutbox = normalizeRelays(outbox);
-      const nextInbox = normalizeRelays(inbox);
+      const nextOutbox = relaySet(outbox);
+      const nextInbox = relaySet(inbox);
       if (!nextOutbox.length)
         throw new Error("outbox (NIP-65) list needs at least one valid relay");
       if (!nextInbox.length)
@@ -1132,7 +793,10 @@ export class MarmotController {
   async saveProfile(fields: ProfileContent): Promise<void> {
     await this.#withBusy(async () => {
       const relays = await this.#requirePublishRelays();
-      const existing = this.#eventStore.getReplaceable(0, this.#pubkey);
+      const existing = this.#eventStore.getReplaceable(
+        kinds.Metadata,
+        this.#pubkey,
+      );
       const merged: ProfileContent = {
         ...(existing ? getProfileContent(existing) : {}),
       };
@@ -1142,12 +806,9 @@ export class MarmotController {
           delete (merged as Record<string, unknown>)[key];
         else (merged as Record<string, unknown>)[key] = text;
       }
-      const event = await this.#signer.signEvent({
-        kind: 0,
-        content: JSON.stringify(merged),
-        tags: [],
-        created_at: Math.floor(Date.now() / 1000),
-      });
+      const event = await ProfileFactory.create()
+        .override(merged)
+        .sign(this.#signer);
       await this.#network.publish(relays, event);
       this.#eventStore.add(event);
       this.log(`published profile (${merged.name || "no name"})`);
@@ -1155,6 +816,7 @@ export class MarmotController {
   }
 
   log(text: string, level: StatusLine["level"] = "info"): void {
+    if (this.#stopped) return;
     const line = { id: this.#statusSeq++, level, text, at: Date.now() };
     this.#status = [...this.#status.slice(-200), line];
     if (level === "error") console.error("[marmot]", text);
@@ -1177,17 +839,15 @@ export class MarmotController {
    * while the app runs. Best-effort: any failure is logged and swallowed.
    */
   async uploadAuditLog(): Promise<void> {
-    if (!this.#audit || !this.#auditUpload) return;
+    const audit = this.#audit;
+    const upload = this.#auditUpload;
+    if (!audit || !upload) return;
     await this.#withBusy(async () => {
-      this.log(`uploading audit log to ${this.#auditUpload!.endpoint}…`);
-      const result = await uploadAuditLog(
-        this.#audit!.readNdjson(),
-        this.#auditUpload!.endpoint,
-        {
-          bearerToken: this.#auditUpload!.bearerToken,
-          source: this.#auditUpload!.source,
-        },
-      );
+      this.log(`uploading audit log to ${upload.endpoint}…`);
+      const result = await uploadAuditLog(audit.readNdjson(), upload.endpoint, {
+        bearerToken: upload.bearerToken,
+        source: upload.source,
+      });
       this.log(
         `uploaded audit log — ${result.bytesSent} bytes, HTTP ${result.status}`,
       );
@@ -1196,16 +856,19 @@ export class MarmotController {
 
   // --- internals -------------------------------------------------------------
 
-  async #withBusy(fn: () => Promise<void>): Promise<void> {
-    if (this.#watchAbort) return;
-    this.#busy = true;
+  /** UI commands report errors as status and a success flag; message sends still throw. */
+  async #withBusy(fn: () => Promise<void>): Promise<boolean> {
+    if (this.#stopped) return false;
+    this.#pendingActions++;
     this.#publish();
     try {
       await fn();
+      return true;
     } catch (err) {
       this.logError(err);
+      return false;
     } finally {
-      this.#busy = false;
+      this.#pendingActions--;
       this.#publish();
     }
   }
@@ -1227,7 +890,7 @@ export class MarmotController {
     try {
       await this.#ensureRelayListsLoaded();
     } catch (err) {
-      if (!this.#watchAbort) this.logError(err);
+      if (!this.#stopped) this.logError(err);
     }
   }
 
@@ -1255,14 +918,14 @@ export class MarmotController {
     const [outbox, inbox] = await Promise.all([
       this.#directory.outboxes(
         this.#pubkey,
-        relaySet(this.#relays, lookupRelays$.value),
+        relaySet(this.#relays, this.#lookupRelays()),
       ),
       this.#directory.welcomeInboxes(
         this.#pubkey,
-        relaySet(this.#relays, lookupRelays$.value),
+        relaySet(this.#relays, this.#lookupRelays()),
       ),
     ]);
-    if (this.#watchAbort || this.#relayListsAuthoritative) return;
+    if (this.#stopped || this.#relayListsAuthoritative) return;
     if (outbox.length) this.#outboxRelays = outbox;
     const before = relaySet(this.#inboxRelays).join(",");
     if (inbox.length) this.#inboxRelays = inbox;
@@ -1290,22 +953,14 @@ export class MarmotController {
 
   async #ensureKeyPackage(): Promise<void> {
     const existing = await this.#client.keyPackages.list();
-    if (this.#watchAbort) return;
-    if (
-      existing.some(
-        (pkg) =>
-          !pkg.used &&
-          !isLegacyKeyPackage(pkg) &&
-          pkg.identifier === this.#clientId &&
-          pkg.published?.length,
-      )
-    ) {
+    if (this.#stopped) return;
+    if (existing.some((pkg) => isCurrentDevicePackage(pkg, this.#clientId))) {
       this.#setKeyPackageSummary(existing);
       await this.#retireLegacySlotKeyPackages(existing);
       return;
     }
     await this.#ensureRelayListsLoaded();
-    if (this.#watchAbort) return;
+    if (this.#stopped) return;
     if (!this.#outboxRelays.length || !this.#inboxRelays.length) {
       this.#setKeyPackageSummary(existing);
       this.log(
@@ -1314,10 +969,24 @@ export class MarmotController {
       );
       return;
     }
-    await this.#client.keyPackages.create({
+    await this.#client.keyPackages.ensurePublished({
       relays: relaySet(this.#outboxRelays),
+      identifier: this.#clientId,
     });
-    if (this.#watchAbort) return;
+    if (this.#stopped) return;
+    // create/ensurePublished return a summary without publication events. Read the
+    // durable list before deciding whether this device still needs a publication.
+    if (
+      !(await this.#client.keyPackages.list()).some((pkg) =>
+        isCurrentDevicePackage(pkg, this.#clientId),
+      )
+    ) {
+      await this.#client.keyPackages.create({
+        relays: relaySet(this.#outboxRelays),
+        identifier: this.#clientId,
+      });
+    }
+    if (this.#stopped) return;
     await this.#refreshKeyPackageSummary();
     this.log(`published a fresh KeyPackage so others can invite you`);
     await this.#retireLegacySlotKeyPackages(
@@ -1336,7 +1005,7 @@ export class MarmotController {
     const legacy = packages.filter(
       (pkg) => hasLegacySlot(pkg) && !pkg.nonCurrent,
     );
-    if (!legacy.length || this.#watchAbort) return;
+    if (!legacy.length || this.#stopped) return;
     let retired = 0;
     for (const pkg of legacy) {
       try {
@@ -1360,40 +1029,45 @@ export class MarmotController {
   }
 
   #setKeyPackageSummary(packages: ListedKeyPackage[]): void {
-    const current =
-      packages.find(
-        (pkg) =>
-          !pkg.used &&
-          !isLegacyKeyPackage(pkg) &&
-          pkg.identifier === this.#clientId,
-      ) ??
-      packages.find((pkg) => !pkg.used && !isLegacyKeyPackage(pkg)) ??
-      packages[0];
-    const newestPublished = packages
-      .flatMap((pkg) => pkg.published ?? [])
-      .reduce<NostrEvent | null>(
-        (newest, event) =>
-          !newest || event.created_at > newest.created_at ? event : newest,
-        null,
-      );
-    this.#keyPackages = {
-      total: packages.length,
-      unused: packages.filter((pkg) => !pkg.used && !isLegacyKeyPackage(pkg))
-        .length,
-      legacy: packages.filter(isLegacyKeyPackage).length,
-      slot: current?.identifier ?? null,
-      newestPublishedAt: newestPublished?.created_at ?? null,
-      newestPublishedId: newestPublished?.id ?? null,
-      currentRefHex: current ? shortHex(current.keyPackageRef) : null,
-    };
+    this.#keyPackages = summarizeKeyPackages(packages, this.#clientId);
+  }
+
+  async #resumePendingPublication(group: AppGroup): Promise<number> {
+    const results = await group.retryPendingPublication();
+    if (this.#stopped) return 0;
+    for (const result of results) {
+      if (result.persistence.kind === "failed")
+        this.log(
+          `Changes published, but local persistence needs recovery: ${result.persistence.error}`,
+          "warn",
+        );
+      if (result.welcomeDelivery.kind === "attempted") {
+        for (const outcome of result.welcomeDelivery.outcomes) {
+          if (outcome.kind === "failed")
+            this.log(
+              `Changes published, but Welcome delivery failed for ${npubShort(outcome.recipient.pubkey)}: ${outcome.error}`,
+              "warn",
+            );
+        }
+      }
+    }
+    return results.length;
   }
 
   async #restoreGroups(): Promise<void> {
     const groups = await this.#client.groups.loadAll();
-    if (this.#watchAbort) return;
+    if (this.#stopped) return;
     for (const group of groups) {
-      if (this.#watchAbort) return;
+      if (this.#stopped) return;
       this.#attachGroup(group);
+      if (
+        group.profileSupport.kind === "supported" &&
+        group.status === "active"
+      ) {
+        void this.#resumePendingPublication(group).catch((error) => {
+          if (!this.#stopped) this.logError(error);
+        });
+      }
     }
     if (groups.length && !this.#activeId) this.#activeId = groups[0].idStr;
     if (groups.length) this.log(`restored ${groups.length} group(s)`);
@@ -1401,61 +1075,66 @@ export class MarmotController {
 
   async #watchGroups(): Promise<void> {
     try {
-      for await (const groups of this.#client.groups.watch()) {
-        if (this.#watchAbort) break;
+      for await (const groups of this.#client.groups.watch({
+        signal: this.#abort.signal,
+      })) {
+        if (this.#stopped) break;
         const live = new Set(groups.map((g) => g.idStr));
         for (const group of groups) {
-          if (this.#watchAbort) break;
-          if (!this.#groups.has(group.idStr)) this.#attachGroup(group);
+          if (this.#stopped) break;
+          if (this.#groups.get(group.idStr) !== group) this.#attachGroup(group);
         }
-        if (this.#watchAbort) break;
+        if (this.#stopped) break;
         for (const id of [...this.#groups.keys()]) {
           if (!live.has(id)) this.#detachGroup(id);
         }
       }
     } catch (err) {
-      if (!this.#watchAbort) this.logError(err);
+      if (!this.#stopped) this.logError(err);
     }
   }
 
-  #attachGroup(group: MarmotGroup): void {
-    if (this.#watchAbort) return;
+  #attachGroup(group: AppGroup): void {
+    if (this.#stopped) return;
     const id = group.idStr;
+    if (this.#groups.get(id) === group) return;
+    if (this.#groups.has(id)) this.#detachGroup(id);
     this.#groups.set(id, group);
     if (group.profileSupport.kind === "unsupported")
       this.log(
         `"${groupName(group)}" uses an older group profile. Recreate it to continue chatting.`,
         "warn",
       );
-    if (!this.#groupStores.has(id)) {
-      const store = new EventStore();
-      // Rumors are unsigned; skip signature verification for this private store.
-      store.verifyEvent = () => true;
-      this.#groupStores.set(id, store);
+    if (!this.#timelines.has(id)) {
+      this.#timelines.set(
+        id,
+        new GroupTimeline(group.history, {
+          onChange: () => this.#publish(),
+          onError: (error) => this.logError(error),
+        }),
+      );
     }
-    if (!this.#bound.has(id)) {
-      group.on("stateChanged", () => this.#publish());
-      this.#bound.add(id);
+    if (!this.#groupListeners.has(id)) {
+      const onStateChanged = () => this.#publish();
+      group.on("stateChanged", onStateChanged);
+      this.#groupListeners.set(id, () =>
+        group.off("stateChanged", onStateChanged),
+      );
     }
-    this.#startHistory(group);
     this.#publish();
   }
 
   #detachGroup(id: string): void {
-    const history = this.#historySubs.get(id);
-    if (history) {
-      this.#historySubs.delete(id);
-      void history.return(undefined);
-    }
-    this.#pagination.delete(id);
-    this.#oldest.delete(id);
-    this.#groupStores.delete(id);
+    this.#timelines.get(id)?.dispose();
+    this.#timelines.delete(id);
+    this.#groupListeners.get(id)?.();
+    this.#groupListeners.delete(id);
     this.#groups.delete(id);
     this.#publish();
   }
 
   #relistenInvites(): void {
-    if (this.#watchAbort) return;
+    if (this.#stopped) return;
     const generation = ++this.#inviteListenGeneration;
     const relays = relaySet(this.#inboxRelays);
     this.#inviteConnection?.unsubscribe();
@@ -1463,55 +1142,15 @@ export class MarmotController {
     void this.#client.invites
       .listen(relays)
       .then((handle) => {
-        if (this.#watchAbort || generation !== this.#inviteListenGeneration)
+        if (this.#stopped || generation !== this.#inviteListenGeneration)
           handle.unsubscribe();
         else this.#inviteConnection = handle;
       })
       .catch((err) => console.error("[marmot] invite listen failed", err));
   }
 
-  #startHistory(group: MarmotGroup): void {
-    const id = group.idStr;
-    const history = group.history as unknown as GroupRumorHistory | undefined;
-    const store = this.#groupStores.get(id);
-    if (!history || !store || this.#historySubs.has(id)) return;
-    const gen = history.subscribe({
-      kinds: TIMELINE_KINDS,
-      limit: HISTORY_WINDOW,
-    });
-    this.#historySubs.set(id, gen);
-    void this.#consumeHistory(id, store, gen);
-  }
-
-  async #consumeHistory(
-    id: string,
-    store: EventStore,
-    gen: AsyncGenerator<Rumor[]>,
-  ): Promise<void> {
-    try {
-      for await (const rumors of gen) {
-        if (this.#watchAbort || this.#historySubs.get(id) !== gen) break;
-        this.#ingestRumors(id, store, rumors);
-      }
-    } catch (err) {
-      if (!this.#watchAbort) this.logError(err);
-    }
-  }
-
-  /** Add rumors to a group's store (idempotent by id) and track the oldest. */
-  #ingestRumors(id: string, store: EventStore, rumors: Rumor[]): void {
-    for (const rumor of rumors) {
-      store.add(rumor as unknown as NostrEvent);
-      if (rumor.kind === CHAT_MESSAGE_KIND) {
-        const oldest = this.#oldest.get(id);
-        if (oldest === undefined || rumor.created_at < oldest) {
-          this.#oldest.set(id, rumor.created_at);
-        }
-      }
-    }
-  }
-
-  #requireGroup(groupId: string): MarmotGroup {
+  #requireGroup(groupId: string): AppGroup {
+    if (this.#stopped) throw new Error("Controller is stopped");
     const group = this.#groups.get(groupId);
     if (!group) throw new Error("group is not loaded");
     if (group.profileSupport.kind === "unsupported")
@@ -1523,7 +1162,7 @@ export class MarmotController {
     return group;
   }
 
-  #requireAdmin(groupId: string): MarmotGroup {
+  #requireAdmin(groupId: string): AppGroup {
     const group = this.#requireGroup(groupId);
     if (!groupIsAdmin(group, this.#pubkey)) {
       throw new Error("only group admins can perform this action");
@@ -1534,13 +1173,15 @@ export class MarmotController {
   // --- snapshot plumbing -----------------------------------------------------
 
   #publish(): void {
+    if (this.#stopped) return;
     this.#snapshot = this.#buildSnapshot();
     for (const listener of this.#listeners) listener();
   }
 
   #buildSnapshot(): ChatSnapshot {
-    const pagination: Record<string, PaginationState> = {};
-    for (const [id, state] of this.#pagination) pagination[id] = { ...state };
+    const pagination = Object.fromEntries(
+      [...this.#timelines].map(([id, timeline]) => [id, timeline.pagination]),
+    );
     return {
       me: { pubkey: this.#pubkey, npub: npubEncode(this.#pubkey) },
       relays: this.#relays,
@@ -1552,7 +1193,7 @@ export class MarmotController {
       activeGroupId: this.#activeId,
       pagination,
       status: this.#status,
-      busy: this.#busy,
+      busy: this.#pendingActions > 0,
       canUploadAudit: this.canUploadAudit,
     };
   }

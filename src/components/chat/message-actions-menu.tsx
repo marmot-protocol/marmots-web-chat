@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import type { NostrEvent } from "applesauce-core/helpers/event";
+import type { Rumor } from "applesauce-core/helpers/event";
 import { Copy, Reply } from "lucide-react";
 
 import {
@@ -36,7 +36,7 @@ export function MessageActionsMenu({
   children,
 }: {
   groupId: string;
-  message: NostrEvent;
+  message: Rumor;
   onReply?: (target: ReplyTarget) => void;
   readOnly?: boolean;
   children: ReactNode;

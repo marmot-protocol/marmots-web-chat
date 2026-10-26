@@ -1,6 +1,7 @@
 import { useOutletContext } from "react-router";
 import type { Dispatch, SetStateAction } from "react";
-import type { ChatSnapshot, MarmotController } from "@/lib/marmot/controller";
+import type { ChatSnapshot } from "@/lib/marmot/types";
+import type { MarmotController } from "@/lib/marmot/controller";
 
 type DraftSetter = Dispatch<SetStateAction<string>>;
 

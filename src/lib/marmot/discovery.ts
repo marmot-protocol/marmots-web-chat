@@ -1,24 +1,19 @@
+import { parseNIP05Address } from "applesauce-core/helpers/dns-identity";
+import { isHexKey } from "applesauce-core/helpers/string";
 import { IdentityStatus } from "applesauce-loaders/helpers";
 import { DnsIdentityLoader } from "applesauce-loaders/loaders";
 import { castUser } from "applesauce-common/casts";
 import type { EventStore } from "applesauce-core/event-store";
 import type { NostrEvent } from "applesauce-core/helpers/event";
-import { getInboxes, getOutboxes } from "applesauce-core/helpers/mailboxes";
-import {
-  getProfileContent,
-  type ProfileContent,
-} from "applesauce-core/helpers/profile";
-
+import { getOutboxes } from "applesauce-core/helpers/mailboxes";
 import {
   getInboxRelays,
   INBOX_RELAY_LIST_KIND,
   NIP65_RELAY_LIST_KIND,
 } from "@internet-privacy/marmot-ts";
 
-const METADATA_KIND = 0;
-
 /**
- * Imperative accessors for other accounts' relay lists and profiles, reading
+ * Imperative accessors for other accounts' relay lists and NIP-05 identities, reading
  * straight from the shared {@link EventStore}. Subscribing to a replaceable the
  * store doesn't have triggers its loader (configured in `lib/nostr.ts`), which
  * batches/de-duplicates the request and falls back to the lookup relays — so
@@ -66,16 +61,16 @@ export class Directory {
   async resolveNip05(
     identifier: string,
   ): Promise<{ pubkey: string; relays: string[] }> {
-    const match = /^([a-z0-9._-]+)@([^@\s/]+)$/i.exec(identifier.trim());
-    if (!match) throw new Error(`Invalid NIP-05 identifier: ${identifier}`);
+    const address = parseNIP05Address(identifier.trim());
+    if (!address) throw new Error(`Invalid NIP-05 identifier: ${identifier}`);
     const identity = await this.#dnsIdentities.requestIdentity(
-      match[1].toLowerCase(),
-      match[2].toLowerCase(),
+      address.name,
+      address.domain,
     );
     if (identity.status !== IdentityStatus.Found) {
       throw new Error(`NIP-05 lookup failed for ${identifier}`);
     }
-    if (!/^[0-9a-f]{64}$/i.test(identity.pubkey))
+    if (!isHexKey(identity.pubkey))
       throw new Error("NIP-05 returned an invalid public key");
     return {
       pubkey: identity.pubkey.toLowerCase(),
@@ -89,24 +84,9 @@ export class Directory {
     return event ? getOutboxes(event) : [];
   }
 
-  /** The account's NIP-65 (kind 10002) inbox/read relays. */
-  async inboxes(pubkey: string, hints?: string[]): Promise<string[]> {
-    const event = await this.#latest(NIP65_RELAY_LIST_KIND, pubkey, hints);
-    return event ? getInboxes(event) : [];
-  }
-
   /** The account's Marmot welcome-inbox relays (kind 10050). */
   async welcomeInboxes(pubkey: string, hints?: string[]): Promise<string[]> {
     const event = await this.#latest(INBOX_RELAY_LIST_KIND, pubkey, hints);
     return event ? getInboxRelays(event) : [];
-  }
-
-  /** The account's parsed kind 0 profile metadata, or undefined. */
-  async profile(
-    pubkey: string,
-    hints?: string[],
-  ): Promise<ProfileContent | undefined> {
-    const event = await this.#latest(METADATA_KIND, pubkey, hints);
-    return event ? getProfileContent(event) : undefined;
   }
 }

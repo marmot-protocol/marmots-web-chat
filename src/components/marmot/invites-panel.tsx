@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/dialog";
 import { UserAvatar, UserName } from "@/components/user";
 import { useController, useWatchedInvites } from "@/hooks/use-marmot";
-import type { InviteEntry, MarmotController } from "@/lib/marmot/controller";
+import type { InviteEntry } from "@/lib/marmot/types";
+import type { MarmotController } from "@/lib/marmot/controller";
 
 type Preview = Awaited<ReturnType<MarmotController["previewInvite"]>>;
 

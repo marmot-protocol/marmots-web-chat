@@ -4,7 +4,7 @@ import { Paperclip, SendHorizonal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { UserName } from "@/components/user";
-import { DEFAULT_BLOSSOM_SERVERS } from "@/lib/marmot/controller";
+import { DEFAULT_BLOSSOM_SERVERS } from "@/lib/marmot/media";
 import { useChat, useController } from "@/hooks/use-marmot";
 import { getMessageOutbox } from "@/lib/marmot/message-outbox";
 import { cn } from "@/lib/utils";

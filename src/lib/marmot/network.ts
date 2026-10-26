@@ -1,18 +1,29 @@
 import type { NostrEvent } from "applesauce-core/helpers/event";
 import type { Filter } from "applesauce-core/helpers/filter";
 import type { RelayPool as AsRelayPool } from "applesauce-relay/pool";
-
 import type {
   NostrNetworkInterface,
   PublishResponse,
   Subscribable,
 } from "@internet-privacy/marmot-ts/client";
+import type {
+  AuthSigner,
+  GroupRequestOptions,
+  RelayAuthHandler,
+} from "applesauce-relay/types";
+import {
+  EMPTY,
+  ReplaySubject,
+  distinct,
+  filter,
+  lastValueFrom,
+  take,
+  takeUntil,
+  toArray,
+} from "rxjs";
 
-import type { AuthSigner, GroupReqOptions } from "applesauce-relay/types";
-import { Subscription } from "rxjs";
-
-import { autoAuthenticateRelays } from "./relay-auth";
-import type { Directory } from "./discovery";
+import { createRelayAuthHandler } from "@/lib/marmot/relay-auth";
+import type { Directory } from "@/lib/marmot/discovery";
 
 function resolveRelays(relays: string[], fallback: string[]): string[] {
   return relays.length ? relays : fallback;
@@ -25,15 +36,14 @@ function resolveRelays(relays: string[], fallback: string[]): string[] {
  * `getUserInboxRelays` delegates to the Directory's loader.
  */
 export class MarmotNetwork implements NostrNetworkInterface {
-  /** Relays used when a call passes an empty list. Mutable: startup may adopt
-   * the user's published NIP-65 relays after construction. */
-  defaultRelays: string[];
+  /** Bootstrap fallback when an operation supplies no explicit destinations. */
+  readonly defaultRelays: string[];
 
   readonly #pool: AsRelayPool;
   readonly #directory: Directory;
   #closed = false;
-  readonly #requests = new Subscription();
-  readonly #auth: { unsubscribe(): void };
+  readonly #closed$ = new ReplaySubject<void>(1);
+  readonly #onAuthRequired: RelayAuthHandler;
 
   constructor(
     pool: AsRelayPool,
@@ -44,16 +54,18 @@ export class MarmotNetwork implements NostrNetworkInterface {
     this.#pool = pool;
     this.defaultRelays = defaultRelays;
     this.#directory = directory;
-    this.#auth = autoAuthenticateRelays(pool, signer);
+    this.#onAuthRequired = createRelayAuthHandler(signer, () => this.#closed);
   }
 
   async publish(
     relays: string[],
     event: NostrEvent,
   ): Promise<Record<string, PublishResponse>> {
-    if (this.#closed) return {};
+    if (this.#closed) throw new Error("Account connection is closed");
     const targets = resolveRelays(relays, this.defaultRelays);
-    const responses = await this.#pool.publish(targets, event);
+    const responses = await this.#pool.publish(targets, event, {
+      onAuthRequired: this.#onAuthRequired,
+    });
     if (!responses.some((response) => response.ok))
       throw new Error("No relay acknowledged the published event");
     const results: Record<string, PublishResponse> = {};
@@ -64,43 +76,54 @@ export class MarmotNetwork implements NostrNetworkInterface {
   async request(
     relays: string[],
     filters: Filter | Filter[],
-    options?: GroupReqOptions,
+    options?: GroupRequestOptions,
   ): Promise<NostrEvent[]> {
-    if (this.#closed) return [];
+    if (this.#closed) throw new Error("Account connection is closed");
     const targets = resolveRelays(relays, this.defaultRelays);
-    const collected: NostrEvent[] = [];
-    await new Promise<void>((resolve, reject) => {
-      const request = this.#pool.request(targets, filters, options).subscribe({
-        next: (event) => {
-          if (this.#directory.add(event)) collected.push(event);
-        },
-        error: reject,
-        complete: () => resolve(),
-      });
-      request.add(resolve);
-      this.#requests.add(request);
-    });
-    return collected;
+    const list = Array.isArray(filters) ? filters : [filters];
+    const limit = list.every((filter) => filter.limit !== undefined)
+      ? list.reduce((sum, filter) => sum + filter.limit!, 0)
+      : Infinity;
+    try {
+      return await lastValueFrom(
+        this.#pool
+          .request(targets, filters, {
+            onAuthRequired: this.#onAuthRequired,
+            ...options,
+          })
+          .pipe(
+            filter((event) => this.#directory.add(event)),
+            distinct((event) => event.id),
+            take(limit),
+            toArray(),
+            // Cancellation must reject, never resolve [] and advance a relay cursor.
+            takeUntil(this.#closed$),
+          ),
+      );
+    } catch (error) {
+      if (this.#closed)
+        throw new Error("Relay request cancelled during account teardown", {
+          cause: error,
+        });
+      throw error;
+    }
   }
 
   subscription(
     relays: string[],
     filters: Filter | Filter[],
   ): Subscribable<NostrEvent> {
-    if (this.#closed) {
-      return {
-        subscribe: (observer) => {
-          observer.complete?.();
-          return { unsubscribe: () => {} };
-        },
-      };
-    }
+    if (this.#closed) return EMPTY;
     const targets = resolveRelays(relays, this.defaultRelays);
-    return this.#pool.subscription(targets, filters);
+    return this.#pool
+      .subscription(targets, filters, {
+        onAuthRequired: this.#onAuthRequired,
+      })
+      .pipe(takeUntil(this.#closed$));
   }
 
   async getUserInboxRelays(pubkey: string): Promise<string[]> {
-    if (this.#closed) return [];
+    if (this.#closed) throw new Error("Account connection is closed");
     const relays = await this.#directory.welcomeInboxes(
       pubkey,
       this.defaultRelays,
@@ -118,8 +141,8 @@ export class MarmotNetwork implements NostrNetworkInterface {
   close(): void {
     if (this.#closed) return;
     this.#closed = true;
-    this.#auth.unsubscribe();
-    this.#requests.unsubscribe();
+    this.#closed$.next();
+    this.#closed$.complete();
     // AUTH state belongs to an account; reconnect before another account uses it.
     for (const relay of this.#pool.relays.values()) {
       if (relay.authenticated || relay.challenge) this.#pool.remove(relay);

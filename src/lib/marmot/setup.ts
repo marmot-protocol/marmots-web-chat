@@ -1,8 +1,6 @@
 import type { IAccount } from "applesauce-accounts";
-import { relaySet } from "applesauce-core/helpers";
-import { normalizeRelayUrl } from "applesauce-core/helpers";
+import { bytesToHex, relaySet } from "applesauce-core/helpers";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
-
 import {
   DEFAULT_CONVERGENCE_POLICY,
   GroupMediaStore,
@@ -21,47 +19,31 @@ import { KeyValueRumorHistoryBackend } from "@internet-privacy/marmot-ts/extra";
 import { eventStore, pool } from "@/lib/nostr";
 import {
   extraRelays$,
+  lookupRelays$,
   DEFAULT_NEW_ACCOUNT_RELAY,
   auditEnabled$,
   auditUploadEndpoint$,
   auditUploadToken$,
   debugMode$,
 } from "@/lib/settings";
-
 import {
   APP_VERSION,
+  type AuditUploadConfig,
   BrowserAuditRecorder,
   auditFileName,
   getDeviceId,
-} from "./audit";
-import { Directory } from "./discovery";
-import { getKeyPackageSlot } from "./key-package-slot";
-import { MarmotNetwork } from "./network";
-import { PrefixedKeyValueStore } from "./prefixed-store";
-import { makeStore } from "./stores";
-import { MarmotController, type AuditUploadConfig } from "./controller";
+} from "@/lib/marmot/audit";
+import { Directory } from "@/lib/marmot/discovery";
+import { getKeyPackageSlot } from "@/lib/marmot/key-package-slot";
+import { MarmotNetwork } from "@/lib/marmot/network";
+import { PrefixedKeyValueStore } from "@/lib/marmot/prefixed-store";
+import { makeStore } from "@/lib/marmot/stores";
+import { MarmotController } from "@/lib/marmot/controller";
 
 /** Stable per-browser slot so devices do not replace each other's packages. */
 const CLIENT_ID = getKeyPackageSlot();
 
-function bytesToHex(bytes: Uint8Array): string {
-  let hex = "";
-  for (const b of bytes) hex += b.toString(16).padStart(2, "0");
-  return hex;
-}
-
-function normalizeRelayList(relays: string[]): string[] {
-  return relaySet(
-    relays.flatMap((relay) => {
-      try {
-        return [normalizeRelayUrl(relay)];
-      } catch {
-        return [];
-      }
-    }),
-  );
-}
-
+/** Initial profile and relay preferences chosen when creating an account. */
 export interface NewAccountSetup {
   /** Display name published as the new account's kind 0 profile. */
   name?: string;
@@ -73,6 +55,9 @@ export interface NewAccountSetup {
  * Build (but don't start) a {@link MarmotController} for an account. A fresh
  * account operates on the relays the user chose; a returning account bootstraps
  * discovery from the configured extra relays, then adopts its published lists.
+ * @param account - Account whose signer and storage namespace the client uses.
+ * @param newAccount - Initial preferences for a newly generated account.
+ * @returns A controller ready for start(); stop it before switching accounts.
  */
 export async function createController(
   account: IAccount,
@@ -82,7 +67,7 @@ export async function createController(
   const pubkey = await account.signer.getPublicKey();
 
   const chosenRelays = fresh
-    ? normalizeRelayList(
+    ? relaySet(
         newAccount?.relays?.length
           ? newAccount.relays
           : [DEFAULT_NEW_ACCOUNT_RELAY],
@@ -110,8 +95,8 @@ export async function createController(
   );
 
   // One shared media store; each group scoped to `${groupHex}:`. Decrypted
-  // plaintext is cached by ciphertext SHA-256 so re-rendering or reloading a
-  // message never re-downloads the ciphertext or re-derives its key.
+  // plaintext cache is application-owned. Reads still verify ciphertext,
+  // attachment metadata, and authenticated source state before displaying it.
   const mediaStore = makeStore<StoredMedia>(pubkey, "media");
   const mediaFactory = (groupId: Uint8Array) =>
     new GroupMediaStore(
@@ -168,11 +153,10 @@ export async function createController(
   // reload; the convergence policy keeps forks of any age eligible and never
   // expires an app-payload witness; and the ingestion pool holds undecryptable
   // events indefinitely for retry. Disabled accounts use the library defaults
-  // (bounded retention, in-memory fork history rebuilt from the current tip).
+  // (bounded retention with durable recovery and delivery evidence).
   const debug = debugMode$.value;
   const debugRetention = debug
     ? {
-        rewindStore: makeStore<Uint8Array>(pubkey, "rewind"),
         convergencePolicy: {
           ...DEFAULT_CONVERGENCE_POLICY,
           maxRewindCommits: Infinity,
@@ -190,6 +174,9 @@ export async function createController(
     groupStateStore: makeStore(pubkey, "groups"),
     keyPackageStore: makeStore(pubkey, "keypackages"),
     inviteStore: makeStore(pubkey, "invites"),
+    ingestStateStore: makeStore<Uint8Array>(pubkey, "ingest"),
+    rewindStore: makeStore<Uint8Array>(pubkey, "rewind"),
+    removedMarkerStore: makeStore<boolean>(pubkey, "removed"),
     historyFactory,
     mediaFactory,
     clientId: CLIENT_ID,
@@ -208,6 +195,7 @@ export async function createController(
     clientId: CLIENT_ID,
     audit,
     auditUpload,
+    lookupRelays: () => lookupRelays$.value,
     initialProfileName: newAccount?.name?.trim() || undefined,
   });
 }

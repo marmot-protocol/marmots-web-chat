@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useController } from "@/hooks/use-marmot";
-import type { InviteCandidates } from "@/lib/marmot/controller";
+import type { InviteCandidates } from "@/lib/marmot/types";
 import { formatTimeAgo } from "@/lib/time";
 
 export function InviteDialog({

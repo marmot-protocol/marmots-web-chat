@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
-import type { NostrEvent } from "applesauce-core/helpers/event";
-import { getMediaAttachments } from "@internet-privacy/marmot-ts";
+import type { Rumor } from "applesauce-core/helpers/event";
+import { parseHistoricalMediaImetaTag } from "@internet-privacy/marmot-ts";
 
 import { IconLoader2 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ export const MessageItem = memo(function MessageItem({
   delivery,
 }: {
   groupId: string;
-  message: NostrEvent;
+  message: Rumor;
   mine: boolean;
   onReply?: (target: ReplyTarget) => void;
   readOnly?: boolean;
@@ -54,7 +54,10 @@ export const MessageItem = memo(function MessageItem({
   }, [reactions]);
 
   const attachments = useMemo(
-    () => getMediaAttachments(message.tags),
+    () =>
+      message.tags
+        .map(parseHistoricalMediaImetaTag)
+        .filter((attachment) => attachment !== null),
     [message.tags],
   );
 
@@ -137,7 +140,9 @@ export const MessageItem = memo(function MessageItem({
                     key={attachment.ciphertextSha256}
                     groupId={groupId}
                     attachment={attachment}
+                    rumorId={message.id}
                     mine={mine}
+                    pending={!!delivery && delivery.status !== "sent"}
                   />
                 ))}
               </div>

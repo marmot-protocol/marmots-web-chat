@@ -1,5 +1,4 @@
 import localforage from "localforage";
-
 import type { GenericKeyValueStore } from "@internet-privacy/marmot-ts/utils";
 
 /**
@@ -58,7 +57,9 @@ export async function purgeAccountStores(pubkey: string): Promise<void> {
     "messages",
     "media",
     "rewind",
+    "ingest",
+    "removed",
   ]) {
-    await new LocalForageStore(pubkey, table).clear();
+    await makeStore(pubkey, table).clear();
   }
 }

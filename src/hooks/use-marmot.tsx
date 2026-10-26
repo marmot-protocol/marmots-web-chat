@@ -10,11 +10,8 @@ import { use$ } from "applesauce-react/hooks";
 import type { ListedKeyPackage } from "@internet-privacy/marmot-ts/client";
 
 import { marmotController$ } from "@/lib/accounts";
-import type {
-  ChatSnapshot,
-  InviteEntry,
-  MarmotController,
-} from "@/lib/marmot/controller";
+import type { MarmotController } from "@/lib/marmot/controller";
+import type { ChatSnapshot, InviteEntry } from "@/lib/marmot/types";
 import { useAsyncIterable } from "./use-async-iterable";
 
 const ControllerContext = createContext<MarmotController | null>(null);

@@ -1,7 +1,8 @@
+import { bytesToHex } from "applesauce-core/helpers/event";
+import { validateKeyPackageSlot } from "@internet-privacy/marmot-ts";
 import type { ListedKeyPackage } from "@internet-privacy/marmot-ts/client";
 
 const SLOT_STORAGE_KEY = "marmot-key-package-slot";
-const SLOT_PATTERN = /^[0-9a-f]{64}$/;
 
 /**
  * This browser profile's KeyPackage publication slot (`d` tag / `clientId`):
@@ -14,11 +15,14 @@ export function getKeyPackageSlot(): string {
   try {
     slot = localStorage.getItem(SLOT_STORAGE_KEY);
   } catch {}
-  if (slot && SLOT_PATTERN.test(slot)) return slot;
+  if (slot) {
+    try {
+      validateKeyPackageSlot(slot);
+      return slot;
+    } catch {}
+  }
 
-  slot = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) =>
-    b.toString(16).padStart(2, "0"),
-  ).join("");
+  slot = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
   try {
     localStorage.setItem(SLOT_STORAGE_KEY, slot);
   } catch {}
@@ -32,7 +36,13 @@ export function getKeyPackageSlot(): string {
  * @returns `true` when the package's slot no longer meets the spec.
  */
 export function hasLegacySlot(pkg: ListedKeyPackage): boolean {
-  return pkg.identifier !== undefined && !SLOT_PATTERN.test(pkg.identifier);
+  if (pkg.identifier === undefined) return false;
+  try {
+    validateKeyPackageSlot(pkg.identifier);
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 /**

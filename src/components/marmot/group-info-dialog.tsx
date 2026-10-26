@@ -44,6 +44,10 @@ export function GroupInfoDialog({
       ? (group?.groupData?.adminPubkeys ?? []).includes(me)
       : false;
 
+  const lastAdmin =
+    !!isAdmin &&
+    !(group?.groupData?.adminPubkeys ?? []).some((pubkey) => pubkey !== me);
+
   const [confirmRemoval, setConfirmRemoval] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -92,7 +96,7 @@ export function GroupInfoDialog({
         return;
       }
       if (!(await controller.removeLegacyGroup(groupId))) return;
-    } else await controller.leave(groupId);
+    } else if (!(await controller.leave(groupId))) return;
     onOpenChange(false);
     navigate("/groups");
   };
@@ -203,10 +207,26 @@ export function GroupInfoDialog({
             state and cached media from this device.
           </p>
         )}
+        {supported && isAdmin && (
+          <p className="text-sm text-muted-foreground">
+            {lastAdmin
+              ? "Promote another member in Members before leaving."
+              : "Leaving will first remove your admin role."}
+          </p>
+        )}
+        {supported && (
+          <Button
+            variant="outline"
+            disabled={busy}
+            onClick={() => void controller?.retryPendingChanges(groupId)}
+          >
+            Retry pending changes
+          </Button>
+        )}
         <DialogFooter className="justify-between sm:justify-between">
           <Button
             variant="destructive"
-            disabled={busy}
+            disabled={busy || lastAdmin}
             onClick={() => void leave()}
           >
             {busy

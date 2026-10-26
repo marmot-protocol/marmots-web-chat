@@ -1,6 +1,8 @@
+import { StaleMediaPreparationError } from "@internet-privacy/marmot-ts";
 import { describe, expect, it, vi } from "vitest";
 import type { Rumor } from "applesauce-common/helpers/gift-wrap";
-import { getMessageOutbox, MessageOutbox } from "./message-outbox";
+
+import { getMessageOutbox, MessageOutbox } from "@/lib/marmot/message-outbox";
 
 function deferred() {
   let resolve!: () => void;
@@ -90,6 +92,53 @@ describe("MessageOutbox", () => {
     expect(sender.sendMedia).toHaveBeenCalledTimes(1);
     expect(outbox.messages$.value).toHaveLength(1);
     expect(outbox.messages$.value[0].message.id).toBe(mediaRumor.id);
+  });
+
+  it("re-prepares the original file after a source-state change invalidates a guarded retry", async () => {
+    const original = rumor("original");
+    const replacement = rumor("replacement");
+    const sender = {
+      sendText: vi.fn(),
+      sendMedia: vi.fn(
+        async (_group, _file, _caption, _reply, prepared): Promise<void> => {
+          prepared(original);
+          throw new Error("Relay offline");
+        },
+      ),
+      sendPreparedMessage: vi
+        .fn()
+        .mockRejectedValue(new StaleMediaPreparationError()),
+    };
+    const outbox = new MessageOutbox(sender);
+    const file = new File(["image"], "photo.png");
+    outbox.send("group", "pubkey", "caption", undefined, file);
+    await vi.waitFor(() =>
+      expect(outbox.messages$.value[0].status).toBe("failed"),
+    );
+    outbox.messages$.value[0].retry();
+    await vi.waitFor(() =>
+      expect(outbox.messages$.value[0].error).toBe(
+        new StaleMediaPreparationError().message,
+      ),
+    );
+    sender.sendMedia.mockImplementationOnce(
+      async (_group, _file, _caption, _reply, prepared) => {
+        prepared(replacement);
+      },
+    );
+    outbox.messages$.value[0].retry();
+    await vi.waitFor(() =>
+      expect(outbox.messages$.value[0].status).toBe("sent"),
+    );
+    expect(sender.sendMedia).toHaveBeenLastCalledWith(
+      "group",
+      file,
+      "caption",
+      undefined,
+      expect.any(Function),
+    );
+    expect(outbox.messages$.value[0].message.id).toBe(replacement.id);
+    expect(outbox.messages$.value).toHaveLength(1);
   });
 
   it("keeps a file that fails before preparation available for retry", async () => {

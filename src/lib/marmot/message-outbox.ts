@@ -1,7 +1,8 @@
+import { StaleMediaPreparationError } from "@internet-privacy/marmot-ts";
 import { BehaviorSubject } from "rxjs";
-import type { NostrEvent } from "applesauce-core/helpers/event";
-import type { Rumor } from "applesauce-common/helpers/gift-wrap";
-import type { MarmotController } from "./controller";
+import { kinds, type Rumor } from "applesauce-core/helpers/event";
+
+import type { MarmotController } from "@/lib/marmot/controller";
 
 type MessageSender = Pick<
   MarmotController,
@@ -12,7 +13,7 @@ type MessageSender = Pick<
 export interface OutgoingMessage {
   key: string;
   groupId: string;
-  message: NostrEvent;
+  message: Rumor;
   submittedAt: number;
   status: "sending" | "sent" | "failed";
   error?: string;
@@ -50,8 +51,7 @@ export class MessageOutbox {
     };
     const prepared = (value: Rumor) => {
       rumor = value;
-      file = undefined;
-      update({ message: value as NostrEvent, fileName: undefined });
+      update({ message: value, fileName: undefined });
     };
     const run = async () => {
       update({ status: "sending", error: undefined });
@@ -69,8 +69,12 @@ export class MessageOutbox {
         } else {
           await this.sender.sendText(groupId, content, replyTo, prepared);
         }
+        file = undefined;
         update({ status: "sent" });
       } catch (error) {
+        if (file && error instanceof StaleMediaPreparationError) {
+          rumor = undefined;
+        }
         update({
           status: "failed",
           error: error instanceof Error ? error.message : String(error),
@@ -99,9 +103,8 @@ export class MessageOutbox {
           pubkey,
           content,
           created_at: Math.floor(submittedAt),
-          kind: 9,
+          kind: kinds.ChatMessage,
           tags: replyTo ? [["q", replyTo.id, "", replyTo.pubkey]] : [],
-          sig: "",
         },
       },
     ]);

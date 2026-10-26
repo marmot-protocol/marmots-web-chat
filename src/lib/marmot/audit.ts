@@ -1,3 +1,4 @@
+import { bytesToHex } from "applesauce-core/helpers/event";
 import type {
   AuditRecorder,
   MarmotAuditEvent,
@@ -7,8 +8,8 @@ import type {
 export const APP_VERSION = "marmot-web/0.0.0";
 
 /**
- * The IPF/Marmot Goggles tracker — the default audit upload target. Account
- * identity is never sent here; it lives in the JSONL rows (`account_ref` on
+ * The IPF/Marmot Goggles tracker — the default audit upload target. Raw account
+ * pubkeys are not sent as headers; pseudonymous account refs live in the JSONL rows (`account_ref` on
  * every row plus a `source_context` row written when recording opens).
  */
 export const DEFAULT_GOGGLES_ENDPOINT = "https://goggles.ipf.dev/";
@@ -21,12 +22,6 @@ const MAX_AUDIT_UPLOAD_BYTES = 64 * 1024 * 1024;
 
 /** An audit log file name must be `audit-*.jsonl`. */
 const AUDIT_FILE_NAME = /^audit-.*\.jsonl$/;
-
-function bytesToHex(bytes: Uint8Array): string {
-  let hex = "";
-  for (const b of bytes) hex += b.toString(16).padStart(2, "0");
-  return hex;
-}
 
 function supportsOpfs(): boolean {
   return typeof navigator !== "undefined" && !!navigator.storage?.getDirectory;
@@ -162,6 +157,21 @@ export interface AuditUploadSource {
   appVersion?: string;
 }
 
+/**
+ * Where (and how) to upload this device's audit JSONL. Set when audit logging is
+ * enabled with an endpoint; absent leaves {@link MarmotController.uploadAuditLog}
+ * a no-op. Account identity is NOT sent here — it lives in the JSONL rows; only
+ * the non-identifying client labels travel as `X-Goggles-*` headers.
+ */
+export interface AuditUploadConfig {
+  /** Goggles tracker endpoint (https, or loopback http for local testing). */
+  endpoint: string;
+  /** Bearer token; required for non-loopback endpoints. */
+  bearerToken?: string;
+  /** Non-identifying client labels sent as `X-Goggles-*` headers. */
+  source?: AuditUploadSource;
+}
+
 export interface AuditUploadOptions {
   /** Bearer token. Required for any non-loopback endpoint. */
   bearerToken?: string;
@@ -184,7 +194,7 @@ function isLoopbackHttp(url: URL): boolean {
     host === "localhost" ||
     host === "::1" ||
     host === "[::1]" ||
-    host.startsWith("127.")
+    /^127(?:\.\d{1,3}){3}$/.test(host)
   );
 }
 

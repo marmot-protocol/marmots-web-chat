@@ -8,10 +8,18 @@ import {
   KeyValueRumorHistoryBackend,
   InMemoryKeyValueStore,
 } from "@internet-privacy/marmot-ts/extra";
-import type { NostrNetworkInterface } from "@internet-privacy/marmot-ts/client";
+import type {
+  MarmotClientOptions,
+  NostrNetworkInterface,
+} from "@internet-privacy/marmot-ts/client";
 
 /** Construct a real client with isolated in-memory storage for integration tests. */
-export function makeTestClient(network: NostrNetworkInterface) {
+export function makeTestClient(
+  network: NostrNetworkInterface,
+  overrides: Partial<
+    MarmotClientOptions<GroupRumorHistory, GroupMediaStore>
+  > = {},
+) {
   const local = new PrivateKeySigner();
   // Deliberately hide raw key access, as a NIP-07 / NIP-46 signer would.
   const signer = {
@@ -31,5 +39,6 @@ export function makeTestClient(network: NostrNetworkInterface) {
         new KeyValueRumorHistoryBackend(new InMemoryKeyValueStore()),
       ),
     mediaFactory: () => new GroupMediaStore(),
+    ...overrides,
   });
 }

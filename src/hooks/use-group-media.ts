@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { MediaAttachment } from "@internet-privacy/marmot-ts";
+import type { HistoricalMediaAttachment } from "@internet-privacy/marmot-ts";
 
 import { useController } from "./use-marmot";
 
@@ -10,24 +10,33 @@ export type MediaState =
 
 /**
  * Lazily download + decrypt one attachment for display, exposing it as an
- * object URL. Keyed on `attachment.ciphertextSha256` (stable across the new
- * attachment objects `getMediaAttachments` returns each render); the object URL
- * is revoked on unmount or when the attachment changes.
+ * object URL. Historical references retain their explicit version. The effect
+ * uses the rumor ID and ciphertext hash to avoid repeated downloads on render.
+ * Object URLs are revoked and downloads cancelled on cleanup.
+ * @param groupId - Owning group.
+ * @param attachment - Validated attachment reference.
+ * @param rumorId - Canonical inner rumor ID for source evidence.
+ * @param enabled - Start after optimistic delivery completes.
+ * @returns Loading, ready, or unavailable media state.
+ * @example useGroupMedia(groupId, attachment, message.id)
  */
 export function useGroupMedia(
   groupId: string,
-  attachment: MediaAttachment,
+  attachment: HistoricalMediaAttachment,
+  rumorId: string,
+  enabled = true,
 ): MediaState {
   const controller = useController();
   const [state, setState] = useState<MediaState>({ status: "loading" });
 
   useEffect(() => {
-    if (!controller) return;
+    if (!controller || !enabled) return;
+    const abort = new AbortController();
     let cancelled = false;
     let objectUrl: string | undefined;
     setState({ status: "loading" });
     controller
-      .fetchAndDecryptMedia(groupId, attachment)
+      .fetchAndDecryptMedia(groupId, attachment, rumorId, abort.signal)
       .then(({ data, mediaType }) => {
         if (cancelled) return;
         const blob = new Blob([data as BlobPart], { type: mediaType });
@@ -48,10 +57,11 @@ export function useGroupMedia(
       });
     return () => {
       cancelled = true;
+      abort.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [controller, groupId, attachment.ciphertextSha256]);
+  }, [controller, groupId, rumorId, enabled, attachment.ciphertextSha256]);
 
   return state;
 }
