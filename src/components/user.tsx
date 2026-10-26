@@ -25,7 +25,10 @@ export function UserAvatar({
   className?: string;
 }) {
   const profile = useProfile(pubkey);
-  const rounded = cn("rounded-full overflow-hidden shrink-0 bg-muted", className);
+  const rounded = cn(
+    "rounded-full overflow-hidden shrink-0 bg-muted",
+    className,
+  );
   if (profile?.picture) {
     return (
       <img

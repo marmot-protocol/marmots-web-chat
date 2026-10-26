@@ -16,7 +16,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyButton } from "@/components/copy-button";
 import { Jdenticon } from "@/components/jdenticon";
-import { useChat, useController } from "@/hooks/use-marmot";
+import { useAction, useGroup, useMarmotAccount } from "@/hooks/use-marmot";
+import {
+  leaveGroup,
+  removeLegacyGroup,
+  retryPendingChanges,
+  setGroupMediaPolicy,
+  updateGroupInfo,
+} from "@/lib/marmot/actions/group-admin";
 
 /**
  * Group info modal (opened by clicking the chat title), mirroring the opentui
@@ -32,12 +39,34 @@ export function GroupInfoDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const controller = useController();
   const navigate = useNavigate();
-  const snapshot = useChat();
-  const me = snapshot?.me.pubkey;
-  const busy = snapshot?.busy ?? false;
-  const group = controller?.getGroup(groupId);
+  const me = useMarmotAccount()?.pubkey;
+  const group = useGroup(groupId);
+  const saveInfo = useAction(
+    (account, fields: { name: string; description: string }) =>
+      updateGroupInfo(account.client, account.group(groupId), fields),
+  );
+  const leaveAction = useAction(async (account, legacy: boolean) => {
+    const group = account.group(groupId);
+    if (legacy) await removeLegacyGroup(account.client, group);
+    else await leaveGroup(account.client, group);
+    return true;
+  });
+  const saveMediaAction = useAction((account, urls: string[]) =>
+    setGroupMediaPolicy(account.client, account.group(groupId), urls),
+  );
+  const retry = useAction(async (account) => {
+    const { published, warnings } = await retryPendingChanges(
+      account.group(groupId),
+    );
+    warnings.forEach((warning) => account.notify(warning));
+    return published;
+  });
+  const busy =
+    saveInfo.pending ||
+    leaveAction.pending ||
+    saveMediaAction.pending ||
+    retry.pending;
   const supported = group?.profileSupport.kind === "supported";
   const isAdmin =
     me && supported
@@ -72,42 +101,37 @@ export function GroupInfoDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, group]);
 
-  // Re-derived whenever the snapshot bumps (stateChanged).
+  // useGroup re-renders on stateChanged; derive from the current state.
+  const state = group?.state;
   const memberCount = useMemo(
-    () => (group ? new Set(getGroupMembers(group.state)).size : 0),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [group, snapshot],
+    () => (state ? new Set(getGroupMembers(state)).size : 0),
+    [state],
   );
   const epoch = group ? Number(group.state.groupContext.epoch) : 0;
 
   if (!group) return null;
 
   const save = async () => {
-    if (!controller) return;
-    await controller.updateGroupInfo(groupId, { name, description });
+    await saveInfo.run({ name, description });
     onOpenChange(false);
   };
 
   const leave = async () => {
-    if (!controller) return;
-    if (!supported) {
-      if (!confirmRemoval) {
-        setConfirmRemoval(true);
-        return;
-      }
-      if (!(await controller.removeLegacyGroup(groupId))) return;
-    } else if (!(await controller.leave(groupId))) return;
+    if (!supported && !confirmRemoval) {
+      setConfirmRemoval(true);
+      return;
+    }
+    if (!(await leaveAction.run(!supported))) return;
     onOpenChange(false);
     navigate("/groups");
   };
 
   const saveMedia = async () => {
-    if (!controller) return;
     const urls = mediaServers
       .split(/[\n,]/)
       .map((u) => u.trim())
       .filter(Boolean);
-    await controller.setGroupMediaPolicy(groupId, urls);
+    await saveMediaAction.run(urls);
   };
 
   return (
@@ -218,7 +242,7 @@ export function GroupInfoDialog({
           <Button
             variant="outline"
             disabled={busy}
-            onClick={() => void controller?.retryPendingChanges(groupId)}
+            onClick={() => void retry.run()}
           >
             Retry pending changes
           </Button>

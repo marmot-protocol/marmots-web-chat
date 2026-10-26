@@ -1,9 +1,11 @@
 # Marmot integration
 
 Start with [setup.ts](./setup.ts): it constructs the library client with the
-account signer, relay adapter, and durable stores. [controller.ts](./controller.ts)
-connects that client to the app's workflows and React snapshot. Other apps can use
-`MarmotClient` directly; the controller is this chat app's UI adapter.
+account signer, relay adapter, and durable stores. The UI then uses that
+`MarmotClient` directly through the hooks in `src/hooks/use-marmot.tsx`.
+[account.ts](./account.ts) runs only the background work no library owns, and
+[actions/](./actions) holds stateless helpers for APIs marmot-ts does not have yet.
+The app doubles as a check that the client has everything a full chat UI needs.
 
 ## Library APIs first
 
@@ -31,11 +33,15 @@ routing choices, UI state, and compatibility for this app's existing data.
 
 - **setup.ts** — composition root; the only integration module that imports app
   settings and shared Nostr singletons. Supply changing lookup settings through
-  a callback so the controller does not depend on those globals.
-- **controller.ts** — account lifecycle and user workflows. Start once, stop when
-  switching accounts. Group metadata stays in the library; snapshots contain
-  application state such as pagination, status, and busy indicators.
-- **types.ts** — concrete client/group types and UI snapshot contracts.
+  a callback so the account runtime does not depend on those globals.
+- **account.ts** — `MarmotAccount`: start once, stop when switching accounts. It
+  publishes a fresh account's relay lists and profile, keeps this browser's
+  KeyPackage published, connects groups and the invite inbox, owns per-group
+  history windows, and collects background warnings in `notices$`. It holds no
+  group registry or UI snapshot: groups come from `client.groups`.
+- **actions/** — stateless `(client, group, …)` functions used by components via
+  `useAction`. Each exists because of a library gap listed below.
+- **types.ts** — concrete client/group types and display contracts.
 - **network.ts / relay-auth.ts** — Applesauce v7 implementation of
   `NostrNetworkInterface`, with operation-scoped NIP-42 and cancellation.
 - **discovery.ts / invitations.ts** — NIP-05 and relay-list discovery, then public
@@ -53,11 +59,31 @@ routing choices, UI state, and compatibility for this app's existing data.
   the public EventStore. Retain the original file until delivery succeeds so a
   stale media preparation can be repeated with a fresh nonce.
 - **stores.ts / prefixed-store.ts** — per-account IndexedDB stores and per-group
-  namespaces. Preserve the ingest and rewind stores together. Stop the controller
+  namespaces. Preserve the ingest and rewind stores together. Stop the account
   before an explicit account-data reset.
 - **audit.ts** — optional browser recording and upload; not required by the protocol.
 - **`__tests__/`** — unit and protocol integration tests, shared test helpers,
   and a disposable 0.7.0 migration fixture. Tests use local transports and stores.
+
+## marmot-ts API gaps
+
+Each helper below wraps something a chat UI needs that marmot-ts 0.8 does not
+provide. They are candidates to move upstream; once one lands, delete the helper
+and call the library.
+
+| Gap                                                                         | App code                                                                    |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `groups.watch()` / `updated` ignore per-group state changes                 | `useGroups()` attaches `stateChanged` listeners                             |
+| No chat message, NIP-C7 reply, or reaction send helpers                     | `actions/messages.ts`                                                       |
+| No rename, promote/demote, remove-member, or media-policy helpers           | `actions/group-admin.ts`                                                    |
+| `groups.leave()` does not hand over admin first                             | `leaveGroup()`                                                              |
+| `groups.invite()` takes one KeyPackage and does not aggregate Welcome fails | `inviteKeyPackages()`                                                       |
+| Founding `pendingWelcomes` are in memory only                               | `createGroup()` / `retryFoundingWelcome()` warn; retry is lost after reload |
+| Publish results from `retryPendingPublication()` need interpretation        | `retryPendingChanges()`                                                     |
+| `ensurePublished()` can pick another slot and returns no publication events | `actions/key-packages.ts` `ensureDeviceKeyPackage()`                        |
+| `createPaginatedLoader()` can skip messages sharing a boundary timestamp    | `timeline.ts` grows a query window instead                                  |
+| No KeyPackage discovery for another user, NIP-05, or relay-list publishing  | `invitations.ts`, `discovery.ts`, `actions/identity.ts`                     |
+| Async generators / EventEmitters only, no Observables                       | `useAsyncIterable`, RxJS in `timeline.ts` and `account.ts`                  |
 
 ## Boundaries worth preserving
 
@@ -89,7 +115,7 @@ historical media handling are migration policy, not library requirements.
 
 `KeyValueRumorHistoryBackend` is the library's simple reference backend: queries
 scan stored rumors. For large histories, supply an indexed backend instead of
-adding caching or query logic to this controller. Apps sharing durable state
+adding caching or query logic to the app. Apps sharing durable state
 between browser tabs must also coordinate a single writer; this sample does not
 yet implement cross-tab locking.
 

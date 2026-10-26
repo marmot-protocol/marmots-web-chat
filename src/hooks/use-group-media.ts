@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { HistoricalMediaAttachment } from "@internet-privacy/marmot-ts";
 
-import { useController } from "./use-marmot";
+import { useMarmotAccount } from "./use-marmot";
 
 export type MediaState =
   | { status: "loading" }
@@ -26,17 +26,18 @@ export function useGroupMedia(
   rumorId: string,
   enabled = true,
 ): MediaState {
-  const controller = useController();
+  const account = useMarmotAccount();
   const [state, setState] = useState<MediaState>({ status: "loading" });
 
   useEffect(() => {
-    if (!controller || !enabled) return;
+    const group = account?.findGroup(groupId);
+    if (!account || !group || !enabled) return;
     const abort = new AbortController();
     let cancelled = false;
     let objectUrl: string | undefined;
     setState({ status: "loading" });
-    controller
-      .fetchAndDecryptMedia(groupId, attachment, rumorId, abort.signal)
+    account.media
+      .download(group, attachment, rumorId, abort.signal)
       .then(({ data, mediaType }) => {
         if (cancelled) return;
         const blob = new Blob([data as BlobPart], { type: mediaType });
@@ -61,7 +62,7 @@ export function useGroupMedia(
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [controller, groupId, rumorId, enabled, attachment.ciphertextSha256]);
+  }, [account, groupId, rumorId, enabled, attachment.ciphertextSha256]);
 
   return state;
 }

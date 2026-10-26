@@ -1,14 +1,12 @@
 import { useOutletContext } from "react-router";
 import type { Dispatch, SetStateAction } from "react";
-import type { ChatSnapshot } from "@/lib/marmot/types";
-import type { MarmotController } from "@/lib/marmot/controller";
+import type { MarmotAccount } from "@/lib/marmot/account";
 
 type DraftSetter = Dispatch<SetStateAction<string>>;
 
-/** Shared settings state retained while navigating between tabs. */
+/** The active account and editable drafts retained while navigating between tabs. */
 export interface SettingsContextValue {
-  snapshot: ChatSnapshot;
-  controller: MarmotController | null;
+  account: MarmotAccount;
   name: string;
   setName: DraftSetter;
   about: string;
@@ -22,7 +20,7 @@ export interface SettingsContextValue {
 }
 
 /**
- * Read the shared settings snapshot and editable drafts.
+ * Read the active account and shared editable drafts.
  * @returns State provided by the settings layout.
  * @example
  * const { name, setName } = useSettings();

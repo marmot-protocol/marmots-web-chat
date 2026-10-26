@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import type { OutgoingMessage } from "@/lib/marmot/message-outbox";
 import { cn } from "@/lib/utils";
 import { UserAvatar, UserName } from "@/components/user";
-import { useController } from "@/hooks/use-marmot";
+import { useAction } from "@/hooks/use-marmot";
+import { sendReaction } from "@/lib/marmot/actions/messages";
 import {
   getReplyToId,
   useGroupEvent,
@@ -39,7 +40,6 @@ export const MessageItem = memo(function MessageItem({
   readOnly?: boolean;
   delivery?: OutgoingMessage;
 }) {
-  const controller = useController();
   const reactions = useMessageReactions(groupId, message.id);
   const replyToId = getReplyToId(message);
   const parent = useGroupEvent(groupId, replyToId);
@@ -61,12 +61,15 @@ export const MessageItem = memo(function MessageItem({
     [message.tags],
   );
 
-  const react = (emoji: string) =>
-    controller?.sendReaction(
-      groupId,
+  const reaction = useAction((account, emoji: string) =>
+    sendReaction(
+      account.client,
+      account.group(groupId),
       { id: message.id, pubkey: message.pubkey },
       emoji,
-    );
+    ),
+  );
+  const react = (emoji: string) => void reaction.run(emoji);
 
   return (
     <div className={cn("flex gap-2 px-3 py-1", mine && "flex-row-reverse")}>

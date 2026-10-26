@@ -11,8 +11,8 @@ import { safeParse } from "applesauce-core/helpers";
 import { map, Observable, of, shareReplay, switchMap } from "rxjs";
 
 import { eventStore } from "./nostr";
-import { createController, type NewAccountSetup } from "./marmot/setup";
-import type { MarmotController } from "./marmot/controller";
+import { createAccount, type NewAccountSetup } from "./marmot/setup";
+import type { MarmotAccount } from "./marmot/account";
 
 /** Account manager for local and NIP-07 extension identities. */
 export const accounts = new AccountManager();
@@ -42,7 +42,7 @@ accounts.active$.subscribe((account) => {
 
 /**
  * One-shot setup details for accounts created in this session, consumed by the
- * controller factory so a freshly-created account publishes its initial profile
+ * account factory so a freshly-created account publishes its initial profile
  * and relay lists. Keyed by pubkey.
  */
 const pendingNewAccounts = new Map<string, NewAccountSetup>();
@@ -101,41 +101,40 @@ export const user$ = chainable(
 );
 
 /**
- * The live {@link MarmotController} for the active account. Building one is
- * async (load stores, ensure key package); the observable emits null while
- * starting, then the started controller. Switching accounts stops the previous
- * controller.
+ * The live {@link MarmotAccount} runtime for the active account. Building one
+ * is async (open stores); the observable emits null while building, then the
+ * account as it starts. Switching accounts stops the previous one.
  */
-export const marmotController$: Observable<MarmotController | null> =
+export const marmotAccount$: Observable<MarmotAccount | null> =
   accounts.active$.pipe(
     switchMap((account) => {
       if (!account || account instanceof ReadonlyAccount) return of(null);
-      return new Observable<MarmotController | null>((subscriber) => {
-        let controller: MarmotController | null = null;
+      return new Observable<MarmotAccount | null>((subscriber) => {
+        let started: MarmotAccount | null = null;
         let cancelled = false;
         const setup = pendingNewAccounts.get(account.pubkey);
         pendingNewAccounts.delete(account.pubkey);
         subscriber.next(null);
-        createController(account, setup)
+        createAccount(account, setup)
           .then(async (c) => {
             if (cancelled) {
               c.stop();
               return;
             }
-            controller = c;
+            started = c;
             subscriber.next(c);
             await c.start();
           })
           .catch((err) => {
-            console.error("[marmot] failed to start controller", err);
+            console.error("[marmot] failed to start account", err);
             if (!cancelled) {
-              if (controller) controller.logError(err);
+              if (started) started.notifyError(err);
               else subscriber.next(null);
             }
           });
         return () => {
           cancelled = true;
-          controller?.stop();
+          started?.stop();
         };
       });
     }),

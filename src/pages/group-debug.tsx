@@ -9,22 +9,21 @@ import type { ForkTreeNodeView } from "@internet-privacy/marmot-ts/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ForkGraph } from "@/components/marmot/fork-graph";
-import { useController } from "@/hooks/use-marmot";
+import { useGroup } from "@/hooks/use-marmot";
 import { useGroupDebug } from "@/hooks/use-group-debug";
 import { debugMode$ } from "@/lib/settings";
 
 export function GroupDebugPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const controller = useController();
   const debugEnabled = use$(debugMode$) ?? false;
-  const group = id ? controller?.getGroup(id) : undefined;
+  const group = useGroup(id);
 
   if (!id) return null;
   if (!group) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        {controller ? "Group not found." : "Loading…"}
+        {group === null ? "Group not found." : "Loading…"}
       </div>
     );
   }

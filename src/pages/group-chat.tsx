@@ -10,25 +10,26 @@ import { ChatView } from "@/components/chat/chat-view";
 import { InviteDialog } from "@/components/marmot/invite-dialog";
 import { MembersDialog } from "@/components/marmot/members-dialog";
 import { GroupInfoDialog } from "@/components/marmot/group-info-dialog";
-import { useChat, useController } from "@/hooks/use-marmot";
+import { retryFoundingWelcome } from "@/lib/marmot/actions/invites";
+import { useAction, useGroup } from "@/hooks/use-marmot";
 
 export function GroupChatPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const controller = useController();
-  // Re-render on group state changes (rename, membership).
-  useChat();
+  const group = useGroup(id);
+  const retryWelcome = useAction((account, pubkey: string) =>
+    retryFoundingWelcome(account.client, account.group(id!), pubkey),
+  );
   const [invite, setInvite] = useState(false);
   const [members, setMembers] = useState(false);
   const [info, setInfo] = useState(false);
 
   if (!id) return null;
-  const group = controller?.getGroup(id);
 
   if (!group) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        {controller ? "Group not found." : "Loading…"}
+        {group === null ? "Group not found." : "Loading…"}
       </div>
     );
   }
@@ -109,12 +110,9 @@ export function GroupChatPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={controller?.getSnapshot().busy}
+                  disabled={retryWelcome.pending}
                   onClick={() =>
-                    void controller?.retryFoundingWelcome(
-                      id,
-                      outcome.recipient.pubkey,
-                    )
+                    void retryWelcome.run(outcome.recipient.pubkey)
                   }
                 >
                   Retry delivery

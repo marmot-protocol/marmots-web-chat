@@ -21,7 +21,11 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useChat, useController } from "@/hooks/use-marmot";
+import { use$ } from "applesauce-react/hooks";
+
+import { useMarmotAccount } from "@/hooks/use-marmot";
+import { createGroup } from "@/lib/marmot/actions/invites";
+import { describeInviteCandidate } from "@/lib/marmot/invitations";
 import type { InviteCandidate } from "@/lib/marmot/types";
 
 /** Create a solo group or include selected devices in its founding membership. */
@@ -32,8 +36,8 @@ export function NewGroupDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const controller = useController();
-  const snapshot = useChat();
+  const account = useMarmotAccount();
+  const outboxRelays = use$(() => account?.outboxRelays$, [account]) ?? [];
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -47,21 +51,24 @@ export function NewGroupDialog({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) void controller?.refreshRelayLists();
-  }, [open, controller]);
+    if (open) void account?.refreshRelayLists();
+  }, [open, account]);
   useEffect(() => {
     setCandidates([]);
     setSelected(new Set());
-  }, [controller]);
+  }, [account]);
 
   const find = async () => {
-    if (!controller || loading || busy || !contact.trim()) return;
+    if (!account || loading || busy || !contact.trim()) return;
     setLoading(true);
     setError(null);
     try {
-      const found = await controller.loadFoundingCandidates(
+      const { events } = await account.keyPackageDiscovery.load(
         contact.trim(),
         setProgress,
+      );
+      const found = events.map((event) =>
+        describeInviteCandidate(event, account.pubkey),
       );
       const pubkeys = new Set(found.map((candidate) => candidate.event.pubkey));
       setCandidates((previous) => [
@@ -91,24 +98,27 @@ export function NewGroupDialog({
   };
 
   const create = async () => {
-    if (!controller || busy || loading || !name.trim()) return;
+    if (!account || busy || loading || !name.trim()) return;
     setBusy(true);
     setError(null);
     try {
       const relayList = relays.split(/[\s,]+/).filter(Boolean);
-      const id = await controller.createGroup(name.trim(), {
-        description: description.trim() || undefined,
-        relays: relayList.length ? relayList : undefined,
-        invitees: candidates
-          .filter((candidate) => selected.has(candidate.id))
-          .map((candidate) => candidate.event),
-      });
-      if (!id) {
+      let created;
+      try {
+        created = await createGroup(account.client, name.trim(), {
+          description: description.trim() || undefined,
+          relays: relayList.length ? relayList : outboxRelays,
+          invitees: candidates
+            .filter((candidate) => selected.has(candidate.id))
+            .map((candidate) => candidate.event),
+        });
+      } catch (err) {
         setError(
-          "Could not create group. Check the relay settings and selected key packages.",
+          `${err instanceof Error ? err.message : String(err)}. Check the relay settings and selected key packages.`,
         );
         return;
       }
+      created.warnings.forEach((warning) => account.notify(warning));
       setName("");
       setDescription("");
       setRelays("");
@@ -116,7 +126,7 @@ export function NewGroupDialog({
       setCandidates([]);
       setSelected(new Set());
       onOpenChange(false);
-      navigate(`/groups/${id}`);
+      navigate(`/groups/${created.group.idStr}`);
     } finally {
       setBusy(false);
     }
@@ -167,12 +177,12 @@ export function NewGroupDialog({
                 value={relays}
                 onChange={(e) => setRelays(e.target.value)}
                 placeholder={
-                  snapshot?.outboxRelays.join(", ") || "wss://relay.example.com"
+                  outboxRelays.join(", ") || "wss://relay.example.com"
                 }
                 disabled={busy}
               />
               <FieldDescription>
-                {snapshot?.outboxRelays.length
+                {outboxRelays.length
                   ? "Leave blank to use your outbox relays."
                   : "Enter group relays here or configure your outbox in Settings."}
               </FieldDescription>
@@ -265,7 +275,7 @@ export function NewGroupDialog({
               busy ||
               loading ||
               !name.trim() ||
-              (!relays.trim() && !snapshot?.outboxRelays.length)
+              (!relays.trim() && !outboxRelays.length)
             }
           >
             {busy

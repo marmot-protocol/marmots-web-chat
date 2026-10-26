@@ -41,12 +41,11 @@ src/
 Key singletons in `src/lib/`:
 
 - `nostr.ts` — `eventStore` (public), `pool`, `eventLoader`
-- `marmot-client.ts` — `marmotClient$`, `liveGroups$`, `liveKeyPackages$`, `AppGroup` type
-- `accounts.ts` — `accounts`, `user$`, `factory`, `actions`, `publish()`
+- `accounts.ts` — `accounts`, `user$`, `marmotAccount$` (the active `MarmotAccount`)
 - `settings.ts` — all RxJS `BehaviorSubject`s for user preferences + `persist()`
-- `blossom.ts` — `uploadToConfiguredBlossomServers()`
-- `account-database.ts` — `MultiAccountDatabaseBroker` (IndexedDB + localforage)
-- `runtime.ts` — import once in `main.tsx` to activate background managers
+- `marmot/setup.ts` — builds the `MarmotClient` and `MarmotAccount` for an account
+- `marmot/account.ts` — `MarmotAccount` background runtime (see `src/lib/marmot/README.md`)
+- `marmot/actions/` — stateless helpers over the client; each marks a marmot-ts API gap
 
 ## Code Style
 
@@ -82,7 +81,7 @@ import { MessageItem } from "./message-item";
 
 // 4. Type-only imports (anywhere in the block, marked with `type`)
 import type { NostrEvent } from "applesauce-core/helpers";
-import type { AppGroup } from "@/lib/marmot-client";
+import type { AppGroup } from "@/lib/marmot/types";
 ```
 
 - Always use `import type` for type-only imports.
@@ -127,7 +126,7 @@ Include `@param`, `@returns`, and at least one `@example` for hooks.
 
 ### Custom hooks
 
-- Prefix with `use`: `useDebounce`, `use$`, `useGroupEventStore`.
+- Prefix with `use`: `useDebounce`, `use$`, `useGroupMessages`.
 - Document with JSDoc + `@example`.
 - Export as named exports; return consistent shapes (array, object, or scalar).
 - Clean up subscriptions and object URLs in `useEffect` return functions.
@@ -145,38 +144,38 @@ const relays = use$(() => extraRelays$, []); // subscribe reactively in componen
 
 - Observable names end with `$`.
 - Use `shareReplay(1)` on observables derived from async work so late subscribers get the latest value.
-- Convert async generators to Observables with `new Observable(subscriber => …)` (see `liveGroups$`).
+- Convert async generators to Observables with `new Observable(subscriber => …)` (see `useAsyncIterable` for the React-side bridge).
 
 ### Two EventStore instances
 
 - **`eventStore`** (`src/lib/nostr.ts`) — public signed Nostr events, verified by nostr-wasm.
-- **per-group `groupEventStore`** (`useGroupEventStore` hook) — private unsigned MLS rumors from IndexedDB; verification bypassed.
+- **per-group `RumorStore`** (`useGroupStore(id)` / `useGroupTimeline(group)`) — private unsigned MLS rumors projected from `group.history`.
 
-Never mix them. Rumors from `group.history` → `groupEventStore`; profile/relay-list events → `eventStore`.
+Never mix them. Rumors from `group.history` → the group's `RumorStore`; profile/relay-list events → `eventStore`.
 
-## Group Mini-App Pattern
+## Marmot Data Access
 
-Each tab under `/groups/:id/*` is a self-contained mini-app. Two contexts are provided by the `[id].tsx` layout:
+The UI talks to the marmot-ts client directly; there is no controller or app-wide snapshot.
 
-| Context                  | Hook                   | Provides                                                             |
-| ------------------------ | ---------------------- | -------------------------------------------------------------------- |
-| `GroupContext`           | `useGroup()`           | `group`, `isAdmin`, `loadingMore`, `loadingDone`, `loadMoreMessages` |
-| `GroupEventStoreContext` | `useGroupEventStore()` | Per-group `EventStore` for private MLS events                        |
+| Need                         | Use                                                                         |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| Account, pubkey, relay lists | `useMarmotAccount()` (`account.outboxRelays$`, `account.inboxRelays$`)      |
+| Client calls                 | `useMarmotClient()` or `account.client`                                     |
+| Groups                       | `useGroups()` / `useGroup(id)` — re-render on `stateChanged`                |
+| Messages                     | `useGroupMessages(id)`, `useGroupTimeline(group)` (pagination, `loadOlder`) |
+| Invites / key packages       | `useWatchedInvites()`, `useKeyPackages()`                                   |
+| Mutations                    | `useAction((account, …) => action(account.client, account.group(id), …))`   |
 
 **Rules:**
 
-- Source the group via `useGroup()` — never via props or `useOutletContext`.
-- Derive metadata (name, members, admins, epoch) from `group.state` using
-  `extractMarmotGroupData` / `getGroupMembers` — do not cache them in context.
-- Each mini-app lives in `src/pages/groups/[id]/<tab>/index.tsx`.
-  Sub-components exclusive to that tab live in the same folder.
-
-**Adding a new tab:**
-
-1. Create `src/pages/groups/[id]/<tab>/index.tsx`.
-2. Call `useGroup()` (+ `useGroupEventStore()` if you need private events).
-3. Add `<Route path="<tab>" element={<YourPage />} />` inside the `:id` route in `src/main.tsx`.
-4. Add the tab link in the nav bar inside `[id].tsx`.
+- Derive group metadata (name, members, admins, media policy) from `group.groupData` /
+  `group.state` during render — do not cache it.
+- Errors from `useAction` go to `account.notices$`, shown by the banner in `app-layout.tsx`.
+- Before adding a helper to `src/lib/marmot/actions/`, check whether marmot-ts already has
+  the API. If it doesn't, add the helper with a `marmot-ts gap:` comment and list it in
+  `src/lib/marmot/README.md`.
+- Never put private rumors in the public `eventStore`; per-group history lives in each
+  timeline's `RumorStore`.
 
 ## UI Framework
 

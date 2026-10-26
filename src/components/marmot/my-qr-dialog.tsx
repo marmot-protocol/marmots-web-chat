@@ -34,10 +34,7 @@ export function MyQrDialog({
         <div className="flex w-full min-w-0 flex-col items-center gap-4">
           {/* Cap by both width and height so the code never overflows a small
               or short (landscape) screen. */}
-          <QRImage
-            data={npub}
-            className="w-[min(280px,70vw,55dvh)]"
-          />
+          <QRImage data={npub} className="w-[min(280px,70vw,55dvh)]" />
           <div className="flex w-full items-center gap-2 rounded-md bg-muted p-2">
             <code className="min-w-0 flex-1 truncate text-xs">{npub}</code>
             <CopyButton text={npub} variant="ghost" size="icon" />

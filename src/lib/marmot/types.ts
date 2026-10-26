@@ -12,13 +12,7 @@ export type AppGroup = MarmotGroup<GroupRumorHistory, GroupMediaStore>;
 /** The web client with its concrete per-group backends. */
 export type AppMarmotClient = MarmotClient<GroupRumorHistory, GroupMediaStore>;
 
-/** Loading state for the local history window. */
-export interface PaginationState {
-  loadingOlder: boolean;
-  exhausted: boolean;
-}
-
-/** One application diagnostic shown in the status UI. */
+/** One warning or error shown in the notice banner. */
 export interface StatusLine {
   id: number;
   level: "info" | "warn" | "error";
@@ -62,26 +56,4 @@ export interface InviteCandidates {
 export interface InviteEntry {
   invite: UnreadInvite;
   joinable: boolean;
-}
-
-/**
- * Immutable snapshot consumed by React via `useSyncExternalStore`. The group
- * and invite lists are NOT here — React reads those from the library's
- * `groups.watch()` / `watchInvites()` generators. Per-group message timelines
- * live in dedicated RumorStore instances reached via the controller's getGroupStore().
- */
-export interface ChatSnapshot {
-  me: { pubkey: string; npub: string };
-  relays: string[];
-  connectedRelayCount: number;
-  outboxRelays: string[];
-  inboxRelays: string[];
-  keyPackages: KeyPackageSummary;
-  clientId: string;
-  activeGroupId: string | null;
-  pagination: Record<string, PaginationState>;
-  status: StatusLine[];
-  busy: boolean;
-  /** True when audit logging is active AND an upload target is configured. */
-  canUploadAudit: boolean;
 }

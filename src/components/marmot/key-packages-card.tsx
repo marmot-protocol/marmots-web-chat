@@ -6,7 +6,15 @@ import type { ListedKeyPackage } from "@internet-privacy/marmot-ts/client";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useChat, useController, useKeyPackages } from "@/hooks/use-marmot";
+import {
+  useAction,
+  useKeyPackages,
+  useMarmotAccount,
+} from "@/hooks/use-marmot";
+import {
+  purgeLegacyKeyPackages,
+  rotateDeviceKeyPackage,
+} from "@/lib/marmot/actions/key-packages";
 import { isLegacyKeyPackage } from "@/lib/marmot/key-package-slot";
 
 function hex(bytes: Uint8Array): string {
@@ -80,13 +88,28 @@ function KeyPackageRow({
 
 /** Manage this device's packages and explicitly retire incompatible legacy keys. */
 export function KeyPackagesCard() {
-  const controller = useController();
-  const snapshot = useChat();
+  const account = useMarmotAccount();
   const packages = useKeyPackages();
   const [confirmPurge, setConfirmPurge] = useState(false);
   const legacyCount = packages.filter(isLegacyKeyPackage).length;
-  const clientId = snapshot?.clientId;
-  const busy = snapshot?.busy ?? false;
+  const clientId = account?.clientId;
+  const publish = useAction(async (account) => {
+    await account.client.keyPackages.create({
+      relays: await account.requireKeyPackageRelays(),
+    });
+  });
+  const rotate = useAction(async (account) => {
+    await rotateDeviceKeyPackage(
+      account.client,
+      account.clientId,
+      await account.requireKeyPackageRelays(),
+    );
+  });
+  const purge = useAction(async (account) => {
+    await account.ensureKeyPackage();
+    await purgeLegacyKeyPackages(account.client, account.clientId);
+  });
+  const busy = publish.pending || rotate.pending || purge.pending;
 
   const sorted = [...packages].sort((a, b) => {
     // Current client first, then unused before used.
@@ -123,7 +146,7 @@ export function KeyPackagesCard() {
                     disabled={busy}
                     onClick={() => {
                       setConfirmPurge(false);
-                      void controller?.purgeLegacyKeyPackages();
+                      void purge.run();
                     }}
                   >
                     Confirm retirement
@@ -138,7 +161,7 @@ export function KeyPackagesCard() {
               ) : (
                 <Button
                   variant="outline"
-                  disabled={!controller || busy}
+                  disabled={!account || busy}
                   onClick={() => setConfirmPurge(true)}
                 >
                   Retire legacy packages
@@ -150,15 +173,15 @@ export function KeyPackagesCard() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={() => controller?.publishKeyPackage()}
-            disabled={!controller || busy}
+            onClick={() => void publish.run()}
+            disabled={!account || busy}
           >
             Publish new
           </Button>
           <Button
             variant="outline"
-            onClick={() => controller?.rotateKeyPackage()}
-            disabled={!controller || busy}
+            onClick={() => void rotate.run()}
+            disabled={!account || busy}
           >
             Rotate current
           </Button>

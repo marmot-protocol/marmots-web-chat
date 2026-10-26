@@ -49,16 +49,16 @@ persist("auto-create-key-package", autoCreateKeyPackage$);
  * (so it survives reloads) and undecryptable events are kept indefinitely for
  * retry — and each group exposes a debug view (fork graph + pending events).
  * Off by default; like the audit toggle it takes effect the next time a
- * controller starts (sign in / reload), because the retention config is wired
+ * account starts (sign in / reload), because the retention config is wired
  * into the marmot client at construction.
  */
 export const debugMode$ = new BehaviorSubject<boolean>(false);
 persist("debug-mode", debugMode$);
 
 /**
- * Opt-in forensic audit logging. When enabled, the controller records a
+ * Opt-in forensic audit logging. When enabled, the app records a
  * MLS/transport audit JSONL for the active account (off by default). Toggling
- * takes effect the next time a controller starts (sign in / reload), because the
+ * takes effect the next time a account starts (sign in / reload), because the
  * audit sink is wired into the marmot client at construction.
  */
 export const auditEnabled$ = new BehaviorSubject<boolean>(false);

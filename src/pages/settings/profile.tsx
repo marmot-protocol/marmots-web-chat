@@ -9,20 +9,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/user";
 import { MyQrDialog } from "@/components/marmot/my-qr-dialog";
 import { accounts } from "@/lib/accounts";
+import { useAction } from "@/hooks/use-marmot";
 import { useSettings } from "@/pages/settings/context";
 
 /** Edit the active account's public profile and access account actions. */
 export function ProfileSettings() {
-  const {
-    snapshot,
-    controller,
-    name,
-    setName,
-    picture,
-    setPicture,
-    about,
-    setAbout,
-  } = useSettings();
+  const { account, name, setName, picture, setPicture, about, setAbout } =
+    useSettings();
+  const save = useAction((account) =>
+    account.saveProfile({ name, about, picture }),
+  );
   const navigate = useNavigate();
   const [showQr, setShowQr] = useState(false);
   const signOut = () => {
@@ -35,13 +31,13 @@ export function ProfileSettings() {
         <header className="flex flex-col gap-1">
           <h2 className="text-sm font-medium">Profile</h2>
           <p className="break-all font-mono text-xs text-muted-foreground">
-            {snapshot.me.npub}
+            {account.npub}
           </p>
         </header>
         <div>
           <FieldGroup>
             <div className="flex items-center gap-3">
-              <UserAvatar pubkey={snapshot.me.pubkey} size={48} />
+              <UserAvatar pubkey={account.pubkey} size={48} />
               <Button
                 variant="outline"
                 size="sm"
@@ -75,11 +71,8 @@ export function ProfileSettings() {
                 rows={2}
               />
             </Field>
-            <Button
-              onClick={() => controller?.saveProfile({ name, about, picture })}
-              disabled={!controller || snapshot.busy}
-            >
-              {snapshot.busy ? "Working…" : "Save profile"}
+            <Button onClick={() => void save.run()} disabled={save.pending}>
+              {save.pending ? "Working…" : "Save profile"}
             </Button>
           </FieldGroup>
         </div>
@@ -94,11 +87,7 @@ export function ProfileSettings() {
           </Button>
         </div>
       </section>
-      <MyQrDialog
-        npub={snapshot.me.npub}
-        open={showQr}
-        onOpenChange={setShowQr}
-      />
+      <MyQrDialog npub={account.npub} open={showQr} onOpenChange={setShowQr} />
     </div>
   );
 }

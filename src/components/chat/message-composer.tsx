@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { UserName } from "@/components/user";
 import { DEFAULT_BLOSSOM_SERVERS } from "@/lib/marmot/media";
-import { useChat, useController } from "@/hooks/use-marmot";
+import { useAction, useGroup, useMarmotAccount } from "@/hooks/use-marmot";
+import { setGroupMediaPolicy } from "@/lib/marmot/actions/group-admin";
+import { isGroupAdmin } from "@/lib/marmot/actions/guards";
 import { getMessageOutbox } from "@/lib/marmot/message-outbox";
 import { cn } from "@/lib/utils";
 import type { ReplyTarget } from "./types";
@@ -59,8 +61,15 @@ export function MessageComposer({
   reply: ReplyTarget | null;
   onClearReply: () => void;
 }) {
-  const controller = useController();
-  const snapshot = useChat();
+  const account = useMarmotAccount();
+  const group = useGroup(groupId);
+  const enableMedia = useAction((account) =>
+    setGroupMediaPolicy(
+      account.client,
+      account.group(groupId),
+      DEFAULT_BLOSSOM_SERVERS,
+    ),
+  );
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const draftSubmitted = useRef(false);
@@ -71,15 +80,9 @@ export function MessageComposer({
     draftSubmitted.current = false;
   }, [text, files]);
 
-  const me = snapshot?.me.pubkey;
-  const mediaEnabled = controller
-    ? !!controller.getGroupMediaPolicy(groupId)
-    : false;
-  const isAdmin = me
-    ? (controller?.getGroup(groupId)?.groupData?.adminPubkeys ?? []).includes(
-        me,
-      )
-    : false;
+  const me = account?.pubkey;
+  const mediaEnabled = !!group?.groupData?.encryptedMedia;
+  const isAdmin = !!me && !!group && isGroupAdmin(group, me);
 
   const addFiles = (incoming: FileList | File[] | null) => {
     const list = incoming ? [...incoming] : [];
@@ -89,13 +92,13 @@ export function MessageComposer({
   };
 
   const send = () => {
-    if (!controller || !me || draftSubmitted.current) return;
+    if (!account || !me || draftSubmitted.current) return;
     const value = text.trim();
     if (!value && files.length === 0) return;
     // Guard repeated submission of this render's draft, without blocking later drafts.
     draftSubmitted.current = true;
     const replyTo = reply ? { id: reply.id, pubkey: reply.pubkey } : undefined;
-    const outbox = getMessageOutbox(controller);
+    const outbox = getMessageOutbox(account.messageSender);
     if (files.length) {
       files.forEach((file, index) =>
         outbox.send(groupId, me, index === 0 ? value : "", replyTo, file),
@@ -111,12 +114,12 @@ export function MessageComposer({
   const onAttachClick = () => {
     if (mediaEnabled) {
       fileInput.current?.click();
-    } else if (isAdmin && controller) {
-      void controller.setGroupMediaPolicy(groupId, DEFAULT_BLOSSOM_SERVERS);
+    } else if (isAdmin) {
+      void enableMedia.run();
     }
   };
 
-  const canSend = !!controller && !!me && (!!text.trim() || files.length > 0);
+  const canSend = !!account && !!me && (!!text.trim() || files.length > 0);
 
   return (
     <div

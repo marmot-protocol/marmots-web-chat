@@ -19,14 +19,18 @@ import {
   tap,
 } from "rxjs/operators";
 
-import type { PaginationState } from "@/lib/marmot/types";
+/** Loading state for the local history window. */
+export interface PaginationState {
+  loadingOlder: boolean;
+  exhausted: boolean;
+}
 
 const TIMELINE_KINDS = [kinds.ChatMessage, kinds.Reaction];
 const HISTORY_WINDOW = 50;
 
-/** Callbacks for projecting local history into the application snapshot. */
+/** Callbacks for projecting local history. */
 export interface GroupTimelineOptions {
-  onChange: () => void;
+  onChange?: () => void;
   onError: (error: unknown) => void;
 }
 
@@ -37,6 +41,11 @@ export interface GroupTimelineOptions {
  */
 export class GroupTimeline {
   readonly store = new RumorStore();
+  /** Loading state for the local history window, for reactive UI. */
+  readonly pagination$ = new BehaviorSubject<PaginationState>({
+    loadingOlder: false,
+    exhausted: false,
+  });
   readonly #limit$ = new BehaviorSubject(HISTORY_WINDOW);
   readonly #subscription: Subscription;
   readonly #options: GroupTimelineOptions;
@@ -66,7 +75,7 @@ export class GroupTimeline {
             catchError((error) => {
               this.#loadingOlder = false;
               options.onError(error);
-              options.onChange();
+              this.#changed();
               return EMPTY;
             }),
           ),
@@ -80,8 +89,14 @@ export class GroupTimeline {
         for (const rumor of rumors) this.store.add(rumor);
         this.#exhausted = rumors.length < limit;
         this.#loadingOlder = false;
-        options.onChange();
+        this.#changed();
       });
+  }
+
+  #changed(): void {
+    if (this.#closed) return;
+    this.pagination$.next(this.pagination);
+    this.#options.onChange?.();
   }
 
   /** A copy of loading state, safe to include in a UI snapshot. */
@@ -93,7 +108,7 @@ export class GroupTimeline {
   loadOlder(): void {
     if (this.#closed || this.#loadingOlder || this.#exhausted) return;
     this.#loadingOlder = true;
-    this.#options.onChange();
+    this.#changed();
     this.#limit$.next(this.#limit$.value + HISTORY_WINDOW);
   }
 
@@ -103,6 +118,7 @@ export class GroupTimeline {
     this.#closed = true;
     this.#subscription.unsubscribe();
     this.#limit$.complete();
+    this.pagination$.complete();
     this.store.dispose();
   }
 }

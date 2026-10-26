@@ -2,7 +2,11 @@ import { use$ } from "applesauce-react/hooks";
 import { memo, useEffect, useMemo, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
-import { useChat, useController } from "@/hooks/use-marmot";
+import {
+  useGroup,
+  useGroupTimeline,
+  useMarmotAccount,
+} from "@/hooks/use-marmot";
 import { useGroupMessages } from "@/hooks/use-group-chat";
 import { getMessageOutbox } from "@/lib/marmot/message-outbox";
 import { MessageItem } from "./message-item";
@@ -22,12 +26,13 @@ export const MessageList = memo(function MessageList({
   onReply?: (target: ReplyTarget) => void;
   readOnly?: boolean;
 }) {
-  const controller = useController();
-  const snapshot = useChat();
+  const account = useMarmotAccount();
+  const { pagination, loadOlder } = useGroupTimeline(useGroup(groupId));
   const messages = useGroupMessages(groupId);
   const outgoing = use$(
-    () => (controller ? getMessageOutbox(controller).messages$ : undefined),
-    [controller],
+    () =>
+      account ? getMessageOutbox(account.messageSender).messages$ : undefined,
+    [account],
   );
   const rows = useMemo(() => {
     const local = (outgoing ?? []).filter((entry) => entry.groupId === groupId);
@@ -49,8 +54,7 @@ export const MessageList = memo(function MessageList({
       })),
     ].sort((a, b) => a.time - b.time);
   }, [messages, outgoing, groupId]);
-  const me = snapshot?.me.pubkey;
-  const pagination = snapshot?.pagination[groupId];
+  const me = account?.pubkey;
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Stick to bottom on new messages.
@@ -66,7 +70,7 @@ export const MessageList = memo(function MessageList({
             variant="ghost"
             size="sm"
             disabled={pagination?.loadingOlder}
-            onClick={() => controller?.loadOlder(groupId)}
+            onClick={loadOlder}
           >
             {pagination?.loadingOlder ? "Loading…" : "Load older messages"}
           </Button>

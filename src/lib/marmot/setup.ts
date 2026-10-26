@@ -38,7 +38,7 @@ import { getKeyPackageSlot } from "@/lib/marmot/key-package-slot";
 import { MarmotNetwork } from "@/lib/marmot/network";
 import { PrefixedKeyValueStore } from "@/lib/marmot/prefixed-store";
 import { makeStore } from "@/lib/marmot/stores";
-import { MarmotController } from "@/lib/marmot/controller";
+import { MarmotAccount } from "@/lib/marmot/account";
 
 /** Stable per-browser slot so devices do not replace each other's packages. */
 const CLIENT_ID = getKeyPackageSlot();
@@ -52,17 +52,17 @@ export interface NewAccountSetup {
 }
 
 /**
- * Build (but don't start) a {@link MarmotController} for an account. A fresh
+ * Build (but don't start) a {@link MarmotAccount} runtime for an account. A fresh
  * account operates on the relays the user chose; a returning account bootstraps
  * discovery from the configured extra relays, then adopts its published lists.
  * @param account - Account whose signer and storage namespace the client uses.
  * @param newAccount - Initial preferences for a newly generated account.
- * @returns A controller ready for start(); stop it before switching accounts.
+ * @returns An account ready for start(); stop it before switching accounts.
  */
-export async function createController(
+export async function createAccount(
   account: IAccount,
   newAccount?: NewAccountSetup,
-): Promise<MarmotController> {
+): Promise<MarmotAccount> {
   const fresh = Boolean(newAccount);
   const pubkey = await account.signer.getPublicKey();
 
@@ -105,7 +105,7 @@ export async function createController(
 
   // Opt-in forensic audit logging. When enabled, a per-account+device JSONL
   // recorder is wired into the marmot client; the source-context row carries the
-  // (hashed) account ref. The recorder is also handed to the controller so the
+  // (hashed) account ref. The recorder is also handed to the account runtime so the
   // user can upload it to a Goggles tracker on demand. Disabled accounts pass no
   // sink, so the library never records.
   let audit: BrowserAuditRecorder | undefined;
@@ -183,7 +183,7 @@ export async function createController(
     ...debugRetention,
   });
 
-  return new MarmotController({
+  return new MarmotAccount({
     client,
     network,
     directory,

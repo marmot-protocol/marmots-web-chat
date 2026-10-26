@@ -2,12 +2,21 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { use$ } from "applesauce-react/hooks";
+
+import { useAction } from "@/hooks/use-marmot";
 import { useSettings } from "@/pages/settings/context";
 
 /** Discover and edit the account's inbox and outbox relay lists. */
 export function RelaySettings() {
-  const { snapshot, controller, outbox, setOutbox, inbox, setInbox } =
-    useSettings();
+  const { account, outbox, setOutbox, inbox, setInbox } = useSettings();
+  const outboxRelays = use$(account.outboxRelays$);
+  const inboxRelays = use$(account.inboxRelays$);
+  const refresh = useAction((account) => account.refreshRelayLists());
+  const save = useAction((account, outbox: string[], inbox: string[]) =>
+    account.saveRelayLists(outbox, inbox),
+  );
+  const busy = refresh.pending || save.pending;
   const parseRelays = (value: string) =>
     value
       .split(/[\s,]+/)
@@ -24,7 +33,7 @@ export function RelaySettings() {
       </header>
       <div>
         <FieldGroup>
-          {(!snapshot.outboxRelays.length || !snapshot.inboxRelays.length) && (
+          {(!outboxRelays?.length || !inboxRelays?.length) && (
             <Alert>
               <AlertTitle>Finish relay setup</AlertTitle>
               <AlertDescription>
@@ -35,8 +44,8 @@ export function RelaySettings() {
           )}
           <Button
             variant="outline"
-            disabled={snapshot.busy}
-            onClick={() => void controller?.refreshRelayLists()}
+            disabled={busy}
+            onClick={() => void refresh.run()}
           >
             Retry relay discovery
           </Button>
@@ -60,14 +69,11 @@ export function RelaySettings() {
           </Field>
           <Button
             onClick={() =>
-              controller?.saveRelayLists(
-                parseRelays(outbox),
-                parseRelays(inbox),
-              )
+              void save.run(parseRelays(outbox), parseRelays(inbox))
             }
-            disabled={!controller || snapshot.busy}
+            disabled={busy}
           >
-            {snapshot.busy ? "Working…" : "Publish relay lists"}
+            {save.pending ? "Working…" : "Publish relay lists"}
           </Button>
         </FieldGroup>
       </div>

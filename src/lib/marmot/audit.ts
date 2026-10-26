@@ -159,8 +159,8 @@ export interface AuditUploadSource {
 
 /**
  * Where (and how) to upload this device's audit JSONL. Set when audit logging is
- * enabled with an endpoint; absent leaves {@link MarmotController.uploadAuditLog}
- * a no-op. Account identity is NOT sent here — it lives in the JSONL rows; only
+ * enabled with an endpoint; absent disables {@link MarmotAccount.uploadAuditLog}.
+ * Account identity is NOT sent here — it lives in the JSONL rows; only
  * the non-identifying client labels travel as `X-Goggles-*` headers.
  */
 export interface AuditUploadConfig {

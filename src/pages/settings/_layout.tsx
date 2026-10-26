@@ -4,7 +4,9 @@ import { IconArrowLeft } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useChat, useController } from "@/hooks/use-marmot";
+import { use$ } from "applesauce-react/hooks";
+
+import { useMarmotAccount } from "@/hooks/use-marmot";
 import { useProfile } from "@/hooks/use-profile";
 import type { SettingsContextValue } from "@/pages/settings/context";
 
@@ -20,9 +22,10 @@ const SETTINGS_TABS = [
 export function SettingsLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const controller = useController();
-  const snapshot = useChat();
-  const profile = useProfile(snapshot?.me.pubkey);
+  const account = useMarmotAccount();
+  const outboxRelays = use$(() => account?.outboxRelays$, [account]);
+  const inboxRelays = use$(() => account?.inboxRelays$, [account]);
+  const profile = useProfile(account?.pubkey);
   const [name, setName] = useState("");
   const [about, setAbout] = useState("");
   const [picture, setPicture] = useState("");
@@ -39,14 +42,14 @@ export function SettingsLayout() {
     setName(profile?.name ?? "");
     setAbout(profile?.about ?? "");
     setPicture(profile?.picture ?? "");
-  }, [profile, snapshot?.me.pubkey]);
+  }, [profile, account]);
 
   useEffect(() => {
-    setOutbox(snapshot?.outboxRelays.join("\n") ?? "");
-    setInbox(snapshot?.inboxRelays.join("\n") ?? "");
-  }, [snapshot?.outboxRelays, snapshot?.inboxRelays, snapshot?.me.pubkey]);
+    setOutbox(outboxRelays?.join("\n") ?? "");
+    setInbox(inboxRelays?.join("\n") ?? "");
+  }, [outboxRelays, inboxRelays]);
 
-  if (!snapshot) {
+  if (!account) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
         Loading…
@@ -55,8 +58,7 @@ export function SettingsLayout() {
   }
 
   const context: SettingsContextValue = {
-    snapshot,
-    controller,
+    account,
     name,
     setName,
     about,

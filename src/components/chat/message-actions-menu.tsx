@@ -16,7 +16,8 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { useController } from "@/hooks/use-marmot";
+import { useAction } from "@/hooks/use-marmot";
+import { sendReaction } from "@/lib/marmot/actions/messages";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useLongPress } from "@/hooks/use-long-press";
 import type { ReplyTarget } from "./types";
@@ -41,17 +42,19 @@ export function MessageActionsMenu({
   readOnly?: boolean;
   children: ReactNode;
 }) {
-  const controller = useController();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const longPress = useLongPress(() => setOpen(true));
 
-  const react = (emoji: string) =>
-    controller?.sendReaction(
-      groupId,
+  const reaction = useAction((account, emoji: string) =>
+    sendReaction(
+      account.client,
+      account.group(groupId),
       { id: message.id, pubkey: message.pubkey },
       emoji,
-    );
+    ),
+  );
+  const react = (emoji: string) => void reaction.run(emoji);
 
   const reply = () =>
     onReply?.({

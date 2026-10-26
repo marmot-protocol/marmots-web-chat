@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { kinds, type Rumor } from "applesauce-core/helpers/event";
 import { use$ } from "applesauce-react/hooks";
 
-import { useController } from "./use-marmot";
+import { useGroupStore } from "./use-marmot";
 
 /**
  * Read oldest-first private chat rumors for a group.
@@ -13,8 +13,7 @@ import { useController } from "./use-marmot";
  * @example const messages = useGroupMessages(groupId);
  */
 export function useGroupMessages(groupId: string | undefined): Rumor[] {
-  const controller = useController();
-  const store = groupId ? controller?.getGroupStore(groupId) : undefined;
+  const store = useGroupStore(groupId);
   const timeline = use$(
     () => (store ? store.timeline({ kinds: [kinds.ChatMessage] }) : undefined),
     [store],
@@ -53,8 +52,7 @@ export function useGroupEvent(
   groupId: string,
   eventId: string | null,
 ): Rumor | undefined {
-  const controller = useController();
-  const store = controller?.getGroupStore(groupId);
+  const store = useGroupStore(groupId);
   return use$(
     () => (store && eventId ? store.event(eventId) : undefined),
     [store, eventId],
@@ -72,8 +70,7 @@ export function useMessageReactions(
   groupId: string,
   messageId: string,
 ): Rumor[] {
-  const controller = useController();
-  const store = controller?.getGroupStore(groupId);
+  const store = useGroupStore(groupId);
   const reactions = use$(
     () =>
       store

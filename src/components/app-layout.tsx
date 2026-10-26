@@ -10,18 +10,20 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Jdenticon } from "@/components/jdenticon";
 import { UserAvatar, UserName } from "@/components/user";
+import { use$ } from "applesauce-react/hooks";
+
 import {
-  useChat,
-  useWatchedGroups,
+  useGroups,
+  useKeyPackages,
+  useMarmotAccount,
   useWatchedInvites,
 } from "@/hooks/use-marmot";
+import { summarizeKeyPackages } from "@/lib/marmot/key-packages";
 import { NewGroupDialog } from "@/components/marmot/new-group-dialog";
 import { Badge } from "@/components/ui/badge";
 
 function GroupList() {
-  const groups = useWatchedGroups();
-  // Subscribe to snapshot so renames (stateChanged) re-render the list.
-  useChat();
+  const groups = useGroups() ?? [];
 
   if (groups.length === 0) {
     return (
@@ -57,18 +59,20 @@ function GroupList() {
 }
 
 export function AppLayout() {
-  const snapshot = useChat();
+  const account = useMarmotAccount();
+  const notices = use$(() => account?.notices$, [account]);
+  const packages = useKeyPackages();
   const invites = useWatchedInvites().filter((entry) => entry.joinable);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const location = useLocation();
   const [newGroup, setNewGroup] = useState(false);
   const [dismissedStatus, setDismissedStatus] = useState(-1);
-  const notice = (snapshot ? [...snapshot.status].reverse() : []).find(
-    (line) => line.level !== "info" && line.id > dismissedStatus,
-  );
+  const notice = [...(notices ?? [])]
+    .reverse()
+    .find((line) => line.level !== "info" && line.id > dismissedStatus);
   const [showQr, setShowQr] = useState(false);
-  useEffect(() => setDismissedStatus(-1), [snapshot?.me.pubkey]);
+  useEffect(() => setDismissedStatus(-1), [account]);
 
   // On mobile, show the sidebar OR the detail pane, never both. The list lives
   // at /groups; everything else (a group chat, settings) is a detail view.
@@ -140,16 +144,17 @@ export function AppLayout() {
           </div>
 
           <div className="flex items-center gap-2 border-t p-2">
-            {snapshot && (
+            {account && (
               <>
-                <UserAvatar pubkey={snapshot.me.pubkey} size={32} />
+                <UserAvatar pubkey={account.pubkey} size={32} />
                 <div className="min-w-0 flex-1">
                   <UserName
-                    pubkey={snapshot.me.pubkey}
+                    pubkey={account.pubkey}
                     className="block truncate text-sm font-medium"
                   />
                   <span className="text-xs text-muted-foreground">
-                    {snapshot.keyPackages.unused} key package(s)
+                    {summarizeKeyPackages(packages, account.clientId).unused}{" "}
+                    key package(s)
                   </span>
                 </div>
               </>
@@ -177,9 +182,9 @@ export function AppLayout() {
         </main>
 
         <NewGroupDialog open={newGroup} onOpenChange={setNewGroup} />
-        {snapshot && (
+        {account && (
           <MyQrDialog
-            npub={snapshot.me.npub}
+            npub={account.npub}
             open={showQr}
             onOpenChange={setShowQr}
           />

@@ -21,20 +21,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { UserAvatar, UserName } from "@/components/user";
-import { useController, useWatchedInvites } from "@/hooks/use-marmot";
+import type { WelcomePreview } from "@internet-privacy/marmot-ts/client";
+
+import {
+  useAction,
+  useMarmotClient,
+  useWatchedInvites,
+} from "@/hooks/use-marmot";
+import { joinInvite } from "@/lib/marmot/actions/invites";
 import type { InviteEntry } from "@/lib/marmot/types";
-import type { MarmotController } from "@/lib/marmot/controller";
 
-type Preview = Awaited<ReturnType<MarmotController["previewInvite"]>>;
-
-function useInvitePreview(entry: InviteEntry): Preview | null {
-  const controller = useController();
-  const [preview, setPreview] = useState<Preview | null>(null);
+function useInvitePreview(entry: InviteEntry): WelcomePreview | null {
+  const client = useMarmotClient();
+  const [preview, setPreview] = useState<WelcomePreview | null>(null);
   useEffect(() => {
     let active = true;
     setPreview(null);
-    controller
-      ?.previewInvite(entry.invite)
+    client
+      ?.previewWelcome(entry.invite)
       .then((value) => {
         if (active) setPreview(value);
       })
@@ -42,7 +46,7 @@ function useInvitePreview(entry: InviteEntry): Preview | null {
     return () => {
       active = false;
     };
-  }, [controller, entry.invite]);
+  }, [client, entry.invite]);
   return preview;
 }
 
@@ -61,7 +65,7 @@ function InviteDetailsDialog({
   onJoin: () => void;
   onDismiss: () => void;
   busy: boolean;
-  preview: Preview | null;
+  preview: WelcomePreview | null;
 }) {
   const group = preview?.group;
 
@@ -152,35 +156,31 @@ function InviteDetailsDialog({
 }
 
 function InviteRow({ entry }: { entry: InviteEntry }) {
-  const controller = useController();
+  const client = useMarmotClient();
   const navigate = useNavigate();
   const preview = useInvitePreview(entry);
-  const [busy, setBusy] = useState(false);
   const [details, setDetails] = useState(false);
+  const joinAction = useAction((account) =>
+    joinInvite(account.client, entry.invite.id),
+  );
+  const dismissAction = useAction(async (account) => {
+    await account.client.invites.markAsRead(entry.invite.id);
+    return true;
+  });
+  const busy = joinAction.pending || dismissAction.pending;
 
   const join = async () => {
-    if (!controller || busy) return;
-    setBusy(true);
-    try {
-      const id = await controller.joinInvite(entry.invite.id);
-      if (id) {
-        setDetails(false);
-        navigate(`/groups/${id}`);
-      }
-    } finally {
-      setBusy(false);
+    if (busy) return;
+    const group = await joinAction.run();
+    if (group) {
+      setDetails(false);
+      navigate(`/groups/${group.idStr}`);
     }
   };
 
   const dismiss = async () => {
-    if (!controller || busy) return;
-    setBusy(true);
-    try {
-      await controller.dismissInvite(entry.invite.id);
-      setDetails(false);
-    } finally {
-      setBusy(false);
-    }
+    if (busy) return;
+    if (await dismissAction.run()) setDetails(false);
   };
 
   return (
@@ -219,7 +219,7 @@ function InviteRow({ entry }: { entry: InviteEntry }) {
       <CardFooter className="flex flex-wrap gap-2">
         <Button
           size="sm"
-          disabled={!controller || !entry.joinable || busy}
+          disabled={!client || !entry.joinable || busy}
           onClick={() => void join()}
         >
           {busy ? "Working…" : "Accept invite"}

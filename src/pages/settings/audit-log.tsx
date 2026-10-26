@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { use$ } from "applesauce-react/hooks";
 import { IconUpload } from "@tabler/icons-react";
 
@@ -10,11 +11,14 @@ import {
   auditUploadEndpoint$,
   auditUploadToken$,
 } from "@/lib/settings";
+import { useAction } from "@/hooks/use-marmot";
 import { useSettings } from "@/pages/settings/context";
 
 /** Configure forensic recording and upload the account's audit log. */
 export function AuditLogSettings() {
-  const { snapshot, controller } = useSettings();
+  const { account } = useSettings();
+  const upload = useAction((account) => account.uploadAuditLog());
+  const [uploaded, setUploaded] = useState<string | null>(null);
   const auditEnabled = use$(auditEnabled$) ?? false;
   const auditEndpoint = use$(auditUploadEndpoint$) ?? "";
   const auditToken = use$(auditUploadToken$) ?? "";
@@ -60,13 +64,24 @@ export function AuditLogSettings() {
           </Field>
           <Button
             variant="outline"
-            onClick={() => controller?.uploadAuditLog()}
-            disabled={!snapshot.canUploadAudit || snapshot.busy}
+            onClick={async () => {
+              const result = await upload.run();
+              if (result)
+                setUploaded(
+                  `Uploaded ${result.bytesSent} bytes (HTTP ${result.status}).`,
+                );
+            }}
+            disabled={!account.canUploadAudit || upload.pending}
           >
             <IconUpload data-icon="inline-start" />
-            {snapshot.busy ? "Working…" : "Upload audit log"}
+            {upload.pending ? "Working…" : "Upload audit log"}
           </Button>
-          {!snapshot.canUploadAudit && (
+          {uploaded && (
+            <p className="text-xs text-muted-foreground" role="status">
+              {uploaded}
+            </p>
+          )}
+          {!account.canUploadAudit && (
             <p className="text-xs text-muted-foreground">
               {auditEnabled
                 ? "Reload to start recording, then upload becomes available."

@@ -13,7 +13,11 @@ export function ChatView({ groupId }: { groupId: string }) {
   return (
     <div className="flex h-full flex-col">
       <MessageList groupId={groupId} onReply={setReply} />
-      <MessageComposer groupId={groupId} reply={reply} onClearReply={clearReply} />
+      <MessageComposer
+        groupId={groupId}
+        reply={reply}
+        onClearReply={clearReply}
+      />
     </div>
   );
 }

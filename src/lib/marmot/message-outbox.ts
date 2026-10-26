@@ -2,14 +2,27 @@ import { StaleMediaPreparationError } from "@internet-privacy/marmot-ts";
 import { BehaviorSubject } from "rxjs";
 import { kinds, type Rumor } from "applesauce-core/helpers/event";
 
-import type { MarmotController } from "@/lib/marmot/controller";
+import type { MessageTarget } from "@/lib/marmot/actions/messages";
 
-type MessageSender = Pick<
-  MarmotController,
-  "sendText" | "sendMedia" | "sendPreparedMessage"
->;
+/** Group-ID-addressed message sends, bound to one account. */
+export interface MessageSender {
+  sendText(
+    groupId: string,
+    text: string,
+    replyTo?: MessageTarget,
+    onPrepared?: (rumor: Rumor) => void,
+  ): Promise<void>;
+  sendMedia(
+    groupId: string,
+    file: File,
+    caption?: string,
+    replyTo?: MessageTarget,
+    onPrepared?: (rumor: Rumor) => void,
+  ): Promise<void>;
+  sendPreparedMessage(groupId: string, rumor: Rumor): Promise<void>;
+}
 
-/** Local delivery information for one outgoing message, scoped to its controller. */
+/** Local delivery information for one outgoing message, scoped to its account. */
 export interface OutgoingMessage {
   key: string;
   groupId: string;
@@ -114,7 +127,7 @@ export class MessageOutbox {
 
 const OUTBOXES = new WeakMap<MessageSender, MessageOutbox>();
 
-/** Get the controller's outbox, preserving pending sends across route navigation. */
+/** Get the account's outbox, preserving pending sends across route navigation. */
 export function getMessageOutbox(sender: MessageSender): MessageOutbox {
   let outbox = OUTBOXES.get(sender);
   if (!outbox) {

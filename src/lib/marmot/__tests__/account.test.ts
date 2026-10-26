@@ -15,7 +15,11 @@ import {
 } from "@internet-privacy/marmot-ts/extra";
 import { EMPTY } from "rxjs";
 
-import { MarmotController } from "@/lib/marmot/controller";
+import { MarmotAccount } from "@/lib/marmot/account";
+import { leaveGroup } from "@/lib/marmot/actions/group-admin";
+import { inviteKeyPackages } from "@/lib/marmot/actions/invites";
+import { sendReaction, sendText } from "@/lib/marmot/actions/messages";
+import { purgeLegacyKeyPackages } from "@/lib/marmot/actions/key-packages";
 import type { AppGroup, AppMarmotClient } from "@/lib/marmot/types";
 import type { Directory } from "@/lib/marmot/discovery";
 import type { MarmotNetwork } from "@/lib/marmot/network";
@@ -24,9 +28,9 @@ import { makeTestClient } from "./helpers";
 
 const PUBKEY = "11".repeat(32);
 const SLOT = "aa".repeat(32);
-const controllers: MarmotController[] = [];
+const running: MarmotAccount[] = [];
 afterEach(() => {
-  controllers.splice(0).forEach((controller) => controller.stop());
+  running.splice(0).forEach((account) => account.stop());
 });
 
 function pkg(identifier = SLOT, nonCurrent = false): ListedKeyPackage {
@@ -82,8 +86,13 @@ function fixture(
         );
       }),
     },
+    signer: { getPublicKey: async () => PUBKEY },
     groups: {
-      loadAll: vi.fn(async () => groups),
+      loaded: [] as AppGroup[],
+      loadAll: vi.fn(async () => {
+        client.groups.loaded = groups;
+        return groups;
+      }),
       on: vi.fn(),
       off: vi.fn(),
       connectAll: vi.fn(() => ({ unsubscribe })),
@@ -93,6 +102,7 @@ function fixture(
       send: vi.fn(),
       commit: vi.fn(async () => []),
       leave: vi.fn(async () => ({})),
+      destroy: vi.fn(async () => {}),
     },
     invites: { listen: vi.fn(async () => ({ unsubscribe })) },
   };
@@ -117,7 +127,7 @@ function fixture(
   };
   const eventStore = new EventStore();
   eventStore.verifyEvent = () => true;
-  const controller = new MarmotController({
+  const account = new MarmotAccount({
     client: client as unknown as AppMarmotClient,
     network: network as unknown as MarmotNetwork,
     directory: directory as unknown as Directory,
@@ -129,8 +139,9 @@ function fixture(
     clientId: SLOT,
     lookupRelays: () => ["wss://index.test"],
   });
-  controllers.push(controller);
-  return { controller, client, directory, network };
+  running.push(account);
+  const appClient = client as unknown as AppMarmotClient;
+  return { account, client, appClient, directory, network };
 }
 
 function group(unsupported = false): AppGroup {
@@ -159,52 +170,42 @@ function group(unsupported = false): AppGroup {
   } as unknown as AppGroup;
 }
 
-describe("dependency migration", () => {
+describe("account runtime and actions", () => {
   it("shares startup and detaches account listeners on stop", async () => {
-    const { controller, client } = fixture({
+    const { account, client } = fixture({
       groups: [group()],
       packages: [pkg()],
     });
-    const first = controller.start();
-    expect(controller.start()).toBe(first);
+    const first = account.start();
+    expect(account.start()).toBe(first);
     await first;
     expect(client.groups.connectAll).toHaveBeenCalledOnce();
-    controller.stop();
+    expect(account.groupsRestored$.value).toBe(true);
+    account.stop();
     expect(client.groups.off).toHaveBeenCalledWith(
       "unreadable",
       expect.any(Function),
     );
-    await expect(controller.start()).rejects.toThrow("stopped");
+    await expect(account.start()).rejects.toThrow("stopped");
   });
 
-  it("keeps busy true until overlapping actions have both completed", async () => {
-    const { controller, client } = fixture({ packages: [pkg()] });
-    await controller.start();
-    let finishFirst!: (value: ListedKeyPackage) => void;
-    let finishSecond!: (value: ListedKeyPackage) => void;
-    client.keyPackages.create.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finishFirst = resolve;
-        }),
-    );
-    client.keyPackages.create.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finishSecond = resolve;
-        }),
-    );
-    const first = controller.publishKeyPackage();
-    const second = controller.publishKeyPackage();
+  it("re-listens for invites only when the inbox list changes", async () => {
+    const { account, client } = fixture({ packages: [pkg()] });
+    await account.start();
+    // Startup listens on the (empty) inbox, then on the discovered one.
     await vi.waitFor(() =>
-      expect(client.keyPackages.create).toHaveBeenCalledTimes(2),
+      expect(client.invites.listen).toHaveBeenLastCalledWith([
+        "wss://inbox.test/",
+      ]),
     );
-    finishFirst(pkg());
-    await first;
-    expect(controller.getSnapshot().busy).toBe(true);
-    finishSecond(pkg());
-    await second;
-    expect(controller.getSnapshot().busy).toBe(false);
+    const calls = client.invites.listen.mock.calls.length;
+    account.inboxRelays$.next(["wss://inbox.test"]);
+    expect(client.invites.listen).toHaveBeenCalledTimes(calls);
+    account.inboxRelays$.next(["wss://other.test"]);
+    expect(client.invites.listen).toHaveBeenCalledTimes(calls + 1);
+    expect(client.invites.listen).toHaveBeenLastCalledWith([
+      "wss://other.test/",
+    ]);
   });
 
   it("gives identical concurrent text messages distinct identities", async () => {
@@ -212,14 +213,13 @@ describe("dependency migration", () => {
       ...group(),
       signer: { getPublicKey: () => PUBKEY },
     } as AppGroup;
-    const { controller } = fixture({ groups: [saved], packages: [pkg()] });
-    await controller.start();
+    const { appClient } = fixture();
     const prepared: Rumor[] = [];
     await Promise.all([
-      controller.sendText(saved.idStr, "same message", undefined, (rumor) =>
+      sendText(appClient, saved, "same message", undefined, (rumor) =>
         prepared.push(rumor),
       ),
-      controller.sendText(saved.idStr, "same message", undefined, (rumor) =>
+      sendText(appClient, saved, "same message", undefined, (rumor) =>
         prepared.push(rumor),
       ),
     ]);
@@ -236,21 +236,17 @@ describe("dependency migration", () => {
       ...group(),
       signer: { getPublicKey: () => PUBKEY, signEvent },
     } as unknown as AppGroup;
-    const { controller, client } = fixture({
-      groups: [saved],
-      packages: [pkg()],
-    });
-    await controller.start();
+    const { appClient, client } = fixture();
     const target = { id: "44".repeat(32), pubkey: "22".repeat(32) };
     let reply: Rumor | undefined;
-    await controller.sendText(saved.idStr, "reply", target, (rumor) => {
+    await sendText(appClient, saved, "reply", target, (rumor) => {
       reply = rumor;
     });
     expect(reply?.kind).toBe(kinds.ChatMessage);
     expect(reply?.tags).toContainEqual(["q", target.id, "", target.pubkey]);
     expect(verifyRumor(reply!)).toBe(true);
     client.groups.send.mockClear();
-    await controller.sendReaction(saved.idStr, target, "👍");
+    await sendReaction(appClient, saved, target, "👍");
     const [, intent] = client.groups.send.mock.calls[0] as unknown as [
       Uint8Array,
       { payload: Uint8Array },
@@ -264,58 +260,55 @@ describe("dependency migration", () => {
 
   it("publishes a current per-device package despite legacy unused packages, preserving old keys", async () => {
     const legacy = pkg("marmot-web", true);
-    const { controller, client } = fixture({ packages: [legacy] });
-    await controller.start();
+    const { account, client } = fixture({ packages: [legacy] });
+    await account.start();
     expect(client.keyPackages.ensurePublished).toHaveBeenCalledExactlyOnceWith({
       relays: ["wss://outbox.test/"],
       identifier: SLOT,
     });
     expect(client.keyPackages.purge).not.toHaveBeenCalled();
-    expect(controller.getSnapshot().keyPackages).toMatchObject({
-      unused: 1,
-      legacy: 1,
-      slot: SLOT,
-    });
   });
 
   it("keeps an existing current device package and creates no duplicates", async () => {
-    const { controller, client } = fixture({ packages: [pkg()] });
-    await controller.start();
+    const { account, client } = fixture({ packages: [pkg()] });
+    await account.start();
     expect(client.keyPackages.create).not.toHaveBeenCalled();
   });
 
   it("retries publication when a current package exists locally but was never published", async () => {
     const unpublished = { ...pkg(), published: [] };
-    const { controller, client } = fixture({ packages: [unpublished] });
-    await controller.start();
+    const { account, client } = fixture({ packages: [unpublished] });
+    await account.start();
     expect(client.keyPackages.create).toHaveBeenCalledOnce();
   });
 
   it("does not duplicate a newly published package when ensurePublished returns a summary", async () => {
-    const { controller, client } = fixture();
+    const { account, client } = fixture();
     client.keyPackages.ensurePublished.mockImplementationOnce(async () => {
       const created = await client.keyPackages.create();
       return { ...created, published: undefined };
     });
-    await controller.start();
+    await account.start();
     expect(client.keyPackages.create).toHaveBeenCalledOnce();
   });
 
   it("requires both relay lists and retries missing discovery before publishing", async () => {
-    const { controller, client, directory } = fixture();
+    const { account, client, directory } = fixture();
     directory.welcomeInboxes.mockResolvedValue([]);
-    await controller.start();
+    await account.start();
     expect(client.keyPackages.create).not.toHaveBeenCalled();
-    await controller.refreshRelayLists();
+    await expect(account.requireKeyPackageRelays()).rejects.toThrow(
+      "inbox relays",
+    );
     directory.welcomeInboxes.mockResolvedValue(["wss://inbox.test"]);
-    await controller.publishKeyPackage();
+    await account.ensureKeyPackage();
     expect(directory.welcomeInboxes.mock.calls.length).toBeGreaterThan(1);
     expect(client.keyPackages.create).toHaveBeenCalledOnce();
   });
 
   it("publishes fresh account relay lists even when no display name was supplied", async () => {
-    const { controller, network, client } = fixture({ fresh: true });
-    await controller.start();
+    const { account, network, client } = fixture({ fresh: true });
+    await account.start();
     expect(
       network.publish.mock.calls.map(
         (call) => (call as unknown as [unknown, NostrEvent])[1].kind,
@@ -325,19 +318,18 @@ describe("dependency migration", () => {
   });
 
   it("purges legacy material only through the explicit retirement action", async () => {
-    const { controller, client } = fixture({
+    const { account, appClient, client } = fixture({
       packages: [
         pkg(),
         { ...pkg("old", true), keyPackageRef: new Uint8Array([2]) },
       ],
     });
-    await controller.start();
+    await account.start();
     expect(client.keyPackages.purge).not.toHaveBeenCalled();
-    await controller.purgeLegacyKeyPackages();
+    expect(await purgeLegacyKeyPackages(appClient, SLOT)).toBe(1);
     expect(client.keyPackages.purge).toHaveBeenCalledExactlyOnceWith([
       new Uint8Array([2]),
     ]);
-    expect(controller.getSnapshot().keyPackages.legacy).toBe(0);
   });
 
   it("auto-retires packages under pre-0.7 device-label slots after publishing under the new slot", async () => {
@@ -345,8 +337,8 @@ describe("dependency migration", () => {
       ...pkg("marmot-web-0123456789abcdef"),
       keyPackageRef: new Uint8Array([2]),
     };
-    const { controller, client } = fixture({ packages: [oldSlot] });
-    await controller.start();
+    const { account, client } = fixture({ packages: [oldSlot] });
+    await account.start();
     expect(client.keyPackages.create).toHaveBeenCalledOnce();
     expect(client.keyPackages.purge).toHaveBeenCalledExactlyOnceWith(
       oldSlot.keyPackageRef,
@@ -354,48 +346,47 @@ describe("dependency migration", () => {
     expect(client.keyPackages.create.mock.invocationCallOrder[0]).toBeLessThan(
       client.keyPackages.purge.mock.invocationCallOrder[0],
     );
-    expect(controller.getSnapshot().keyPackages.legacy).toBe(0);
   });
 
-  it("keeps an old-slot package listed as legacy when its retirement fails", async () => {
+  it("warns and keeps an old-slot package when its retirement fails", async () => {
     const oldSlot = {
       ...pkg("marmot-web-0123456789abcdef"),
       keyPackageRef: new Uint8Array([2]),
     };
-    const { controller, client } = fixture({ packages: [pkg(), oldSlot] });
+    const { account, client } = fixture({ packages: [pkg(), oldSlot] });
     client.keyPackages.purge.mockRejectedValueOnce(new Error("no routes"));
-    await controller.start();
+    await account.start();
     expect(client.keyPackages.create).not.toHaveBeenCalled();
-    expect(controller.getSnapshot().keyPackages.legacy).toBe(1);
+    expect(
+      account.notices$.value.some((line) => line.text.includes("no routes")),
+    ).toBe(true);
   });
 
   it("preserves unsupported groups, refuses sends, and disposes them on account teardown", async () => {
     const saved = group(true);
-    const { controller, client } = fixture({
+    const { account, appClient, client } = fixture({
       packages: [pkg()],
       groups: [saved],
     });
-    await controller.start();
-    expect(controller.getGroup("aa")).toBe(saved);
+    await account.start();
+    expect(account.findGroup("aa")).toBe(saved);
     expect(saved.destroy).not.toHaveBeenCalled();
-    await expect(controller.sendText("aa", "hello")).rejects.toThrow(
+    await expect(sendText(appClient, saved, "hello")).rejects.toThrow(
       "older profile",
     );
     expect(client.groups.send).not.toHaveBeenCalled();
-    controller.stop();
+    account.stop();
     expect(saved.dispose).toHaveBeenCalledOnce();
   });
 
   it("restores saved groups even when publishing a key package fails", async () => {
     const saved = group();
-    const { controller, client } = fixture({ groups: [saved] });
+    const { account, client } = fixture({ groups: [saved] });
     client.keyPackages.create.mockRejectedValue(new Error("relay offline"));
-    await controller.start();
-    expect(controller.getGroup("aa")).toBe(saved);
+    await account.start();
+    expect(account.findGroup("aa")).toBe(saved);
     expect(
-      controller
-        .getSnapshot()
-        .status.some((line) => line.text === "relay offline"),
+      account.notices$.value.some((line) => line.text === "relay offline"),
     ).toBe(true);
   });
 
@@ -404,14 +395,13 @@ describe("dependency migration", () => {
       ...group(),
       session: { mediaSourceForRumor: vi.fn(async () => undefined) },
     } as unknown as AppGroup;
-    const { controller } = fixture({ packages: [pkg()], groups: [saved] });
-    await controller.start();
+    const { account } = fixture({ packages: [pkg()], groups: [saved] });
     await expect(
-      controller.fetchAndDecryptMedia(
-        "aa",
+      account.media.download(
+        saved,
         {
           ciphertextSha256: "abc",
-        } as Parameters<MarmotController["fetchAndDecryptMedia"]>[1],
+        } as Parameters<MarmotAccount["media"]["download"]>[1],
         "rumor-id",
       ),
     ).rejects.toThrow("source keys");
@@ -420,45 +410,34 @@ describe("dependency migration", () => {
 
   it("retries retained commit publication when restoring an active group", async () => {
     const saved = group();
-    const { controller } = fixture({ groups: [saved], packages: [pkg()] });
-    await controller.start();
+    const { account } = fixture({ groups: [saved], packages: [pkg()] });
+    await account.start();
     expect(saved.retryPendingPublication).toHaveBeenCalledOnce();
   });
 
-  it("keeps the last admin's group locally and reports why leaving is blocked", async () => {
+  it("refuses to let the last admin leave", async () => {
     const saved = group();
-    const { controller, client } = fixture({
-      groups: [saved],
-      packages: [pkg()],
-    });
-    await controller.start();
-    expect(await controller.leave(saved.idStr)).toBe(false);
+    const { appClient, client } = fixture({ groups: [saved] });
+    await expect(leaveGroup(appClient, saved)).rejects.toThrow(
+      "Promote another member",
+    );
     expect(client.groups.leave).not.toHaveBeenCalled();
-    expect(controller.getGroup(saved.idStr)).toBe(saved);
   });
 
-  it("preserves local state when a non-admin's leave publication fails", async () => {
+  it("propagates a non-admin's failed leave publication", async () => {
     const saved = {
       ...group(),
       groupData: { adminPubkeys: ["22".repeat(32)] },
     } as unknown as AppGroup;
-    const { controller, client } = fixture({
-      groups: [saved],
-      packages: [pkg()],
-    });
+    const { appClient, client } = fixture({ groups: [saved] });
     client.groups.leave.mockRejectedValueOnce(new Error("Relay offline"));
-    await controller.start();
-    expect(await controller.leave(saved.idStr)).toBe(false);
-    expect(controller.getGroup(saved.idStr)).toBe(saved);
+    await expect(leaveGroup(appClient, saved)).rejects.toThrow("Relay offline");
+    expect(client.groups.commit).not.toHaveBeenCalled();
   });
 
   it("reports failed Welcome fanout instead of treating a committed membership as a delivered invite", async () => {
     const saved = group();
-    const { controller, client } = fixture({
-      packages: [pkg()],
-      groups: [saved],
-    });
-    await controller.start();
+    const { appClient, client } = fixture({ groups: [saved] });
     client.groups.send.mockResolvedValue([
       {
         welcomeDelivery: {
@@ -484,7 +463,7 @@ describe("dependency migration", () => {
     await peer.keyPackages.create({ relays: ["wss://relay.test"] });
     const [keyPackage] = await peer.keyPackages.list();
     await expect(
-      controller.inviteKeyPackages("aa", keyPackage.published!),
+      inviteKeyPackages(appClient, saved, keyPackage.published!),
     ).rejects.toThrow("Membership was updated");
     expect(client.groups.send).toHaveBeenCalledOnce();
   });

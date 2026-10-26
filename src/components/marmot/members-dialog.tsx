@@ -11,7 +11,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { UserAvatar, UserName } from "@/components/user";
-import { useChat, useController } from "@/hooks/use-marmot";
+import { useAction, useGroup, useMarmotAccount } from "@/hooks/use-marmot";
+import { removeMember, setMemberAdmin } from "@/lib/marmot/actions/group-admin";
 
 export function MembersDialog({
   groupId,
@@ -22,21 +23,21 @@ export function MembersDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const controller = useController();
-  const snapshot = useChat();
-  const me = snapshot?.me.pubkey;
-  const group = controller?.getGroup(groupId);
-
-  const busy = snapshot?.busy ?? false;
+  const me = useMarmotAccount()?.pubkey;
+  const group = useGroup(groupId);
+  const setAdmin = useAction((account, pubkey: string, makeAdmin: boolean) =>
+    setMemberAdmin(account.client, account.group(groupId), pubkey, makeAdmin),
+  );
+  const remove = useAction((account, pubkey: string) =>
+    removeMember(account.client, account.group(groupId), pubkey),
+  );
+  const busy = setAdmin.pending || remove.pending;
   const admins = group?.groupData?.adminPubkeys ?? [];
   const iAmAdmin = me ? admins.includes(me) : false;
 
-  // Re-derived whenever the snapshot bumps (stateChanged).
-  const members = useMemo(
-    () => (group ? getGroupMembers(group.state) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [group, snapshot],
-  );
+  // useGroup re-renders on stateChanged; derive from the current state.
+  const state = group?.state;
+  const members = useMemo(() => (state ? getGroupMembers(state) : []), [state]);
   const unique = useMemo(() => [...new Set(members)], [members]);
 
   return (
@@ -53,12 +54,20 @@ export function MembersDialog({
             const isAdmin = admins.includes(pubkey);
             const isMe = pubkey === me;
             return (
-              <div key={pubkey} className="flex items-center gap-2 rounded p-1.5">
+              <div
+                key={pubkey}
+                className="flex items-center gap-2 rounded p-1.5"
+              >
                 <UserAvatar pubkey={pubkey} size={32} />
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <UserName pubkey={pubkey} className="truncate text-sm font-medium" />
+                  <UserName
+                    pubkey={pubkey}
+                    className="truncate text-sm font-medium"
+                  />
                   {isAdmin && <Badge variant="secondary">admin</Badge>}
-                  {isMe && <span className="text-xs text-muted-foreground">(you)</span>}
+                  {isMe && (
+                    <span className="text-xs text-muted-foreground">(you)</span>
+                  )}
                 </div>
                 {iAmAdmin && !isMe && (
                   <div className="flex gap-1">
@@ -66,9 +75,7 @@ export function MembersDialog({
                       variant="ghost"
                       size="sm"
                       disabled={busy}
-                      onClick={() =>
-                        controller?.setMemberAdmin(groupId, pubkey, !isAdmin)
-                      }
+                      onClick={() => void setAdmin.run(pubkey, !isAdmin)}
                     >
                       {isAdmin ? "Demote" : "Promote"}
                     </Button>
@@ -77,7 +84,7 @@ export function MembersDialog({
                       size="sm"
                       className="text-destructive"
                       disabled={busy}
-                      onClick={() => controller?.removeMember(groupId, pubkey)}
+                      onClick={() => void remove.run(pubkey)}
                     >
                       Remove
                     </Button>

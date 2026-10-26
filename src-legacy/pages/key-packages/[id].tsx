@@ -1,4 +1,7 @@
-import { getKeyPackageClient, StoredKeyPackage } from "@internet-privacy/marmot-ts";
+import {
+  getKeyPackageClient,
+  StoredKeyPackage,
+} from "@internet-privacy/marmot-ts";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { watchEventUpdates } from "applesauce-core";
 import { getSeenRelays, NostrEvent } from "applesauce-core/helpers";
