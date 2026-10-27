@@ -1,7 +1,7 @@
 import type { NostrEvent } from "applesauce-core/helpers";
 import { PrivateKeySigner } from "applesauce-signers";
 import { EMPTY } from "rxjs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   getGroupMembers,
   encryptedMediaBlossomDefault,
@@ -21,6 +21,8 @@ import type {
 } from "@internet-privacy/marmot-ts/client";
 
 import legacyGroup from "./fixtures/group-v0.7.json";
+import { updateGroupInfo } from "@/lib/marmot/actions/group-admin";
+
 import { makeTestClient } from "./helpers";
 
 function testNetwork(events: NostrEvent[] = []): NostrNetworkInterface {
@@ -38,6 +40,63 @@ function testNetwork(events: NostrEvent[] = []): NostrNetworkInterface {
 }
 
 describe("current marmot protocol integration", () => {
+  it("notifies group-list subscribers when existing group metadata changes", async () => {
+    const client = makeTestClient(testNetwork());
+    const group = await client.groups.create("Before rename", {
+      relays: ["wss://relay.test"],
+    });
+    const before = client.groups.snapshot;
+    expect(client.groups.snapshot).toBe(before);
+    expect(group.snapshot).toBe(group.snapshot);
+    const changed = vi.fn();
+    client.groups.on("changed", changed);
+    const abort = new AbortController();
+    const names: string[] = [];
+    const watching = (async () => {
+      for await (const groups of client.groups.watch({
+        includeStateChanges: true,
+        signal: abort.signal,
+      })) {
+        names.push(groups[0]?.groupData?.name ?? "");
+      }
+    })();
+    try {
+      await vi.waitFor(() => expect(names).toContain("Before rename"));
+      await updateGroupInfo(client, group, { name: "After rename" });
+      await vi.waitFor(() => expect(names).toContain("After rename"));
+      expect(changed).toHaveBeenCalled();
+      expect(client.groups.snapshot).not.toBe(before);
+      expect(client.groups.snapshot[0].groupData?.name).toBe("After rename");
+      expect(client.groups.snapshot).toBe(client.groups.snapshot);
+    } finally {
+      abort.abort();
+      await watching;
+      client.groups.off("changed", changed);
+      group.dispose();
+    }
+  });
+
+  it("cancels an idle per-group snapshot watcher and releases its listener", async () => {
+    const client = makeTestClient(testNetwork());
+    const group = await client.groups.create("Watched group", {
+      relays: ["wss://relay.test"],
+    });
+    const abort = new AbortController();
+    const listeners = group.listenerCount("changed");
+    const watcher = group.watch({ signal: abort.signal });
+    try {
+      expect((await watcher.next()).value).toBe(group.snapshot);
+      const pending = watcher.next();
+      abort.abort();
+      expect((await pending).done).toBe(true);
+      expect(group.listenerCount("changed")).toBe(listeners);
+    } finally {
+      abort.abort();
+      await watcher.return(undefined);
+      group.dispose();
+    }
+  });
+
   it("generates current identity proofs through a signer without raw secret access", async () => {
     const client = makeTestClient(testNetwork());
     expect("key" in client.signer).toBe(false);
@@ -47,7 +106,7 @@ describe("current marmot protocol integration", () => {
     expect(pkg.published).toHaveLength(1);
   });
 
-  it("loads an actual 0.7.0 stored group and continues messaging on 0.8.0", async () => {
+  it("loads an actual 0.7.0 stored group and continues messaging on the current version", async () => {
     const groupStateStore = new InMemoryKeyValueStore<Uint8Array>();
     await groupStateStore.setItem(
       legacyGroup.groupId,

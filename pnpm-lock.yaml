@@ -18,8 +18,8 @@ importers:
         specifier: ^5.2.8
         version: 5.2.8
       '@internet-privacy/marmot-ts':
-        specifier: 0.8.0
-        version: 0.8.0(@hpke/chacha20poly1305@1.8.0)(@hpke/dhkem-x448@1.8.0)(@hpke/hybridkem-x-wing@0.7.0)(@hpke/ml-kem@0.3.0)(@noble/post-quantum@0.6.1)(supports-color@8.1.1)(typescript@5.9.3)
+        specifier: 0.9.0
+        version: 0.9.0(@hpke/chacha20poly1305@1.8.0)(@hpke/dhkem-x448@1.8.0)(@hpke/hybridkem-x-wing@0.7.0)(@hpke/ml-kem@0.3.0)(@noble/post-quantum@0.6.1)(supports-color@8.1.1)(typescript@5.9.3)
       '@libs/qrcode':
         specifier: jsr:^3.0.1
         version: '@jsr/libs__qrcode@3.0.1'
@@ -1007,8 +1007,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@internet-privacy/marmot-ts@0.8.0':
-    resolution: {integrity: sha512-9G437hT+T0RTi+xr7LQ8JxGGFB0GMWQdduV0jBF/+cxhk/oq8/6D8n1inmBX7/m0HgV2COinx3tBtN+4DY79qw==}
+  '@internet-privacy/marmot-ts@0.9.0':
+    resolution: {integrity: sha512-lq55zN1t2yPbySLJfcZ/Mte5YeLi55UwXSaWZmYvh7Tkbi7omtQLBYe1IuzZp+o/c+AETA3TQS7cWFHASE3EgQ==}
     engines: {bun: '>=1.1.0', deno: '>=2.0.0', node: '>=20.0.0'}
     peerDependencies:
       '@hpke/chacha20poly1305': 1.8.0
@@ -6049,13 +6049,13 @@ snapshots:
     optionalDependencies:
       '@types/node': 24.13.2
 
-  '@internet-privacy/marmot-ts@0.8.0(@hpke/chacha20poly1305@1.8.0)(@hpke/dhkem-x448@1.8.0)(@hpke/hybridkem-x-wing@0.7.0)(@hpke/ml-kem@0.3.0)(@noble/post-quantum@0.6.1)(supports-color@8.1.1)(typescript@5.9.3)':
+  '@internet-privacy/marmot-ts@0.9.0(@hpke/chacha20poly1305@1.8.0)(@hpke/dhkem-x448@1.8.0)(@hpke/hybridkem-x-wing@0.7.0)(@hpke/ml-kem@0.3.0)(@noble/post-quantum@0.6.1)(supports-color@8.1.1)(typescript@5.9.3)':
     dependencies:
       '@hpke/core': 1.9.0
       '@noble/ciphers': 2.2.0
-      '@noble/curves': 2.2.0
+      '@noble/curves': 2.4.0
       '@noble/hashes': 2.2.0
-      '@scure/base': 2.2.0
+      '@scure/base': 2.4.0
       applesauce-common: 7.0.0(typescript@5.9.3)
       applesauce-core: 7.0.3(typescript@5.9.3)
       debug: 4.4.3(supports-color@8.1.1)
@@ -6150,6 +6150,7 @@ snapshots:
   '@noble/curves@2.2.0':
     dependencies:
       '@noble/hashes': 2.2.0
+    optional: true
 
   '@noble/curves@2.4.0':
     dependencies:

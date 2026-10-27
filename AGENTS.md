@@ -161,7 +161,7 @@ The UI talks to the marmot-ts client directly; there is no controller or app-wid
 | ---------------------------- | --------------------------------------------------------------------------- |
 | Account, pubkey, relay lists | `useMarmotAccount()` (`account.outboxRelays$`, `account.inboxRelays$`)      |
 | Client calls                 | `useMarmotClient()` or `account.client`                                     |
-| Groups                       | `useGroups()` / `useGroup(id)` — re-render on `stateChanged`                |
+| Groups                       | `useGroups()` / `useGroup(id)` — library snapshots and `changed` events                |
 | Messages                     | `useGroupMessages(id)`, `useGroupTimeline(group)` (pagination, `loadOlder`) |
 | Invites / key packages       | `useWatchedInvites()`, `useKeyPackages()`                                   |
 | Mutations                    | `useAction((account, …) => action(account.client, account.group(id), …))`   |

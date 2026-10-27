@@ -1,5 +1,5 @@
 import type { AppGroup as MarmotGroup } from "@/lib/marmot/types";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 
 import type { ForkTreeView } from "@internet-privacy/marmot-ts/client";
 import type { NostrEvent } from "applesauce-core/helpers/event";
@@ -18,35 +18,31 @@ export interface GroupDebugSnapshot {
 }
 
 /**
- * Live debug snapshot of a {@link MarmotGroup}'s fork-history tree and ingestion
- * pool. The fork tree grows on inbound commits / newly-observed forks
- * (`historyChanged`) and the canonical tip moves on `stateChanged`, so we
- * recompute the view from those two events. `forkTreeView()` and
- * `pendingEvents()` allocate fresh objects each call, so they are computed only
- * when one of those events bumps the version (never every render).
+ * Read debug projections when the library's unified group snapshot changes.
+ * @param group - Loaded group to observe.
+ * @returns Fork history, pending events, epoch and convergence diagnostics.
+ * @example const debug = useGroupDebug(group);
  */
 export function useGroupDebug(group: MarmotGroup): GroupDebugSnapshot {
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => {
-    const bump = () => setVersion((v) => v + 1);
-    group.on("historyChanged", bump);
-    group.on("stateChanged", bump);
-    return () => {
-      group.off("historyChanged", bump);
-      group.off("stateChanged", bump);
-    };
-  }, [group]);
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      group.on("changed", listener);
+      return () => {
+        group.off("changed", listener);
+      };
+    },
+    [group],
+  );
+  const snapshot = useSyncExternalStore(subscribe, () => group.snapshot);
 
   return useMemo(
     () => ({
       view: group.forkTreeView(),
       pending: group.pendingEvents(),
-      epoch: Number(group.state.groupContext.epoch),
-      convergenceStatus: group.convergenceStatus,
-      lifecycle: group.lifecycle,
+      epoch: Number(snapshot.epoch),
+      convergenceStatus: snapshot.convergenceStatus,
+      lifecycle: snapshot.lifecycle,
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [group, version],
+    [group, snapshot],
   );
 }

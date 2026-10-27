@@ -2,7 +2,8 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useMemo,
+  useSyncExternalStore,
   useRef,
   useState,
   type ReactNode,
@@ -57,39 +58,29 @@ export function useMarmotClient(): AppMarmotClient | null {
 }
 
 /**
- * The loaded groups (`client.groups.loaded`), re-rendering when the set changes
- * or any group's state changes. marmot-ts gap: the manager's `updated` event
- * only fires when groups are added or removed, so per-group `stateChanged`
- * listeners are attached here.
+ * Read loaded groups using the library's stable snapshots and change event.
  * @returns Loaded groups, or undefined until saved groups are restored.
  * @example const groups = useGroups();
  */
 export function useGroups(): AppGroup[] | undefined {
   const account = useMarmotAccount();
   const restored = use$(() => account?.groupsRestored$, [account]) ?? false;
-  const [groups, setGroups] = useState<AppGroup[]>();
-  useEffect(() => {
-    setGroups(undefined);
-    if (!account || !restored) return;
-    const client = account.client;
-    let attached: AppGroup[] = [];
-    const emit = () => setGroups([...attached]);
-    const sync = (next: AppGroup[]) => {
-      for (const group of attached)
-        if (!next.includes(group)) group.off("stateChanged", emit);
-      for (const group of next)
-        if (!attached.includes(group)) group.on("stateChanged", emit);
-      attached = next;
-      emit();
-    };
-    client.groups.on("updated", sync);
-    sync(client.groups.loaded);
-    return () => {
-      client.groups.off("updated", sync);
-      for (const group of attached) group.off("stateChanged", emit);
-    };
-  }, [account, restored]);
-  return groups;
+  const manager = account?.client.groups;
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      if (!manager) return () => {};
+      manager.on("changed", listener);
+      return () => {
+        manager.off("changed", listener);
+      };
+    },
+    [manager],
+  );
+  const snapshots = useSyncExternalStore(subscribe, () => manager?.snapshot);
+  return useMemo(
+    () => (restored ? manager?.loaded : undefined),
+    [manager, restored, snapshots],
+  );
 }
 
 /**

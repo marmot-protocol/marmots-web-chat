@@ -31,7 +31,7 @@ The [Marmot integration guide](./src/lib/marmot/README.md) maps the library APIs
 
 ## Dependency updates
 
-The app depends on the published `@internet-privacy/marmot-ts` package (currently `0.8.0`) from npm, with Applesauce 7.x packages pinned to tested versions. To upgrade, bump the version in `package.json`, run `pnpm install`, then `pnpm test` and `pnpm build` before committing.
+The app depends on the published `@internet-privacy/marmot-ts` package (currently `0.9.0`) from npm, with Applesauce 7.x packages pinned to tested versions. To upgrade, bump the version in `package.json`, run `pnpm install`, then `pnpm test` and `pnpm build` before committing.
 
 ## Current protocol and migration
 

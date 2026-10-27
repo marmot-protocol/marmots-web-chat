@@ -29,6 +29,10 @@ Keep protocol rules, serialization, cryptography, convergence, and relay retry
 policy in the libraries. This folder supplies browser storage, application
 routing choices, UI state, and compatibility for this app's existing data.
 
+Group hooks subscribe to the library's `changed` events and read its stable
+`group.snapshot` / `client.groups.snapshot` values with `useSyncExternalStore`.
+The library owns per-group listener management; the app does not mirror it.
+
 ## File guide
 
 - **setup.ts** — composition root; the only integration module that imports app
@@ -67,13 +71,12 @@ routing choices, UI state, and compatibility for this app's existing data.
 
 ## marmot-ts API gaps
 
-Each helper below wraps something a chat UI needs that marmot-ts 0.8 does not
+Each helper below wraps something a chat UI needs that marmot-ts 0.9 does not
 provide. They are candidates to move upstream; once one lands, delete the helper
 and call the library.
 
 | Gap                                                                         | App code                                                                    |
 | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `groups.watch()` / `updated` ignore per-group state changes                 | `useGroups()` attaches `stateChanged` listeners                             |
 | No chat message, NIP-C7 reply, or reaction send helpers                     | `actions/messages.ts`                                                       |
 | No rename, promote/demote, remove-member, or media-policy helpers           | `actions/group-admin.ts`                                                    |
 | `groups.leave()` does not hand over admin first                             | `leaveGroup()`                                                              |
@@ -101,7 +104,7 @@ the guard. Downloads use `mediaSourceForRumor()` rather than guessing an epoch o
 trusting a plaintext cache entry. Historical v1 support is compatibility code,
 not a model for new sends.
 
-`ensurePublished()` in 0.8.0 can select another locally stored slot and returns a
+`ensurePublished()` in 0.9.0 can select another locally stored slot and returns a
 summary without publication events after creation. The small device check here
 reads signed capabilities and the durable list before deciding whether this
 browser needs another publication. Old private bundles remain for delayed
